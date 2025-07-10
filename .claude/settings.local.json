@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(uv sync:*)",
+      "Bash(uv python pin:*)",
+      "Bash(mkdir:*)",
+      "Bash(alembic init:*)",
+      "Bash(uv run alembic:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker compose:*)",
+      "Bash(uv run:*)",
+      "Bash(ls:*)",
+      "Bash(pkill:*)",
+      "Bash(git init:*)"
+    ],
+    "deny": []
+  }
+}
