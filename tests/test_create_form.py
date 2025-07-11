@@ -2,65 +2,11 @@
 
 import pytest
 import asyncio
-import subprocess
-import os
-import httpx
-from fastmcp.client import Client, StreamableHttpTransport
+from fastmcp.client import Client
 
 
 class TestMCPServerConnection:
     """Test suite for MCP Server connection and tools"""
-    
-    @pytest.fixture
-    async def mcp_server_process(self):
-        """Start the HTTP MCP server as a subprocess for testing"""
-        # Set environment variables - get current directory for relative paths
-        env = os.environ.copy()
-        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        env["PYTHONPATH"] = os.path.join(current_dir, "src")
-        env["MCP_PORT"] = "8082"  # Use different port for tests
-        
-        # Start the HTTP server process
-        process = subprocess.Popen(
-            [os.path.join(current_dir, ".venv", "bin", "python"), "src/ez_scheduler/server.py"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=env,
-            cwd=current_dir
-        )
-        
-        # Wait for HTTP server to be ready
-        await self._wait_for_server("http://localhost:8082")
-        
-        yield process
-        
-        # Clean up: terminate the process
-        if process.poll() is None:
-            process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait()
-    
-    async def _wait_for_server(self, url: str, timeout: int = 30):
-        """Wait for the HTTP server to be ready"""
-        import time
-        start_time = time.time()
-        
-        while time.time() - start_time < timeout:
-            try:
-                # Try to connect to the MCP server using StreamableHttpTransport
-                transport = StreamableHttpTransport(f"{url}/mcp")
-                async with Client(transport) as client:
-                    # Try to list tools as a simple connectivity test
-                    await client.list_tools()
-                    return
-            except Exception:
-                pass
-            await asyncio.sleep(0.5)
-        
-        raise TimeoutError(f"Server at {url} did not become ready within {timeout} seconds")
     
     @pytest.mark.asyncio
     async def test_server_startup(self, mcp_server_process):
@@ -72,13 +18,10 @@ class TestMCPServerConnection:
         assert mcp_server_process.poll() is None, "Server process should be running"
     
     @pytest.mark.asyncio
-    async def test_mcp_client_connection(self, mcp_server_process):
+    async def test_mcp_client_connection(self, mcp_server_process, mcp_client):
         """Test connecting to the MCP server using FastMCP HTTP client"""
-        # Create HTTP transport
-        transport = StreamableHttpTransport("http://localhost:8082/mcp")
-        
         try:
-            async with Client(transport) as client:
+            async with Client(mcp_client) as client:
                 # Test basic connection by listing tools
                 tools = await client.list_tools()
                 
@@ -94,13 +37,10 @@ class TestMCPServerConnection:
             pytest.fail(f"Failed to connect to MCP server: {e}")
     
     @pytest.mark.asyncio
-    async def test_create_form_tool_call(self, mcp_server_process):
+    async def test_create_form_tool_call(self, mcp_server_process, mcp_client):
         """Test calling the create_form tool"""
-        # Create HTTP transport
-        transport = StreamableHttpTransport("http://localhost:8082/mcp")
-        
         try:
-            async with Client(transport) as client:
+            async with Client(mcp_client) as client:
                 # Call the create_form tool
                 result = await client.call_tool(
                     "create_form",
@@ -123,13 +63,10 @@ class TestMCPServerConnection:
             pytest.fail(f"Failed to call create_form tool: {e}")
     
     @pytest.mark.asyncio
-    async def test_tool_schema_validation(self, mcp_server_process):
+    async def test_tool_schema_validation(self, mcp_server_process, mcp_client):
         """Test that the create_form tool has proper schema"""
-        # Create HTTP transport
-        transport = StreamableHttpTransport("http://localhost:8082/mcp")
-        
         try:
-            async with Client(transport) as client:
+            async with Client(mcp_client) as client:
                 tools = await client.list_tools()
                 create_form_tool = next((tool for tool in tools if tool.name == "create_form"), None)
                 
@@ -147,13 +84,10 @@ class TestMCPServerConnection:
             pytest.fail(f"Failed to validate tool schema: {e}")
     
     @pytest.mark.asyncio 
-    async def test_invalid_tool_call(self, mcp_server_process):
+    async def test_invalid_tool_call(self, mcp_server_process, mcp_client):
         """Test calling a non-existent tool"""
-        # Create HTTP transport
-        transport = StreamableHttpTransport("http://localhost:8082/mcp")
-        
         try:
-            async with Client(transport) as client:
+            async with Client(mcp_client) as client:
                 # Try to call a non-existent tool
                 with pytest.raises(Exception):
                     await client.call_tool("non_existent_tool", {})
