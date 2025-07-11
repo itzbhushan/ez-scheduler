@@ -12,7 +12,9 @@
       "Bash(uv run:*)",
       "Bash(ls:*)",
       "Bash(pkill:*)",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(cp:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }
