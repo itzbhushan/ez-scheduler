@@ -2,13 +2,6 @@
 """Test script to verify LLM client fix"""
 
 import asyncio
-import sys
-from pathlib import Path
-
-# Add src to path so we can import ez_scheduler modules
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root / "src"))
-
 from ez_scheduler.llm_client import LLMClient
 
 async def test_llm_client():

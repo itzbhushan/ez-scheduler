@@ -13,18 +13,19 @@ class TestMCPServerConnection:
     @pytest.fixture
     async def mcp_server_process(self):
         """Start the MCP server as a subprocess for testing"""
-        # Set environment variables
+        # Set environment variables - get current directory for relative paths
         env = os.environ.copy()
-        env["PYTHONPATH"] = "/Users/vb/ez/ez-scheduler/src"
+        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        env["PYTHONPATH"] = os.path.join(current_dir, "src")
         
         # Start the server process
         process = subprocess.Popen(
-            ["/Users/vb/ez/ez-scheduler/.venv/bin/python", "src/ez_scheduler/server.py"],
+            [os.path.join(current_dir, ".venv", "bin", "python"), "src/ez_scheduler/server.py"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=env,
-            cwd="/Users/vb/ez/ez-scheduler"
+            cwd=current_dir
         )
         
         # Give the server time to start
@@ -56,11 +57,12 @@ class TestMCPServerConnection:
         # Wait for server to be ready
         await asyncio.sleep(2)
         
-        # Create transport and client
+        # Create transport and client with dynamic paths
+        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         transport = PythonStdioTransport(
             script_path="src/ez_scheduler/server.py",
-            env={"PYTHONPATH": "/Users/vb/ez/ez-scheduler/src"},
-            cwd="/Users/vb/ez/ez-scheduler"
+            env={"PYTHONPATH": os.path.join(current_dir, "src")},
+            cwd=current_dir
         )
         
         try:
@@ -85,10 +87,11 @@ class TestMCPServerConnection:
         # Wait for server to be ready
         await asyncio.sleep(2)
         
+        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         transport = PythonStdioTransport(
             script_path="src/ez_scheduler/server.py",
-            env={"PYTHONPATH": "/Users/vb/ez/ez-scheduler/src"},
-            cwd="/Users/vb/ez/ez-scheduler"
+            env={"PYTHONPATH": os.path.join(current_dir, "src")},
+            cwd=current_dir
         )
         
         try:
@@ -120,34 +123,30 @@ class TestMCPServerConnection:
         # Wait for server to be ready
         await asyncio.sleep(2)
         
-        client = FastMCPClient()
+        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        transport = PythonStdioTransport(
+            script_path="src/ez_scheduler/server.py",
+            env={"PYTHONPATH": os.path.join(current_dir, "src")},
+            cwd=current_dir
+        )
         
         try:
-            await client.connect_subprocess(
-                command=["/Users/vb/ez/ez-scheduler/.venv/bin/python"],
-                args=["src/ez_scheduler/server.py"],
-                env={"PYTHONPATH": "/Users/vb/ez/ez-scheduler/src"},
-                cwd="/Users/vb/ez/ez-scheduler"
-            )
-            
-            tools = await client.list_tools()
-            create_form_tool = next((tool for tool in tools if tool.name == "create_form"), None)
-            
-            assert create_form_tool is not None, "create_form tool should exist"
-            assert create_form_tool.description is not None, "Tool should have description"
-            assert "form creation" in create_form_tool.description.lower(), "Description should mention form creation"
-            
-            # Check input schema if available
-            if hasattr(create_form_tool, 'inputSchema') and create_form_tool.inputSchema:
-                schema = create_form_tool.inputSchema
-                assert "user_id" in str(schema), "Schema should include user_id parameter"
-                assert "initial_request" in str(schema), "Schema should include initial_request parameter"
-            
+            async with Client(transport) as client:
+                tools = await client.list_tools()
+                create_form_tool = next((tool for tool in tools if tool.name == "create_form"), None)
+                
+                assert create_form_tool is not None, "create_form tool should exist"
+                assert create_form_tool.description is not None, "Tool should have description"
+                assert "form creation" in create_form_tool.description.lower(), "Description should mention form creation"
+                
+                # Check input schema if available
+                if hasattr(create_form_tool, 'inputSchema') and create_form_tool.inputSchema:
+                    schema = create_form_tool.inputSchema
+                    assert "user_id" in str(schema), "Schema should include user_id parameter"
+                    assert "initial_request" in str(schema), "Schema should include initial_request parameter"
+                
         except Exception as e:
             pytest.fail(f"Failed to validate tool schema: {e}")
-        
-        finally:
-            await client.close()
     
     @pytest.mark.asyncio 
     async def test_invalid_tool_call(self, mcp_server_process):
@@ -155,23 +154,19 @@ class TestMCPServerConnection:
         # Wait for server to be ready
         await asyncio.sleep(2)
         
-        client = FastMCPClient()
+        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        transport = PythonStdioTransport(
+            script_path="src/ez_scheduler/server.py",
+            env={"PYTHONPATH": os.path.join(current_dir, "src")},
+            cwd=current_dir
+        )
         
         try:
-            await client.connect_subprocess(
-                command=["/Users/vb/ez/ez-scheduler/.venv/bin/python"],
-                args=["src/ez_scheduler/server.py"],
-                env={"PYTHONPATH": "/Users/vb/ez/ez-scheduler/src"},
-                cwd="/Users/vb/ez/ez-scheduler"
-            )
+            async with Client(transport) as client:
+                # Try to call a non-existent tool
+                with pytest.raises(Exception):
+                    await client.call_tool("non_existent_tool", {})
             
-            # Try to call a non-existent tool
-            with pytest.raises(Exception):
-                await client.call_tool("non_existent_tool", {})
-            
-        except Exception as e:
+        except Exception:
             # This is expected for the non-existent tool call
             pass
-        
-        finally:
-            await client.close()
