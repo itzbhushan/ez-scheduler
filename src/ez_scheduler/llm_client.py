@@ -38,11 +38,9 @@ class LLMClient:
         
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
-            print("Warning: ANTHROPIC_API_KEY not found. LLM features will be disabled.", file=__import__('sys').stderr)
-            print(f"Tried loading from: {env_path}", file=__import__('sys').stderr)
-            self.client = None
-        else:
-            self.client = Anthropic(api_key=api_key)
+            raise ValueError(f"ANTHROPIC_API_KEY not found. Please set the API key in {env_path}")
+        
+        self.client = Anthropic(api_key=api_key)
     
     async def process_form_instruction(
         self, 
@@ -107,14 +105,6 @@ CONVERSATION HISTORY:
 USER MESSAGE: {user_message}
 """
 
-        # Check if client is available
-        if not self.client:
-            return ConversationResponse(
-                response_text="LLM service is currently unavailable. Please ensure your API key is configured.",
-                extracted_data=FormExtractionSchema(),
-                action="clarify"
-            )
-
         try:
             response = self.client.messages.create(
                 model="claude-3-5-sonnet-20241022",
@@ -165,25 +155,10 @@ Generate a confirmation response that includes:
 5. Next steps or suggestions
 """
 
-        # Check if client is available
-        if not self.client:
-            return f"""Perfect! I've created your signup form.
-
-**Form Details:**
-- **Title:** {form_data.get('title', 'Untitled Event')}
-- **Date:** {form_data.get('event_date', 'TBD')}
-- **Location:** {form_data.get('location', 'TBD')}
-
-**Form URL:** {form_data.get('url', 'http://localhost:8000/forms/unknown')}
-
-The form includes required fields for name, email, and phone number. Your form is now active and ready to accept registrations!
-
-Note: LLM service is currently unavailable for generating custom responses."""
-
         try:
             response = self.client.messages.create(
                 model="claude-3-5-sonnet-20241022",
-                max_tokens=500,
+                max_tokens=100,
                 system=system_prompt,
                 messages=[{"role": "user", "content": context}]
             )
@@ -203,3 +178,73 @@ Note: LLM service is currently unavailable for generating custom responses."""
 **Form URL:** {form_data.get('url', 'http://localhost:8000/forms/unknown')}
 
 The form includes required fields for name, email, and phone number. Your form is now active and ready to accept registrations!"""
+    
+    async def generate_form_id(self, title: str, event_date: str) -> str:
+        """Generate a meaningful form ID using LLM based on event details"""
+        try:
+            # Ask LLM to generate a URL-friendly form ID
+            prompt = f"""Generate a short, URL-friendly form ID (slug) for an event form.
+
+Event Details:
+- Title: {title}
+- Date: {event_date}
+
+Requirements:
+- Use lowercase letters, numbers, and hyphens only
+- Maximum 30 characters
+- Be descriptive but concise
+- Include year if available in date
+- Remove special characters and spaces
+
+Examples:
+- "John's Birthday Party" on "March 15th, 2025" → "johns-birthday-party-2025"
+- "Company Retreat" on "July 2024" → "company-retreat-2024"
+- "Wedding Reception" on "December 12th" → "wedding-reception-dec"
+
+Generate only the form ID, no explanation:"""
+            
+            response = self.client.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=50,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            
+            generated_id = response.content[0].text.strip().lower()
+            # Clean and validate the generated ID
+            import re
+            generated_id = re.sub(r'[^a-z0-9-]', '', generated_id)
+            generated_id = re.sub(r'-+', '-', generated_id)  # Remove multiple consecutive hyphens
+            generated_id = generated_id.strip('-')  # Remove leading/trailing hyphens
+            
+            if len(generated_id) > 30:
+                generated_id = generated_id[:30].rstrip('-')
+            
+            # If empty or too short, use fallback
+            if len(generated_id) < 3:
+                return self._fallback_form_id(title, event_date)
+            
+            return generated_id
+            
+        except Exception as e:
+            print(f"Failed to generate form ID with LLM: {e}", file=__import__('sys').stderr)
+            return self._fallback_form_id(title, event_date)
+    
+    def _fallback_form_id(self, title: str, event_date: str) -> str:
+        """Fallback form ID generation without LLM"""
+        import re
+        # Simple slug generation
+        slug = title.lower()
+        slug = re.sub(r'[^a-z0-9\s]', '', slug)  # Remove special chars
+        slug = re.sub(r'\s+', '-', slug)  # Replace spaces with hyphens
+        slug = slug.strip('-')  # Remove leading/trailing hyphens
+        
+        # Add year if found in date
+        year_match = re.search(r'20\d{2}', event_date)
+        if year_match:
+            slug += f"-{year_match.group()}"
+        
+        # Limit length
+        if len(slug) > 30:
+            slug = slug[:30].rstrip('-')
+        
+        return slug if slug else "event"

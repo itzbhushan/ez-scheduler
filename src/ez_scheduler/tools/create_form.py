@@ -1,6 +1,7 @@
 """Create Form Tool - Handles form creation conversations using LLM"""
 
 import logging
+import uuid
 from typing import Any, Dict
 from datetime import datetime
 
@@ -12,6 +13,8 @@ logger = logging.getLogger(__name__)
 conversations: Dict[str, Dict[str, Any]] = {}
 forms: Dict[str, Dict[str, Any]] = {}
 llm_client = LLMClient()
+
+
 
 
 async def create_form_handler(user_id: str, initial_request: str) -> str:
@@ -70,13 +73,21 @@ async def create_form_handler(user_id: str, initial_request: str) -> str:
         if llm_response.action == "create_form" and extracted_data.is_complete:
             # Create the form
             form_data = conversation["form_data"]
-            form_id = f"form_{len(forms) + 1}"
+            title = form_data.get("title", "Untitled Event")
+            event_date = form_data.get("event_date", "TBD")
+            
+            # Generate meaningful form ID using LLM
+            base_form_id = await llm_client.generate_form_id(title, event_date)
+            
+            # Add UUID to ensure uniqueness
+            unique_id = str(uuid.uuid4())[:8]  # First 8 chars of UUID
+            form_id = f"{base_form_id}-{unique_id}"
             
             forms[form_id] = {
                 "id": form_id,
                 "user_id": conversation["user_id"],
-                "title": form_data.get("title", "Untitled Event"),
-                "event_date": form_data.get("event_date", "TBD"),
+                "title": title,
+                "event_date": event_date,
                 "location": form_data.get("location", "TBD"),
                 "description": form_data.get("description", ""),
                 "is_active": True,
@@ -88,15 +99,13 @@ async def create_form_handler(user_id: str, initial_request: str) -> str:
                 ]
             }
             
-            # Generate URL
-            form_url = f"http://localhost:8000/forms/{form_id}"
-            forms[form_id]["url"] = form_url
-            
             conversation["status"] = "completed"
             conversation["form_id"] = form_id
             
-            # Use LLM to generate response
-            response_text = await llm_client.generate_form_response(forms[form_id])
+            # Use LLM to generate response with dynamic URL
+            form_data_with_url = forms[form_id].copy()
+            form_data_with_url["url"] = f"http://localhost:8000/forms/{form_id}"
+            response_text = await llm_client.generate_form_response(form_data_with_url)
         else:
             response_text = llm_response.response_text
         
