@@ -4,7 +4,8 @@ import pytest
 import asyncio
 import subprocess
 import os
-from fastmcp.client import Client, PythonStdioTransport
+import httpx
+from fastmcp.client import Client, StreamableHttpTransport
 
 
 class TestMCPServerConnection:
@@ -12,24 +13,24 @@ class TestMCPServerConnection:
     
     @pytest.fixture
     async def mcp_server_process(self):
-        """Start the MCP server as a subprocess for testing"""
+        """Start the HTTP MCP server as a subprocess for testing"""
         # Set environment variables - get current directory for relative paths
         env = os.environ.copy()
         current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         env["PYTHONPATH"] = os.path.join(current_dir, "src")
+        env["MCP_PORT"] = "8082"  # Use different port for tests
         
-        # Start the server process
+        # Start the HTTP server process
         process = subprocess.Popen(
             [os.path.join(current_dir, ".venv", "bin", "python"), "src/ez_scheduler/server.py"],
-            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=env,
             cwd=current_dir
         )
         
-        # Give the server time to start
-        await asyncio.sleep(2)
+        # Wait for HTTP server to be ready
+        await self._wait_for_server("http://localhost:8082")
         
         yield process
         
@@ -42,6 +43,25 @@ class TestMCPServerConnection:
                 process.kill()
                 process.wait()
     
+    async def _wait_for_server(self, url: str, timeout: int = 30):
+        """Wait for the HTTP server to be ready"""
+        import time
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout:
+            try:
+                # Try to connect to the MCP server using StreamableHttpTransport
+                transport = StreamableHttpTransport(f"{url}/mcp")
+                async with Client(transport) as client:
+                    # Try to list tools as a simple connectivity test
+                    await client.list_tools()
+                    return
+            except Exception:
+                pass
+            await asyncio.sleep(0.5)
+        
+        raise TimeoutError(f"Server at {url} did not become ready within {timeout} seconds")
+    
     @pytest.mark.asyncio
     async def test_server_startup(self, mcp_server_process):
         """Test that the MCP server starts without errors"""
@@ -53,17 +73,9 @@ class TestMCPServerConnection:
     
     @pytest.mark.asyncio
     async def test_mcp_client_connection(self, mcp_server_process):
-        """Test connecting to the MCP server using FastMCP client"""
-        # Wait for server to be ready
-        await asyncio.sleep(2)
-        
-        # Create transport and client with dynamic paths
-        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        transport = PythonStdioTransport(
-            script_path="src/ez_scheduler/server.py",
-            env={"PYTHONPATH": os.path.join(current_dir, "src")},
-            cwd=current_dir
-        )
+        """Test connecting to the MCP server using FastMCP HTTP client"""
+        # Create HTTP transport
+        transport = StreamableHttpTransport("http://localhost:8082/mcp")
         
         try:
             async with Client(transport) as client:
@@ -84,15 +96,8 @@ class TestMCPServerConnection:
     @pytest.mark.asyncio
     async def test_create_form_tool_call(self, mcp_server_process):
         """Test calling the create_form tool"""
-        # Wait for server to be ready
-        await asyncio.sleep(2)
-        
-        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        transport = PythonStdioTransport(
-            script_path="src/ez_scheduler/server.py",
-            env={"PYTHONPATH": os.path.join(current_dir, "src")},
-            cwd=current_dir
-        )
+        # Create HTTP transport
+        transport = StreamableHttpTransport("http://localhost:8082/mcp")
         
         try:
             async with Client(transport) as client:
@@ -120,15 +125,8 @@ class TestMCPServerConnection:
     @pytest.mark.asyncio
     async def test_tool_schema_validation(self, mcp_server_process):
         """Test that the create_form tool has proper schema"""
-        # Wait for server to be ready
-        await asyncio.sleep(2)
-        
-        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        transport = PythonStdioTransport(
-            script_path="src/ez_scheduler/server.py",
-            env={"PYTHONPATH": os.path.join(current_dir, "src")},
-            cwd=current_dir
-        )
+        # Create HTTP transport
+        transport = StreamableHttpTransport("http://localhost:8082/mcp")
         
         try:
             async with Client(transport) as client:
@@ -151,15 +149,8 @@ class TestMCPServerConnection:
     @pytest.mark.asyncio 
     async def test_invalid_tool_call(self, mcp_server_process):
         """Test calling a non-existent tool"""
-        # Wait for server to be ready
-        await asyncio.sleep(2)
-        
-        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        transport = PythonStdioTransport(
-            script_path="src/ez_scheduler/server.py",
-            env={"PYTHONPATH": os.path.join(current_dir, "src")},
-            cwd=current_dir
-        )
+        # Create HTTP transport
+        transport = StreamableHttpTransport("http://localhost:8082/mcp")
         
         try:
             async with Client(transport) as client:

@@ -148,4 +148,6 @@ async def create_form(user_id: str, initial_request: str) -> str:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    port = int(os.getenv("MCP_PORT", "8080"))
+    logger.info(f"Starting HTTP MCP server on localhost:{port}")
+    mcp.run(transport="streamable-http", host="localhost", port=port)

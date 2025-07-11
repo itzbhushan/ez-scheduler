@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "ez-scheduler": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://localhost:8080/mcp"
+      ]
+    }
+  }
+}
