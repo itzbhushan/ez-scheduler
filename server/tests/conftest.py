@@ -27,7 +27,7 @@ async def mcp_server_process():
     
     # Start the HTTP server process
     process = subprocess.Popen(
-        [os.path.join(current_dir, ".venv", "bin", "python"), "src/ez_scheduler/server.py"],
+        [os.path.join(current_dir, ".venv", "bin", "python"), "src/ez_scheduler/main.py"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         env=env,
