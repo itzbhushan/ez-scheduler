@@ -1,67 +1,56 @@
 """Create Form Tool - Handles form creation conversations using LLM"""
 
+import logging
 from typing import Any, Dict
 from datetime import datetime
 
-from mcp.types import CallToolResult, TextContent
 from ..llm_client import LLMClient
 
+logger = logging.getLogger(__name__)
 
-class CreateFormTool:
-    """Tool for creating signup forms through LLM-powered conversation"""
+# Global storage - shared across the application
+conversations: Dict[str, Dict[str, Any]] = {}
+forms: Dict[str, Dict[str, Any]] = {}
+llm_client = LLMClient()
+
+
+async def create_form_handler(user_id: str, initial_request: str) -> str:
+    """
+    Initiates form creation conversation.
     
-    def __init__(self):
-        self.conversations: Dict[str, Dict[str, Any]] = {}
-        self.forms: Dict[str, Dict[str, Any]] = {}
-        self.llm_client = LLMClient()
+    Args:
+        user_id: User identifier
+        initial_request: Initial form creation request
+        
+    Returns:
+        Response from the form creation process
+    """
+    logger.info(f"Creating form for user {user_id}: {initial_request}")
     
-    async def handle(self, args: Dict[str, Any]) -> CallToolResult:
-        """Handle form creation request"""
-        user_id = args["user_id"]
-        initial_request = args["initial_request"]
-        
-        # Create or continue conversation
-        conversation_id = f"conv_{user_id}_{len(self.conversations) + 1}"
-        
-        if conversation_id not in self.conversations:
-            self.conversations[conversation_id] = {
-                "user_id": user_id,
-                "status": "active",
-                "messages": [],
-                "form_data": {}
-            }
-        
-        # Add user message
-        self.conversations[conversation_id]["messages"].append({
-            "role": "user",
-            "content": initial_request
-        })
-        
-        # Process conversation using LLM
-        response = await self._process_conversation(conversation_id, initial_request)
-        
-        # Add assistant response
-        self.conversations[conversation_id]["messages"].append({
-            "role": "assistant",
-            "content": response
-        })
-        
-        return CallToolResult(
-            content=[
-                TextContent(
-                    type="text",
-                    text=response
-                )
-            ]
-        )
+    # Create or continue conversation
+    conversation_id = f"conv_{user_id}_{len(conversations) + 1}"
     
-    async def _process_conversation(self, conversation_id: str, message: str) -> str:
-        """Process conversation using LLM to understand user intent"""
-        conversation = self.conversations[conversation_id]
-        
+    if conversation_id not in conversations:
+        conversations[conversation_id] = {
+            "user_id": user_id,
+            "status": "active",
+            "messages": [],
+            "form_data": {}
+        }
+    
+    # Add user message
+    conversations[conversation_id]["messages"].append({
+        "role": "user",
+        "content": initial_request
+    })
+    
+    # Process conversation using LLM
+    conversation = conversations[conversation_id]
+    
+    try:
         # Use LLM to process the instruction
-        llm_response = await self.llm_client.process_form_instruction(
-            user_message=message,
+        llm_response = await llm_client.process_form_instruction(
+            user_message=initial_request,
             conversation_history=conversation["messages"],
             current_form_data=conversation["form_data"]
         )
@@ -79,43 +68,53 @@ class CreateFormTool:
         
         # Handle different actions
         if llm_response.action == "create_form" and extracted_data.is_complete:
-            return await self._create_form_from_conversation(conversation_id)
-        elif llm_response.action == "continue":
-            return llm_response.response_text
-        elif llm_response.action == "clarify":
-            return llm_response.response_text
+            # Create the form
+            form_data = conversation["form_data"]
+            form_id = f"form_{len(forms) + 1}"
+            
+            forms[form_id] = {
+                "id": form_id,
+                "user_id": conversation["user_id"],
+                "title": form_data.get("title", "Untitled Event"),
+                "event_date": form_data.get("event_date", "TBD"),
+                "location": form_data.get("location", "TBD"),
+                "description": form_data.get("description", ""),
+                "is_active": True,
+                "created_at": datetime.now().isoformat(),
+                "fields": [
+                    {"name": "name", "type": "text", "required": True, "label": "Full Name"},
+                    {"name": "email", "type": "email", "required": True, "label": "Email Address"},
+                    {"name": "phone", "type": "tel", "required": True, "label": "Phone Number"},
+                ]
+            }
+            
+            # Generate URL
+            form_url = f"http://localhost:8000/forms/{form_id}"
+            forms[form_id]["url"] = form_url
+            
+            conversation["status"] = "completed"
+            conversation["form_id"] = form_id
+            
+            # Use LLM to generate response
+            response_text = await llm_client.generate_form_response(forms[form_id])
         else:
-            return llm_response.response_text
-    
-    async def _create_form_from_conversation(self, conversation_id: str) -> str:
-        """Create form from conversation data"""
-        conversation = self.conversations[conversation_id]
-        form_data = conversation["form_data"]
+            response_text = llm_response.response_text
         
-        # Generate form
-        form_id = f"form_{len(self.forms) + 1}"
-        self.forms[form_id] = {
-            "id": form_id,
-            "user_id": conversation["user_id"],
-            "title": form_data.get("title", "Untitled Event"),
-            "event_date": form_data.get("event_date", "TBD"),
-            "location": form_data.get("location", "TBD"),
-            "description": form_data.get("description", ""),
-            "is_active": True,
-            "created_at": datetime.now().isoformat(),
-            "fields": [
-                {"name": "name", "type": "text", "required": True, "label": "Full Name"},
-                {"name": "email", "type": "email", "required": True, "label": "Email Address"},
-                {"name": "phone", "type": "tel", "required": True, "label": "Phone Number"},
-            ]
-        }
+        # Add assistant response
+        conversation["messages"].append({
+            "role": "assistant",
+            "content": response_text
+        })
         
-        # Generate URL
-        form_url = f"http://localhost:8000/forms/{form_id}"
-        self.forms[form_id]["url"] = form_url
+        return response_text
         
-        conversation["status"] = "completed"
-        conversation["form_id"] = form_id
+    except Exception as e:
+        logger.error(f"Error processing form creation: {e}")
+        error_response = "I'm experiencing technical difficulties. Please try again."
         
-        # Use LLM to generate a professional response
-        return await self.llm_client.generate_form_response(self.forms[form_id])
+        conversation["messages"].append({
+            "role": "assistant",
+            "content": error_response
+        })
+        
+        return error_response
