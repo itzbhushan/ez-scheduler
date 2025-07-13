@@ -20,7 +20,7 @@ if command -v docker &> /dev/null; then
     echo "  Building Docker image..."
     docker build -t ez-scheduler-server . || exit 1
     echo "  ✅ Docker build successful"
-    
+
     echo "🚀 Testing Docker run (dry run)..."
     echo "  Command: docker run -p 8080:8080 ez-scheduler-server"
     echo "  ✅ Ready to run"
@@ -30,7 +30,7 @@ fi
 
 echo "📋 Docker Compose services:"
 echo "  - postgres:5432"
-echo "  - redis:6379" 
+echo "  - redis:6379"
 echo "  - app:8080"
 
 echo ""

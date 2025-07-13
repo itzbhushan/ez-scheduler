@@ -94,7 +94,7 @@ if "date" in user_message.lower():
 *Update this section during development*
 
 ### ⏳ Pending Tools
-- `modify_form` - Updates existing form properties  
+- `modify_form` - Updates existing form properties
 - `get_form_analytics` - Queries registration data
 - `list_forms` - Shows all forms for the user
 - `activate_form` - Enables/disables form submissions

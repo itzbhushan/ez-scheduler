@@ -14,7 +14,12 @@
       "Bash(pkill:*)",
       "Bash(git init:*)",
       "Bash(cp:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(docker:*)",
+      "Bash(pytest:*)",
+      "Bash(alembic upgrade:*)",
+      "Bash(curl:*)",
+      "Bash(python:*)"
     ],
     "deny": []
   }
