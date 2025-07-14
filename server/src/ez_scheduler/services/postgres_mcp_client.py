@@ -33,7 +33,8 @@ class PostgresMCPClient:
         self.database_uri = database_uri
         # Convert database URI for MCP container to use Docker network
         # Replace localhost with Docker container name, keep other addresses as-is
-        self.mcp_database_uri = database_uri.replace("localhost", "server-postgres-1")
+        self.database_uri = database_uri
+        logging.debug(f"Using MCP database URI: {self.database_uri}")
         self.llm_client = llm_client
         self.process = None
         self.request_id = 0
@@ -58,16 +59,23 @@ class PostgresMCPClient:
             # Reset state when starting new process
             self.request_id = 0
 
+            # Convert localhost to host.docker.internal for Docker container
+            docker_database_uri = self.database_uri.replace(
+                "localhost", "host.docker.internal"
+            )
+            logger.debug(
+                f"Converting database URI for Docker: {self.database_uri} -> {docker_database_uri}"
+            )
+
             # Start the mcp/postgres server with stdio transport
             self.process = await asyncio.create_subprocess_exec(
                 "docker",
                 "run",
                 "--rm",
                 "-i",
-                "--network",
-                "server_default",
+                "--add-host=host.docker.internal:host-gateway",  # Enable host.docker.internal
                 "mcp/postgres",
-                self.mcp_database_uri,  # Pass database URL as command line argument
+                docker_database_uri,  # Pass converted database URL as command line argument
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -79,7 +87,7 @@ class PostgresMCPClient:
         """Send an MCP request via stdio"""
         await self._ensure_process_running()
 
-        self.request_id += 1
+        self.request_id = 1
         request = {
             "jsonrpc": "2.0",
             "id": self.request_id,
@@ -88,12 +96,16 @@ class PostgresMCPClient:
         }
 
         request_json = json.dumps(request) + "\n"
+        logger.debug(f"Sending MCP request: {request_json.strip()}")
         self.process.stdin.write(request_json.encode())
         await self.process.stdin.drain()
 
         # Read response
         response_line = await self.process.stdout.readline()
+        logger.debug(f"Raw MCP response: {response_line}")
+
         response = json.loads(response_line.decode())
+        logger.debug(f"Parsed MCP response: {response}")
 
         if "error" in response:
             raise Exception(f"MCP Error: {response['error']}")

@@ -40,7 +40,7 @@ build-backend = "hatchling.build"
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src"]
-log_cli = 1
+log_cli = true
 
 [tool.black]
 line-length = 88
@@ -57,4 +57,5 @@ dev = [
     "pre-commit>=4.2.0",
     "pytest>=8.4.1",
     "pytest-asyncio>=1.0.0",
+    "testcontainers[postgres]>=4.10.0",
 ]

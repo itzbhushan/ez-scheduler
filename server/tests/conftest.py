@@ -1,6 +1,7 @@
 """Shared test configuration and fixtures for EZ Scheduler tests"""
 
 import asyncio
+import logging
 import os
 import subprocess
 import time
@@ -10,11 +11,15 @@ import pytest
 from dotenv import load_dotenv
 from ez_scheduler.llm_client import LLMClient
 from fastmcp.client import Client, StreamableHttpTransport
+from testcontainers.postgres import PostgresContainer
 
 # Load environment variables from .env file
 project_root = Path(__file__).parent.parent
 env_path = project_root / ".env"
 load_dotenv(env_path)
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope="session")
@@ -31,10 +36,6 @@ def verify_test_requirements():
     # Check for Anthropic API key
     if not os.getenv("ANTHROPIC_API_KEY"):
         pytest.exit("ANTHROPIC_API_KEY environment variable is required for tests")
-
-    # Check for PostgreSQL MCP URL
-    if not os.getenv("POSTGRES_MCP_URL"):
-        pytest.exit("POSTGRES_MCP_URL environment variable is required for tests")
 
     return True
 
@@ -92,6 +93,56 @@ async def _wait_for_server(url: str, timeout: int = 30):
         await asyncio.sleep(0.5)
 
     raise TimeoutError(f"Server at {url} did not become ready within {timeout} seconds")
+
+
+@pytest.fixture(scope="session")
+def postgres_container():
+    """Create a PostgreSQL test container for the test session"""
+    with PostgresContainer("postgres:16") as postgres:
+        # Set up database URI in environment
+        database_url = postgres.get_connection_url()
+        os.environ["sqlalchemy.url"] = database_url
+
+        # Run Alembic migrations to set up schema
+        _run_migrations(database_url)
+
+        yield postgres
+
+
+def _run_migrations(database_url: str):
+    """Run Alembic migrations on the test database"""
+    import os
+    import subprocess
+    from pathlib import Path
+
+    # Get the server directory (where alembic.ini is located)
+    server_dir = Path(__file__).parent.parent
+    alembic_ini = server_dir / "alembic.ini"
+
+    # Set environment variable for database URL
+    env = os.environ.copy()
+    env["DATABASE_URL"] = database_url
+
+    try:
+        # Run alembic upgrade head
+        result = subprocess.run(
+            ["alembic", "-c", str(alembic_ini), "upgrade", "head"],
+            cwd=server_dir,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        if result.returncode != 0:
+            logger.error(f"Alembic migration failed: {result.stderr}")
+            raise RuntimeError(f"Failed to run migrations: {result.stderr}")
+        else:
+            logger.info("Database schema setup completed successfully")
+
+    except Exception as e:
+        logger.error(f"Error running migrations: {e}")
+        raise
 
 
 @pytest.fixture(scope="session")

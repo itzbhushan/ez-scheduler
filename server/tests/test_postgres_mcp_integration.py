@@ -15,17 +15,24 @@ project_root = Path(__file__).parent.parent.parent
 env_path = project_root / ".env"
 load_dotenv(env_path)
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope="function")
-async def postgres_mcp_client(llm_client):
+async def postgres_mcp_client(llm_client, postgres_container):
     """Pytest fixture to provide a PostgresMCPClient instance with proper cleanup"""
     logger.info("Setting up PostgresMCPClient fixture")
 
-    # For tests, use localhost since tests run outside Docker
-    database_uri = "postgresql://ez_user:ez_password@localhost:5432/ez_scheduler"
+    # Use the test container's connection URL
+    database_uri = postgres_container.get_connection_url()
+    logger.info(f"Using test database: {database_uri}")
+
+    # Log more details about the container for debugging
+    logger.info(f"Container host: {postgres_container.get_container_host_ip()}")
+    logger.info(f"Container port: {postgres_container.get_exposed_port(5432)}")
+    logger.info(f"Container ID: {postgres_container.get_wrapped_container().id}")
+
     client = PostgresMCPClient(database_uri, llm_client)
     try:
         yield client
@@ -42,8 +49,7 @@ class TestMCPServerValidation:
         self, postgres_mcp_client: PostgresMCPClient, sql_query: str, params: dict
     ):
         """Validate SQL using PostgresMCPClient with mcp/postgres server"""
-        print(f"📝 Validating SQL via MCP server: {sql_query[:100]}...")
-        print(f"Parameters: {params}")
+        logger.info(f"📝 Validating SQL via MCP server: {sql_query}")
 
         try:
             # Create EXPLAIN query to validate syntax without executing data operations
