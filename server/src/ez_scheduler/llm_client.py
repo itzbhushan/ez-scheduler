@@ -1,28 +1,13 @@
 """Simplified LLM client for core Anthropic API interactions"""
 
-import os
-from pathlib import Path
-
 from anthropic import Anthropic
-from dotenv import load_dotenv
 
 
 class LLMClient:
     """Client for LLM-based instruction processing"""
 
-    def __init__(self):
-        # Load environment variables from project root
-        project_root = Path(__file__).parent.parent.parent
-        env_path = project_root / ".env"
-        load_dotenv(env_path)
-
-        api_key = os.getenv("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise ValueError(
-                f"ANTHROPIC_API_KEY not found. Please set the API key in {env_path}"
-            )
-
-        self.client = Anthropic(api_key=api_key)
+    def __init__(self, config: dict):
+        self.client = Anthropic(api_key=config["anthropic_api_key"])
 
     async def process_instruction(
         self, messages: list, max_tokens: int = 1000, system: str = None

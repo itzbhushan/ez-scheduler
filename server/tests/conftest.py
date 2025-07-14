@@ -8,15 +8,11 @@ import time
 from pathlib import Path
 
 import pytest
-from dotenv import load_dotenv
 from ez_scheduler.llm_client import LLMClient
 from fastmcp.client import Client, StreamableHttpTransport
 from testcontainers.postgres import PostgresContainer
 
-# Load environment variables from .env file
-project_root = Path(__file__).parent.parent
-env_path = project_root / ".env"
-load_dotenv(env_path)
+from .config import test_config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,7 +30,7 @@ def event_loop():
 def verify_test_requirements():
     """Verify required environment variables and dependencies for tests"""
     # Check for Anthropic API key
-    if not os.getenv("ANTHROPIC_API_KEY"):
+    if not test_config["anthropic_api_key"]:
         pytest.exit("ANTHROPIC_API_KEY environment variable is required for tests")
 
     return True
@@ -43,37 +39,28 @@ def verify_test_requirements():
 @pytest.fixture(scope="session")
 async def mcp_server_process():
     """Start the HTTP MCP server once for the entire test session"""
-    # Set environment variables - get current directory for relative paths
     env = os.environ.copy()
-    current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    env["PYTHONPATH"] = os.path.join(current_dir, "src")
-    env["MCP_PORT"] = "8082"  # Use different port for tests
+    env["MCP_PORT"] = str(test_config["mcp_port"])  # Use test config port
 
     # Start the HTTP server process
     process = subprocess.Popen(
         [
-            os.path.join(current_dir, ".venv", "bin", "python"),
+            "uv",
+            "run",
+            "python",
             "src/ez_scheduler/main.py",
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         env=env,
-        cwd=current_dir,
     )
 
     # Wait for HTTP server to be ready
-    await _wait_for_server("http://localhost:8082")
+    await _wait_for_server(f"http://localhost:{test_config['mcp_port']}")
 
     yield process
 
-    # Clean up: terminate the process
-    if process.poll() is None:
-        process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
+    process.terminate()
 
 
 async def _wait_for_server(url: str, timeout: int = 30):
@@ -101,6 +88,7 @@ def postgres_container():
     with PostgresContainer("postgres:16") as postgres:
         # Set up database URI in environment
         database_url = postgres.get_connection_url()
+        os.environ["DATABASE_URL"] = database_url
         os.environ["sqlalchemy.url"] = database_url
 
         # Run Alembic migrations to set up schema
@@ -148,10 +136,10 @@ def _run_migrations(database_url: str):
 @pytest.fixture(scope="session")
 def llm_client():
     """Create a shared LLMClient instance for all tests"""
-    return LLMClient()
+    return LLMClient(test_config)
 
 
 @pytest.fixture
 def mcp_client():
     """Create an MCP client connected to the test server"""
-    return StreamableHttpTransport("http://localhost:8082/mcp")
+    return StreamableHttpTransport(f"http://localhost:{test_config['mcp_port']}/mcp")

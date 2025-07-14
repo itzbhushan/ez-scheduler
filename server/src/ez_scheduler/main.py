@@ -2,39 +2,27 @@
 """EZ Scheduler MCP Server - Signup Form Generation"""
 
 import logging
-import os
-from pathlib import Path
 
-from dotenv import load_dotenv
+from ez_scheduler.config import config
 from ez_scheduler.llm_client import LLMClient
 from ez_scheduler.services.postgres_mcp_client import PostgresMCPClient
 from ez_scheduler.tools.create_form import create_form_handler
 from ez_scheduler.tools.get_form_analytics import get_form_analytics_handler
 from fastmcp import FastMCP
 
-# Load environment variables
-project_root = Path(__file__).parent.parent.parent
-env_path = project_root / ".env"
-load_dotenv(env_path)
-
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=getattr(logging, config["log_level"]))
 logger = logging.getLogger(__name__)
 
 # Debug: Check if API key is loaded
-logger.info(f"API key loaded: {bool(os.getenv('ANTHROPIC_API_KEY'))}")
-logger.info(f"Env file path: {env_path}")
-logger.info(f"Env file exists: {env_path.exists()}")
+logger.info(f"API key loaded: {bool(config['anthropic_api_key'])}")
 
 # Create shared instances
 logger.info("Creating shared LLM client...")
-llm_client = LLMClient()
+llm_client = LLMClient(config)
 
 logger.info("Creating shared PostgresMCPClient...")
-database_uri = os.getenv(
-    "DATABASE_URL", "postgresql://ez_user:ez_password@localhost:5432/ez_scheduler"
-)
-postgres_mcp_client = PostgresMCPClient(database_uri, llm_client)
+postgres_mcp_client = PostgresMCPClient(config, llm_client)
 
 # Create MCP app
 mcp = FastMCP("ez-scheduler")
@@ -74,7 +62,7 @@ async def get_form_analytics(user_id: str, analytics_query: str) -> str:
 
 
 if __name__ == "__main__":
-    port = int(os.getenv("MCP_PORT", "8080"))
+    port = config["mcp_port"]
     logger.info(f"Starting HTTP MCP server on 0.0.0.0:{port}")
     try:
         mcp.run(transport="streamable-http", host="0.0.0.0", port=port)

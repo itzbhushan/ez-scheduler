@@ -2,16 +2,13 @@
 
 import os
 
-from dotenv import load_dotenv
+from ez_scheduler.config import config
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# Load environment variables
-load_dotenv()
-
-# Database URL from environment
-DATABASE_URL = os.getenv("DATABASE_URL")
+# Database URL from config
+DATABASE_URL = config["database_url"]
 
 # Create engine
 engine = create_engine(DATABASE_URL, echo=os.getenv("DEBUG", "false").lower() == "true")

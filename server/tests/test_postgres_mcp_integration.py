@@ -1,19 +1,14 @@
 """Tests for PostgreSQL MCP integration with real LLM and real SQL validation"""
 
 import logging
-from pathlib import Path
 
 import pytest
-from dotenv import load_dotenv
 from ez_scheduler.services.postgres_mcp_client import (
     PostgresMCPClient,
     generate_sql_query,
 )
 
-# Load environment variables from .env file
-project_root = Path(__file__).parent.parent.parent
-env_path = project_root / ".env"
-load_dotenv(env_path)
+from .config import test_config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -33,7 +28,11 @@ async def postgres_mcp_client(llm_client, postgres_container):
     logger.info(f"Container port: {postgres_container.get_exposed_port(5432)}")
     logger.info(f"Container ID: {postgres_container.get_wrapped_container().id}")
 
-    client = PostgresMCPClient(database_uri, llm_client)
+    # Create test config with the container database URI
+    container_config = test_config.copy()
+    container_config["database_url"] = database_uri
+
+    client = PostgresMCPClient(container_config, llm_client)
     try:
         yield client
     finally:

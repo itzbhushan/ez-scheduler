@@ -29,11 +29,10 @@ class SQLQueryResponse(BaseModel):
 class PostgresMCPClient:
     """Client for PostgreSQL MCP server operations using stdio transport"""
 
-    def __init__(self, database_uri: str, llm_client: LLMClient):
-        self.database_uri = database_uri
+    def __init__(self, config: dict, llm_client: LLMClient):
+        self.database_uri = config["database_url"]
         # Convert database URI for MCP container to use Docker network
         # Replace localhost with Docker container name, keep other addresses as-is
-        self.database_uri = database_uri
         logging.debug(f"Using MCP database URI: {self.database_uri}")
         self.llm_client = llm_client
         self.process = None

@@ -27,3 +27,14 @@ repos:
       - id: check-merge-conflict
       - id: debug-statements
       - id: check-toml
+
+  # Pytest - Run all tests before commit
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: bash -c "cd server && uv run pytest -v"
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
