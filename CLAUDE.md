@@ -50,6 +50,42 @@ The system consists of:
 
 ## Critical Development Guidelines
 
+### Coding Standards
+
+**Import Organization**: All imports MUST be placed at the top of the file, never within functions or methods.
+
+- **DO**: Place all imports at the top of the file in the following order:
+- **DON'T**: Import modules within functions, methods, or conditional blocks
+- **DO**: Group imports logically and separate groups with blank lines
+- **DON'T**: Use relative imports for local modules (use absolute imports)
+
+#### Example Implementation
+```python
+# CORRECT: All imports at top of file
+import logging
+import uuid
+from datetime import datetime, timezone
+from typing import Optional
+
+from sqlmodel import Session, select
+from fastapi import HTTPException
+
+from ez_scheduler.models.user import User
+
+class UserService:
+    def __init__(self, db_session: Session):
+        self.db = db_session
+```
+
+```python
+# INCORRECT: Imports within functions
+class UserService:
+    def create_user(self, email: str):
+        from ez_scheduler.models.user import User  # Wrong!
+        import uuid  # Wrong!
+        # ... rest of method
+```
+
 ### LLM-First Instruction Processing
 **NEVER manually parse user instructions in code.** Always use an LLM to understand user instructions and return structured responses.
 

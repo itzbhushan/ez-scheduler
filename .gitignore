@@ -157,3 +157,7 @@ Thumbs.db
 
 # Form storage
 forms/
+
+
+# LLM settings.
+.claude/

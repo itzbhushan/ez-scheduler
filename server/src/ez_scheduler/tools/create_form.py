@@ -4,12 +4,14 @@ import json
 import logging
 import re
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
 from ..llm_client import LLMClient
+from ..models.signup_form import SignupForm
+from ..services.signup_form_service import SignupFormService
 from ..system_prompts import FORM_BUILDER_PROMPT, FORM_RESPONSE_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -43,11 +45,13 @@ class ConversationResponse(BaseModel):
 
 # Global storage - shared across the application
 conversations: Dict[str, Dict[str, Any]] = {}
-forms: Dict[str, Dict[str, Any]] = {}
 
 
 async def create_form_handler(
-    user_id: str, initial_request: str, llm_client: LLMClient
+    user_id: str,
+    initial_request: str,
+    llm_client: LLMClient,
+    signup_form_service: SignupFormService,
 ) -> str:
     """
     Initiates form creation conversation.
@@ -102,56 +106,31 @@ async def create_form_handler(
 
         # Handle different actions
         if llm_response.action == "create_form" and extracted_data.is_complete:
-            # Create the form
-            form_data = conversation["form_data"]
-            title = form_data.get("title", "Untitled Event")
-            event_date = form_data.get("event_date", "TBD")
+            try:
+                # Validate form data
+                validate_form_data(conversation["form_data"])
 
-            # Generate meaningful form ID using LLM
-            base_form_id = await generate_form_id(llm_client, title, event_date)
-
-            # Add UUID to ensure uniqueness
-            unique_id = str(uuid.uuid4())[:8]  # First 8 chars of UUID
-            form_id = f"{base_form_id}-{unique_id}"
-
-            forms[form_id] = {
-                "id": form_id,
-                "user_id": conversation["user_id"],
-                "title": title,
-                "event_date": event_date,
-                "location": form_data.get("location", "TBD"),
-                "description": form_data.get("description", ""),
-                "is_active": True,
-                "created_at": datetime.now().isoformat(),
-                "fields": [
-                    {
-                        "name": "name",
-                        "type": "text",
-                        "required": True,
-                        "label": "Full Name",
-                    },
-                    {
-                        "name": "email",
-                        "type": "email",
-                        "required": True,
-                        "label": "Email Address",
-                    },
-                    {
-                        "name": "phone",
-                        "type": "tel",
-                        "required": True,
-                        "label": "Phone Number",
-                    },
-                ],
-            }
-
-            conversation["status"] = "completed"
-            conversation["form_id"] = form_id
-
-            # Use LLM to generate response with dynamic URL
-            form_data_with_url = forms[form_id].copy()
-            form_data_with_url["url"] = f"http://localhost:8000/forms/{form_id}"
-            response_text = await generate_form_response(llm_client, form_data_with_url)
+                # Create form
+                response_text = await create_form(
+                    conversation["form_data"],
+                    llm_client,
+                    signup_form_service,
+                    conversation,
+                )
+            except ValueError as e:
+                # Validation failed
+                response_text = str(e)
+                conversation["messages"].append(
+                    {"role": "assistant", "content": response_text}
+                )
+                return response_text
+            except Exception as e:
+                # Form creation failed
+                response_text = str(e)
+                conversation["messages"].append(
+                    {"role": "assistant", "content": response_text}
+                )
+                return response_text
         else:
             response_text = llm_response.response_text
 
@@ -182,6 +161,9 @@ async def process_form_instruction(
     conversation_history = conversation_history or []
     current_form_data = current_form_data or {}
 
+    # Get current date for prompt context
+    current_date = datetime.now().strftime("%Y-%m-%d")
+
     # Build conversation context
     context = f"""
 CURRENT FORM DATA: {json.dumps(current_form_data, indent=2)}
@@ -193,17 +175,21 @@ USER MESSAGE: {user_message}
 """
 
     try:
+        # Format the system prompt with current date
+        system_prompt = FORM_BUILDER_PROMPT.format(current_date=current_date)
+
         response_text = await llm_client.process_instruction(
             messages=[{"role": "user", "content": context}],
-            max_tokens=1000,
-            system=FORM_BUILDER_PROMPT,
+            max_tokens=2000,
+            system=system_prompt,
         )
 
         # Parse JSON response
         try:
             response_data = json.loads(response_text)
             return ConversationResponse(**response_data)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            # Log the actual response that failed to parse
             # Fallback if JSON parsing fails
             return ConversationResponse(
                 response_text="I'm having trouble processing your request. Could you please rephrase it?",
@@ -319,3 +305,138 @@ def _fallback_form_id(title: str, event_date: str) -> str:
         slug = slug[:30].rstrip("-")
 
     return slug if slug else "event"
+
+
+def validate_form_data(form_data: Dict[str, Any]) -> None:
+    """
+    Validate form data
+
+    Args:
+        form_data: Form data from conversation
+
+    Raises:
+        ValueError: If validation fails with descriptive error message
+    """
+    # Extract form fields
+    title = form_data.get("title")
+    event_date_str = form_data.get("event_date")
+    location = form_data.get("location")
+    description = form_data.get("description")
+
+    # Check for missing required fields
+    missing_fields = []
+    if not title or title.strip() == "":
+        missing_fields.append("event title")
+    if not event_date_str or event_date_str in ["TBD", ""]:
+        missing_fields.append("event date")
+    if not location or location.strip() in ["TBD", ""]:
+        missing_fields.append("event location")
+    if not description or description.strip() == "":
+        missing_fields.append("event description")
+
+    if missing_fields:
+        missing_list = ", ".join(missing_fields)
+        raise ValueError(
+            f"I need more information to create your form. Please provide: {missing_list}."
+        )
+
+    # Validate and parse event_date
+    try:
+        date.fromisoformat(event_date_str)
+    except ValueError:
+        raise ValueError(
+            f"I couldn't understand the date '{event_date_str}'. Please provide the date in a clear format like 'January 15th, 2024' or '2024-01-15'."
+        )
+
+
+async def create_form(
+    form_data: Dict[str, Any],
+    llm_client: LLMClient,
+    signup_form_service: SignupFormService,
+    conversation: Dict[str, Any],
+) -> str:
+    """
+    Create a signup form with validated data
+
+    Args:
+        form_data: Form data from conversation (already validated)
+        llm_client: LLM client for generating form ID and response
+        signup_form_service: Service for database operations
+        conversation: Conversation context
+
+    Returns:
+        Response message for the user
+
+    Raises:
+        Exception: If form creation fails
+    """
+    # Extract and clean form fields
+    title = form_data["title"].strip()
+    event_date_str = form_data["event_date"]
+    location = form_data["location"].strip()
+    description = form_data["description"].strip()
+
+    # Parse event date
+    event_date = date.fromisoformat(event_date_str)
+
+    # Generate meaningful form ID using LLM
+    base_form_id = await generate_form_id(llm_client, title, event_date_str)
+
+    # Add UUID to ensure uniqueness
+    unique_id = str(uuid.uuid4())[:8]  # First 8 chars of UUID
+    url_slug = f"{base_form_id}-{unique_id}"
+
+    # Get user_id from conversation context
+    user_id = conversation["user_id"]
+
+    # Convert user_id to UUID if it's a string
+    if isinstance(user_id, str):
+        try:
+            user_uuid = uuid.UUID(user_id)
+        except ValueError:
+            raise Exception(
+                f"Invalid user_id format: {user_id}. Must be a valid UUID string."
+            )
+    else:
+        user_uuid = user_id
+
+    # Create form object
+    signup_form = SignupForm(
+        user_id=user_uuid,
+        title=title,
+        event_date=event_date,
+        location=location,
+        description=description,
+        url_slug=url_slug,
+        is_active=True,
+    )
+
+    # Create form in database
+    result = signup_form_service.create_signup_form(signup_form)
+
+    if not result["success"]:
+        raise Exception(
+            f"I encountered an error creating your form: {result['error']}. Please try again."
+        )
+
+    # Update conversation
+    conversation["status"] = "completed"
+    conversation["form_id"] = result["form_id"]
+
+    # Use LLM to generate response with dynamic URL
+    form_data_with_url = {
+        "id": result["form_id"],
+        "title": title,
+        "event_date": event_date_str,
+        "location": location,
+        "description": description,
+        "url_slug": url_slug,
+        "url": f"http://localhost:8000/forms/{url_slug}",
+    }
+
+    try:
+        return await generate_form_response(llm_client, form_data_with_url)
+    except Exception as e:
+        logger.error(f"Error generating form response: {e}")
+        # Fallback response
+        return f"Your form '{title}' has been created successfully! You can access it at: http://localhost:8000/forms/{url_slug}"

@@ -2,10 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies including Node.js for npx
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv

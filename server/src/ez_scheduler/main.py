@@ -2,10 +2,13 @@
 """EZ Scheduler MCP Server - Signup Form Generation"""
 
 import logging
+import uuid
 
 from ez_scheduler.config import config
 from ez_scheduler.llm_client import LLMClient
+from ez_scheduler.models.database import get_db
 from ez_scheduler.services.postgres_mcp_client import PostgresMCPClient
+from ez_scheduler.services.signup_form_service import SignupFormService
 from ez_scheduler.tools.create_form import create_form_handler
 from ez_scheduler.tools.get_form_analytics import get_form_analytics_handler
 from fastmcp import FastMCP
@@ -24,24 +27,34 @@ llm_client = LLMClient(config)
 logger.info("Creating shared PostgresMCPClient...")
 postgres_mcp_client = PostgresMCPClient(config, llm_client)
 
+logger.info("Creating shared SignupFormService...")
+# Get a database session for the service
+db_session = next(get_db())
+signup_form_service = SignupFormService(db_session)
+
 # Create MCP app
 mcp = FastMCP("ez-scheduler")
 
 
 # Register tools
 @mcp.tool()
-async def create_form(user_id: str, initial_request: str) -> str:
+async def create_form(user_id: uuid.UUID, initial_request: str) -> str:
     """
     Initiates form creation conversation.
 
     Args:
-        user_id: User identifier
+        user_id: User identifier (required, must be a valid UUID)
         initial_request: Initial form creation request
 
     Returns:
         Response from the form creation process
     """
-    return await create_form_handler(user_id, initial_request, llm_client)
+    # if not user_id:
+    #     raise ValueError("user_id is required and cannot be empty")
+
+    return await create_form_handler(
+        str(user_id), initial_request, llm_client, signup_form_service
+    )
 
 
 @mcp.tool()

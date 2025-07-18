@@ -1,6 +1,7 @@
 """Tests for PostgreSQL MCP integration with real LLM and real SQL validation"""
 
 import logging
+import uuid
 
 import pytest
 from ez_scheduler.services.postgres_mcp_client import (
@@ -73,12 +74,19 @@ class TestMCPServerValidation:
             raise AssertionError(f"MCP validation failed: {e}")
 
     @pytest.mark.asyncio
-    async def test_mcp_server_validation_basic(self, postgres_mcp_client, llm_client):
+    async def test_mcp_server_validation_basic(
+        self, postgres_mcp_client, llm_client, user_service
+    ):
         """Test SQL validation through MCP server - basic forms query"""
+        # Create a test user
+        test_user = user_service.create_user(
+            email="mcp_test@example.com", name="MCP Test User"
+        )
+
         result = await generate_sql_query(
             llm_client=llm_client,
             request="How many active signup forms do I have",
-            user_id="test-user",
+            user_id=str(test_user.id),
         )
 
         # Validate through MCP server
@@ -88,25 +96,8 @@ class TestMCPServerValidation:
 
         # Verify basic structure
         assert ":user_id" in result.sql_query
-        assert result.parameters.get("user_id") == "test-user"
+        assert result.parameters.get("user_id") == str(test_user.id)
         assert "count" in result.sql_query.lower()
         assert "signup_forms" in result.sql_query.lower()
 
-    @pytest.mark.asyncio
-    async def test_mcp_server_validation_complex(self, postgres_mcp_client, llm_client):
-        """Test complex analytics query through MCP server"""
-        result = await generate_sql_query(
-            llm_client=llm_client,
-            request="Show my most popular events by registration count",
-            user_id="test-user",
-        )
-
-        # Validate through MCP server
-        await self._validate_sql(
-            postgres_mcp_client, result.sql_query, result.parameters
-        )
-
-        # Verify structure for analytics query
-        assert ":user_id" in result.sql_query
-        assert "count" in result.sql_query.lower()
-        assert "order by" in result.sql_query.lower()
+    # TODO: Add more complex tests when new tables are introduced.

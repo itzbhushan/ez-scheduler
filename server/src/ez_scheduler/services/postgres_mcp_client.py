@@ -31,12 +31,12 @@ class PostgresMCPClient:
 
     def __init__(self, config: dict, llm_client: LLMClient):
         self.database_uri = config["database_url"]
-        # Convert database URI for MCP container to use Docker network
-        # Replace localhost with Docker container name, keep other addresses as-is
-        logging.debug(f"Using MCP database URI: {self.database_uri}")
         self.llm_client = llm_client
         self.process = None
         self.request_id = 0
+        logger.debug(
+            f"Initialized PostgresMCPClient with database URI: {self.database_uri}"
+        )
 
     async def __aenter__(self):
         return self
@@ -58,27 +58,42 @@ class PostgresMCPClient:
             # Reset state when starting new process
             self.request_id = 0
 
-            # Convert localhost to host.docker.internal for Docker container
-            docker_database_uri = self.database_uri.replace(
-                "localhost", "host.docker.internal"
+            logger.info(
+                f"Starting mcp-server-postgres with database URI: {self.database_uri}"
             )
-            logger.debug(
-                f"Converting database URI for Docker: {self.database_uri} -> {docker_database_uri}"
-            )
+            logger.info(f"Original URI was: {self.database_uri}")
 
-            # Start the mcp/postgres server with stdio transport
-            self.process = await asyncio.create_subprocess_exec(
-                "docker",
-                "run",
-                "--rm",
-                "-i",
-                "--add-host=host.docker.internal:host-gateway",  # Enable host.docker.internal
-                "mcp/postgres",
-                docker_database_uri,  # Pass converted database URL as command line argument
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
+            # Start the mcp-server-postgres as a child process using npx
+            try:
+                self.process = await asyncio.create_subprocess_exec(
+                    "npx",
+                    "-y",
+                    "@modelcontextprotocol/server-postgres",
+                    self.database_uri,  # Pass converted database URL
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+
+                logger.debug(
+                    f"Started mcp-server-postgres child process (PID: {self.process.pid})"
+                )
+
+                # Wait a brief moment to check if process started successfully
+                await asyncio.sleep(0.1)
+                if self.process.returncode is not None:
+                    # Process died immediately, capture stderr
+                    stderr_output = await self.process.stderr.read()
+                    logger.error(
+                        f"MCP postgres server failed to start: {stderr_output.decode()}"
+                    )
+                    raise RuntimeError(
+                        f"MCP postgres server failed to start: {stderr_output.decode()}"
+                    )
+
+            except Exception as e:
+                logger.error(f"Failed to start mcp-server-postgres: {e}")
+                raise RuntimeError(f"Failed to start mcp-server-postgres: {e}")
 
     async def _send_mcp_request(
         self, method: str, params: Dict[str, Any]

@@ -9,21 +9,15 @@ from pathlib import Path
 
 import pytest
 from ez_scheduler.llm_client import LLMClient
+from ez_scheduler.services.user_service import UserService
 from fastmcp.client import Client, StreamableHttpTransport
+from sqlmodel import Session, create_engine
 from testcontainers.postgres import PostgresContainer
 
 from .config import test_config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -36,11 +30,15 @@ def verify_test_requirements():
     return True
 
 
-@pytest.fixture(scope="session")
-async def mcp_server_process():
+@pytest.fixture(scope="session", autouse=True)
+async def mcp_server_process(postgres_container):
     """Start the HTTP MCP server once for the entire test session"""
     env = os.environ.copy()
     env["MCP_PORT"] = str(test_config["mcp_port"])  # Use test config port
+
+    # Ensure the MCP server uses the same database as the test
+    database_url = postgres_container.get_connection_url()
+    env["DATABASE_URL"] = database_url
 
     # Start the HTTP server process
     process = subprocess.Popen(
@@ -99,9 +97,6 @@ def postgres_container():
 
 def _run_migrations(database_url: str):
     """Run Alembic migrations on the test database"""
-    import os
-    import subprocess
-    from pathlib import Path
 
     # Get the server directory (where alembic.ini is located)
     server_dir = Path(__file__).parent.parent
@@ -143,3 +138,26 @@ def llm_client():
 def mcp_client():
     """Create an MCP client connected to the test server"""
     return StreamableHttpTransport(f"http://localhost:{test_config['mcp_port']}/mcp")
+
+
+@pytest.fixture
+def test_db_session(postgres_container):
+    """Create a database session for testing using the same database as the MCP server"""
+
+    # Get the database URL from the PostgreSQL container
+    database_url = postgres_container.get_connection_url()
+
+    # Create engine and session
+    engine = create_engine(database_url)
+    session = Session(engine)
+
+    yield session
+
+    # Cleanup
+    session.close()
+
+
+@pytest.fixture(autouse=True)
+def user_service(test_db_session):
+    """Create a UserService instance for testing"""
+    return UserService(test_db_session)
