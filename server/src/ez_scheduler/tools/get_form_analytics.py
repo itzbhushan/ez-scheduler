@@ -1,11 +1,9 @@
 """Get Form Analytics Tool - Queries analytics about user's events via PostgreSQL MCP"""
 
 import logging
-from typing import Any, Dict
 
 from ez_scheduler.backends.llm_client import LLMClient
-
-from ..services.postgres_mcp_client import PostgresMCPClient
+from ez_scheduler.backends.postgres_mcp_client import PostgresMCPClient
 
 logger = logging.getLogger(__name__)
 

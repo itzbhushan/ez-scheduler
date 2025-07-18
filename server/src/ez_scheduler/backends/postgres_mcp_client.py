@@ -3,13 +3,11 @@
 import asyncio
 import json
 import logging
-import subprocess
 from typing import Any, Dict, List, Optional
 
 from ez_scheduler.backends.llm_client import LLMClient
+from ez_scheduler.system_prompts import SQL_GENERATOR_PROMPT
 from pydantic import BaseModel, Field
-
-from ..system_prompts import SQL_GENERATOR_PROMPT
 
 logger = logging.getLogger(__name__)
 

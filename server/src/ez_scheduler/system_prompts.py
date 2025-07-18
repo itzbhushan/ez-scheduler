@@ -133,7 +133,7 @@ Response: {{
 # Form response generation system prompt
 FORM_RESPONSE_PROMPT = """Generate a friendly, professional response confirming that a signup form has been created. Include the form details and next steps.
 
-Make the response engaging and helpful. Format it nicely with clear sections."""
+Make the response engaging and helpful. Format it nicely with clear sections. If a signup form was successfully created, make sure to include the full signup url."""
 
 # SQL query generation system prompt
 SQL_GENERATOR_PROMPT = """You are an expert SQL generator for a PostgreSQL database. Generate SQL queries based on natural language requests.

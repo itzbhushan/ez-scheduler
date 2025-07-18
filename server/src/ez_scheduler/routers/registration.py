@@ -6,19 +6,11 @@ from ez_scheduler.models.database import get_db
 from ez_scheduler.services.signup_form_service import SignupFormService
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
 
 router = APIRouter()
 
-# Get the absolute path to the templates directory
-# Check if running in container (/app) or local development
-if Path("/app/templates").exists():
-    # Running in Docker container
-    template_dir = Path("/app/templates")
-else:
-    # Running locally - relative to server directory
-    template_dir = Path(__file__).parent.parent.parent.parent / "templates"
-
+# Get template directory relative to this file
+template_dir = Path(__file__).parent.parent / "templates"
 templates = Jinja2Templates(directory=str(template_dir))
 
 db_session = next(get_db())

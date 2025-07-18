@@ -445,7 +445,7 @@ async def create_form(
         "location": location,
         "description": description,
         "url_slug": url_slug,
-        "url": f"http://localhost:8000/forms/{url_slug}",
+        "url": f"http://localhost:8080/form/{url_slug}",  # TODO: Replace with actual base URL.
     }
 
     try:
@@ -453,4 +453,4 @@ async def create_form(
     except Exception as e:
         logger.error(f"Error generating form response: {e}")
         # Fallback response
-        return f"Your form '{title}' has been created successfully! You can access it at: http://localhost:8000/forms/{url_slug}"
+        return f"We could not generate a form. Please retry later."

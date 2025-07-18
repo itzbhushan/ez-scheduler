@@ -42,7 +42,7 @@ async def test_create_form_complete_success(
             result_str = str(result)
 
             # Try to extract form ID from URL pattern first
-            url_pattern = r"forms/([a-zA-Z0-9-]+)"
+            url_pattern = r"form/([a-zA-Z0-9-]+)"
             url_match = re.search(url_pattern, result_str)
 
             url_slug = None
@@ -117,7 +117,7 @@ async def test_create_form_with_end_time(
             result_str = str(result)
 
             # Extract form ID from URL pattern
-            url_pattern = r"forms/([a-zA-Z0-9-]+)"
+            url_pattern = r"form/([a-zA-Z0-9-]+)"
             url_match = re.search(url_pattern, result_str)
 
             url_slug = None
@@ -184,7 +184,7 @@ async def test_create_form_with_start_and_end_time(
             result_str = str(result)
 
             # Extract form ID from URL pattern
-            url_pattern = r"forms/([a-zA-Z0-9-]+)"
+            url_pattern = r"form/([a-zA-Z0-9-]+)"
             url_match = re.search(url_pattern, result_str)
 
             url_slug = None
