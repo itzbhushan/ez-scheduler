@@ -2,7 +2,7 @@
 
 import logging
 import re
-from datetime import date
+from datetime import date, time
 
 import pytest
 from ez_scheduler.models.signup_form import SignupForm
@@ -86,3 +86,149 @@ async def test_create_form_complete_success(
 
     except Exception as e:
         pytest.fail(f"Failed to create complete form: {e}")
+
+
+@pytest.mark.asyncio
+async def test_create_form_with_end_time(
+    mcp_client, test_db_session: Session, user_service
+):
+    """Test form creation with end time specified"""
+    # Create a test user
+    test_user = user_service.create_user(
+        email="conference_organizer@example.com", name="Conference Organizer"
+    )
+
+    try:
+        async with Client(mcp_client) as client:
+            # Call the create_form tool with end time
+            result = await client.call_tool(
+                "create_form",
+                {
+                    "user_id": test_user.id,
+                    "initial_request": "Create a signup form for Tech Conference 2024 on September 20th, 2024 at Convention Center. The event ends at 5:00 PM. We're hosting a tech conference with speakers and networking.",
+                },
+            )
+
+            logger.info(f"Create form with end time result: {result}")
+
+            # Verify we got a response
+            assert result is not None, "Should receive a response"
+
+            result_str = str(result)
+
+            # Extract form ID from URL pattern
+            url_pattern = r"forms/([a-zA-Z0-9-]+)"
+            url_match = re.search(url_pattern, result_str)
+
+            url_slug = None
+            if url_match:
+                url_slug = url_match.group(1)
+            else:
+                pytest.fail(f"Could not find form URL pattern in response")
+
+            # Query database using the extracted URL slug
+            statement = select(SignupForm).where(SignupForm.url_slug == url_slug)
+            db_result = test_db_session.exec(statement)
+            created_form = db_result.first()
+
+            # Verify form was created with correct details
+            assert created_form is not None, f"Form should exist in database"
+            logger.info(
+                f"Created form details: start_time={created_form.start_time}, end_time={created_form.end_time}"
+            )
+            assert "tech" in created_form.title.lower(), f"Title should contain 'tech'"
+            assert created_form.event_date == date(
+                2024, 9, 20
+            ), f"Event date should be September 20, 2024"
+            assert (
+                "convention center" in created_form.location.lower()
+            ), f"Location should contain 'convention center'"
+            assert (
+                created_form.start_time is None
+            ), "Start time should be None when not specified"
+            assert created_form.end_time == time(
+                17, 0, 0
+            ), f"End time should be 17:00 (5:00 PM), but was {created_form.end_time}"
+            assert created_form.is_active is True, "Form should be active"
+
+    except Exception as e:
+        pytest.fail(f"Failed to create form with end time: {e}")
+
+
+@pytest.mark.asyncio
+async def test_create_form_with_start_and_end_time(
+    mcp_client, test_db_session: Session, user_service
+):
+    """Test form creation with both start and end time specified"""
+    # Create a test user
+    test_user = user_service.create_user(
+        email="workshop_organizer@example.com", name="Workshop Organizer"
+    )
+
+    try:
+        async with Client(mcp_client) as client:
+            # Call the create_form tool with both start and end time
+            result = await client.call_tool(
+                "create_form",
+                {
+                    "user_id": test_user.id,
+                    "initial_request": "Create a signup form for Python Workshop on October 10th, 2024 at Tech Hub from 9:00 AM to 4:30 PM. We're teaching Python programming fundamentals with hands-on coding exercises.",
+                },
+            )
+
+            logger.info(f"Create form with start and end time result: {result}")
+
+            # Verify we got a response
+            assert result is not None, "Should receive a response"
+
+            result_str = str(result)
+
+            # Extract form ID from URL pattern
+            url_pattern = r"forms/([a-zA-Z0-9-]+)"
+            url_match = re.search(url_pattern, result_str)
+
+            url_slug = None
+            if url_match:
+                url_slug = url_match.group(1)
+            else:
+                pytest.fail(f"Could not find form URL pattern in response")
+
+            # Query database using the extracted URL slug
+            statement = select(SignupForm).where(SignupForm.url_slug == url_slug)
+            db_result = test_db_session.exec(statement)
+            created_form = db_result.first()
+
+            # Verify form was created with correct details
+            assert created_form is not None, f"Form should exist in database"
+            logger.info(
+                f"Created form details: start_time={created_form.start_time}, end_time={created_form.end_time}"
+            )
+            assert (
+                "python" in created_form.title.lower()
+            ), f"Title should contain 'python'"
+            assert created_form.event_date == date(
+                2024, 10, 10
+            ), f"Event date should be October 10, 2024"
+            assert (
+                "tech hub" in created_form.location.lower()
+            ), f"Location should contain 'tech hub'"
+
+            # Debug output for time values
+            logger.info(
+                f"Expected start_time: {time(9, 0, 0)}, actual: {created_form.start_time}"
+            )
+            logger.info(
+                f"Expected end_time: {time(16, 30, 0)}, actual: {created_form.end_time}"
+            )
+
+            # Assert time values
+            assert created_form.start_time == time(
+                9, 0, 0
+            ), f"Start time should be 09:00 (9:00 AM), but was {created_form.start_time}"
+            assert created_form.end_time == time(
+                16, 30, 0
+            ), f"End time should be 16:30 (4:30 PM), but was {created_form.end_time}"
+            assert created_form.is_active is True, "Form should be active"
+
+    except Exception as e:
+        pytest.fail(f"Failed to create form with start and end time: {e}")

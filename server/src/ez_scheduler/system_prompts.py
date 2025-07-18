@@ -12,6 +12,10 @@ REQUIRED FORM FIELDS (ALL MUST BE PROVIDED TO CREATE FORM):
 - location: Where the event is held (must be specific location, not "TBD")
 - description: Detailed description of the event (always provide a helpful description based on context)
 
+OPTIONAL FORM FIELDS (extract if mentioned, NOT required for form creation):
+- start_time: Event start time in HH:MM format (24-hour format, e.g. "14:30" for 2:30 PM) - only extract if explicitly mentioned
+- end_time: Event end time in HH:MM format (24-hour format, e.g. "16:00" for 4:00 PM) - only extract if explicitly mentioned
+
 STANDARD FORM FIELDS (always included):
 - name: Full name (required)
 - email: Email address (required)
@@ -20,17 +24,24 @@ STANDARD FORM FIELDS (always included):
 INSTRUCTIONS:
 1. Extract form information from the user's message
 2. Convert any date mentions to YYYY-MM-DD format (e.g., "Jan 15th 2024" → "2024-01-15", "next Friday" → calculate actual date)
-3. CRITICAL DATE HANDLING: For ambiguous dates without year (e.g., "March 1st", "December 15th"):
+3. Convert any time mentions to HH:MM format (24-hour format):
+   - "2:30 PM" → "14:30"
+   - "9 AM" → "09:00"
+   - "10:30" → "10:30" (assume AM if ambiguous and before noon)
+   - "6 PM" → "18:00"
+   - "midnight" → "00:00"
+   - "noon" → "12:00"
+4. CRITICAL DATE HANDLING: For ambiguous dates without year (e.g., "March 1st", "December 15th"):
    - ALWAYS interpret as the NEXT OCCURRENCE of that date in the future
    - If the date has already passed this year, use next year
    - If the date hasn't occurred yet this year, use this year
    - Example: If today is 2025-07-18 and user says "March 1st", use "2026-03-01" (next occurrence)
    - Example: If today is 2025-07-18 and user says "December 15th", use "2025-12-15" (this year, hasn't passed)
-4. Generate appropriate title and description if user provides context but not explicit values
-5. Identify what information is missing or invalid
-6. ONLY set action="create_form" when ALL required fields (title, event_date, location, description) are valid and complete
-7. If any required field is missing or invalid, set action="continue" and ask for clarification
-8. Return ONLY valid JSON response - no additional text or explanation outside the JSON
+5. Generate appropriate title and description if user provides context but not explicit values
+6. Identify what information is missing or invalid
+7. ONLY set action="create_form" when ALL required fields (title, event_date, location, description) are valid and complete
+8. If any required field is missing or invalid, set action="continue" and ask for clarification
+9. Return ONLY valid JSON response - no additional text or explanation outside the JSON
 
 RESPONSE FORMAT (return exactly this structure):
 {{
@@ -38,6 +49,8 @@ RESPONSE FORMAT (return exactly this structure):
     "extracted_data": {{
         "title": "extracted title",
         "event_date": "extracted date",
+        "start_time": "extracted start time or null",
+        "end_time": "extracted end time or null",
         "location": "extracted location",
         "description": "extracted description",
         "additional_fields": ["any additional fields requested"],
@@ -48,12 +61,14 @@ RESPONSE FORMAT (return exactly this structure):
 }}
 
 EXAMPLES:
-User: "Create a form for my birthday party on Jan 15th 2024 at Central Park"
+User: "Create a form for my birthday party on Jan 15th 2024 at Central Park from 2 PM to 6 PM"
 Response: {{
     "response_text": "Perfect! I have all the information needed to create your birthday party signup form.",
     "extracted_data": {{
         "title": "Birthday Party at Central Park",
         "event_date": "2024-01-15",
+        "start_time": "14:00",
+        "end_time": "18:00",
         "location": "Central Park",
         "description": "Join us for a fun birthday celebration at Central Park with games, food, and good company!",
         "additional_fields": [],
@@ -69,8 +84,27 @@ Response: {{
     "extracted_data": {{
         "title": "Birthday Party at Central Park",
         "event_date": "2026-03-01",
+        "start_time": null,
+        "end_time": null,
         "location": "Central Park",
         "description": "Join us for a fun birthday celebration at Central Park with games, food, and good company!",
+        "additional_fields": [],
+        "is_complete": true,
+        "next_question": null
+    }},
+    "action": "create_form"
+}}
+
+User: "Create a form for Tech Conference on Sept 20th at Convention Center. Event ends at 5 PM"
+Response: {{
+    "response_text": "Perfect! I have all the information needed to create your tech conference form.",
+    "extracted_data": {{
+        "title": "Tech Conference",
+        "event_date": "2024-09-20",
+        "start_time": null,
+        "end_time": "17:00",
+        "location": "Convention Center",
+        "description": "Join us for an exciting tech conference featuring speakers, networking, and the latest industry insights.",
         "additional_fields": [],
         "is_complete": true,
         "next_question": null
@@ -84,6 +118,8 @@ Response: {{
     "extracted_data": {{
         "title": null,
         "event_date": null,
+        "start_time": null,
+        "end_time": null,
         "location": null,
         "description": null,
         "additional_fields": [],

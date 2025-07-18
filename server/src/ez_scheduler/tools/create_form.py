@@ -4,7 +4,7 @@ import json
 import logging
 import re
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
@@ -22,6 +22,10 @@ class FormExtractionSchema(BaseModel):
 
     title: Optional[str] = Field(None, description="Event title or name")
     event_date: Optional[str] = Field(None, description="Event date")
+    start_time: Optional[str] = Field(
+        None, description="Event start time in HH:MM format"
+    )
+    end_time: Optional[str] = Field(None, description="Event end time in HH:MM format")
     location: Optional[str] = Field(None, description="Event location")
     description: Optional[str] = Field(None, description="Event description")
     additional_fields: Optional[list] = Field(
@@ -99,6 +103,10 @@ async def create_form_handler(
             conversation["form_data"]["title"] = extracted_data.title
         if extracted_data.event_date:
             conversation["form_data"]["event_date"] = extracted_data.event_date
+        if extracted_data.start_time:
+            conversation["form_data"]["start_time"] = extracted_data.start_time
+        if extracted_data.end_time:
+            conversation["form_data"]["end_time"] = extracted_data.end_time
         if extracted_data.location:
             conversation["form_data"]["location"] = extracted_data.location
         if extracted_data.description:
@@ -373,11 +381,29 @@ async def create_form(
     # Extract and clean form fields
     title = form_data["title"].strip()
     event_date_str = form_data["event_date"]
+    start_time_str = form_data.get("start_time")
+    end_time_str = form_data.get("end_time")
     location = form_data["location"].strip()
     description = form_data["description"].strip()
 
     # Parse event date
     event_date = date.fromisoformat(event_date_str)
+
+    # Parse start and end times if provided
+    start_time = None
+    end_time = None
+
+    if start_time_str:
+        try:
+            start_time = time.fromisoformat(start_time_str)
+        except ValueError:
+            logger.warning(f"Invalid start time format: {start_time_str}")
+
+    if end_time_str:
+        try:
+            end_time = time.fromisoformat(end_time_str)
+        except ValueError:
+            logger.warning(f"Invalid end time format: {end_time_str}")
 
     # Generate meaningful form ID using LLM
     base_form_id = await generate_form_id(llm_client, title, event_date_str)
@@ -386,25 +412,13 @@ async def create_form(
     unique_id = str(uuid.uuid4())[:8]  # First 8 chars of UUID
     url_slug = f"{base_form_id}-{unique_id}"
 
-    # Get user_id from conversation context
-    user_id = conversation["user_id"]
-
-    # Convert user_id to UUID if it's a string
-    if isinstance(user_id, str):
-        try:
-            user_uuid = uuid.UUID(user_id)
-        except ValueError:
-            raise Exception(
-                f"Invalid user_id format: {user_id}. Must be a valid UUID string."
-            )
-    else:
-        user_uuid = user_id
-
     # Create form object
     signup_form = SignupForm(
-        user_id=user_uuid,
+        user_id=conversation["user_id"],
         title=title,
         event_date=event_date,
+        start_time=start_time,
+        end_time=end_time,
         location=location,
         description=description,
         url_slug=url_slug,
