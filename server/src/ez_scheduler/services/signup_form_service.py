@@ -3,9 +3,10 @@
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-from sqlmodel import Session
+from sqlalchemy.orm import Session
+from sqlmodel import select
 
 from ..models.signup_form import SignupForm
 
@@ -118,6 +119,27 @@ class SignupFormService:
                 "success": False,
                 "error": f"Failed to update signup form: {str(e)}",
             }
+
+    def get_form_by_url_slug(self, url_slug: str) -> Optional[SignupForm]:
+        """
+        Retrieve an active signup form by its URL slug
+
+        Args:
+            url_slug: URL slug of the signup form to retrieve
+
+        Returns:
+            SignupForm object if found and active, None otherwise
+        """
+        try:
+            logger.info(f"Retrieving signup form by URL slug: {url_slug}")
+            statement = select(SignupForm).where(
+                SignupForm.url_slug == url_slug, SignupForm.is_active == True
+            )
+            form = self.db.execute(statement).scalar_one_or_none()
+            return form
+        except Exception as e:
+            logger.error(f"Error retrieving signup form by URL slug {url_slug}: {e}")
+            return None
 
     def delete_signup_form(self, form_id: uuid.UUID) -> Dict[str, Any]:
         """

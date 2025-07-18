@@ -3,7 +3,8 @@
 import logging
 from typing import Any, Dict
 
-from ..llm_client import LLMClient
+from ez_scheduler.backends.llm_client import LLMClient
+
 from ..services.postgres_mcp_client import PostgresMCPClient
 
 logger = logging.getLogger(__name__)

@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 import pytest
-from ez_scheduler.llm_client import LLMClient
+from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.services.user_service import UserService
 from fastmcp.client import Client, StreamableHttpTransport
 from sqlmodel import Session, create_engine

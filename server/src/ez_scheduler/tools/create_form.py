@@ -7,9 +7,9 @@ import uuid
 from datetime import date, datetime, time
 from typing import Any, Dict, Optional
 
+from ez_scheduler.backends.llm_client import LLMClient
 from pydantic import BaseModel, Field
 
-from ..llm_client import LLMClient
 from ..models.signup_form import SignupForm
 from ..services.signup_form_service import SignupFormService
 from ..system_prompts import FORM_BUILDER_PROMPT, FORM_RESPONSE_PROMPT

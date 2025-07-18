@@ -43,6 +43,7 @@ services:
     volumes:
       - ./src:/app/src
       - ./tests:/app/tests
+      - ./templates:/app/templates
       - ./.env:/app/.env
 
 volumes:

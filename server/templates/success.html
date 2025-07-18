@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registration Successful - {{ form.title }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="max-w-2xl mx-auto py-16 px-4">
+        <div class="bg-white rounded-lg shadow-sm p-8 text-center">
+            <!-- Success Icon -->
+            <div class="flex justify-center mb-6">
+                <svg class="w-16 h-16 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+            </div>
+
+            <!-- Success Message -->
+            <h1 class="text-3xl font-bold text-gray-900 mb-4">Registration Successful!</h1>
+            <p class="text-lg text-gray-600 mb-6">
+                Thank you for signing up for <strong>{{ form.title }}</strong>.
+            </p>
+            <p class="text-gray-600 mb-8">
+                We've received your registration and will be in touch with any additional details about the event.
+            </p>
+
+            <!-- Event Details -->
+            <div class="bg-gray-50 rounded-lg p-6 mb-8">
+                <h2 class="text-xl font-semibold text-gray-900 mb-4">Event Details</h2>
+                <div class="space-y-2 text-gray-700">
+                    <p><strong>Event:</strong> {{ form.title }}</p>
+                    <p><strong>Date:</strong> {{ form.event_date.strftime('%B %d, %Y') }}</p>
+                    <p><strong>Location:</strong> {{ form.location }}</p>
+                    {% if form.start_time or form.end_time %}
+                    <p><strong>Time:</strong>
+                        {% if form.start_time and form.end_time %}
+                            {{ form.start_time.strftime('%I:%M %p') }} - {{ form.end_time.strftime('%I:%M %p') }}
+                        {% elif form.start_time %}
+                            Starts at {{ form.start_time.strftime('%I:%M %p') }}
+                        {% elif form.end_time %}
+                            Ends at {{ form.end_time.strftime('%I:%M %p') }}
+                        {% endif %}
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div class="text-sm text-gray-500">
+                <p>If you have any questions about the event, please contact the event organizer.</p>
+                <p class="mt-2">Powered by EZ Scheduler</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
