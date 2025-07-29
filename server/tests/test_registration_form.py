@@ -8,17 +8,10 @@ from datetime import date, time
 import pytest
 import requests
 from ez_scheduler.models.signup_form import SignupForm
-from ez_scheduler.routers.mcp_server import SignupFormService
 
 from .config import test_config
 
 logger = logging.getLogger(__name__)
-
-
-@pytest.fixture
-def signup_service(test_db_session):
-    """Create a UserService instance for testing"""
-    return SignupFormService(test_db_session)
 
 
 class TestRegistrationForm:
@@ -31,7 +24,9 @@ class TestRegistrationForm:
         await asyncio.sleep(2)
 
         # Create a test user using the user service
-        test_user = user_service.create_user(email="test@example.com", name="Test User")
+        test_user = user_service.create_user(
+            email="test2@example.com", name="Test User"
+        )
 
         # Create a test signup form
         test_form = SignupForm(
@@ -100,7 +95,7 @@ class TestRegistrationForm:
 
         # Create a test user using the user service
         test_user = user_service.create_user(
-            email="test2@example.com", name="Test User 2"
+            email="test5@example.com", name="Test User 5"
         )
 
         # Create an inactive test signup form

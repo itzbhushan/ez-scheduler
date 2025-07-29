@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 from ez_scheduler.backends.llm_client import LLMClient
+from ez_scheduler.services.registration_service import RegistrationService
+from ez_scheduler.services.signup_form_service import SignupFormService
 from ez_scheduler.services.user_service import UserService
 from fastmcp.client import Client, StreamableHttpTransport
 from sqlmodel import Session, create_engine
@@ -161,3 +163,15 @@ def test_db_session(postgres_container):
 def user_service(test_db_session):
     """Create a UserService instance for testing"""
     return UserService(test_db_session)
+
+
+@pytest.fixture
+def registration_service(test_db_session):
+    """Create a RegistrationService instance for testing"""
+    return RegistrationService(test_db_session)
+
+
+@pytest.fixture
+def signup_service(test_db_session):
+    """Create a SignupFormService instance for testing"""
+    return SignupFormService(test_db_session)

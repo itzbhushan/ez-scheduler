@@ -54,7 +54,7 @@
         {% endif %}
 
         <!-- Registration Form -->
-        <div class="bg-white rounded-lg shadow-sm p-6" x-data="{ submitting: false, submitted: false, error: null }">
+        <div class="bg-white rounded-lg shadow-sm p-6" x-data="submitForm()">
             <h2 class="text-xl font-semibold text-gray-900 mb-6">Sign Up</h2>
 
             <form
@@ -169,7 +169,7 @@
 
                     try {
                         const formData = new FormData(this.$el);
-                        const response = await fetch(`/forms/{{ url_slug }}/submit`, {
+                        const response = await fetch(`/form/{{ url_slug }}`, {
                             method: 'POST',
                             body: formData
                         });

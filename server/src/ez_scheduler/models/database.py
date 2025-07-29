@@ -4,20 +4,16 @@ import os
 
 from ez_scheduler.config import config
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlmodel import Session
 
 # Database URL from config
 DATABASE_URL = config["database_url"]
 
 # Create engine
 engine = create_engine(DATABASE_URL, echo=os.getenv("DEBUG", "false").lower() == "true")
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def get_db():
     """Get database session"""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    with Session(engine) as session:
+        yield session

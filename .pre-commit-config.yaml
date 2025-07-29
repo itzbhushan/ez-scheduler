@@ -1,3 +1,4 @@
+fail_fast: true
 # Pre-commit configuration for EZ Scheduler
 repos:
   # Black - Python code formatter
