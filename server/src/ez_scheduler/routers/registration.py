@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ez_scheduler.config import config
 from ez_scheduler.models.database import get_db
+from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.registration_service import RegistrationService
 from ez_scheduler.services.signup_form_service import SignupFormService
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -17,8 +18,9 @@ template_dir = Path(__file__).parent.parent / "templates"
 templates = Jinja2Templates(directory=str(template_dir))
 
 db_session = next(get_db())
+llm_client = get_llm_client()
 signup_form_service = SignupFormService(db_session)
-registration_service = RegistrationService(db_session)
+registration_service = RegistrationService(db_session, llm_client)
 
 # Configure logging
 logging.basicConfig(level=getattr(logging, config["log_level"]))
@@ -87,10 +89,15 @@ async def submit_registration_form(
 
         logger.info(f"Created registration {registration.id} for form {form.id}")
 
+        # Generate personalized confirmation message using LLM
+        confirmation_message = await registration_service.generate_confirmation_message(
+            form, name.strip()
+        )
+
         # Return JSON success response
         return {
             "success": True,
-            "message": "Registration submitted successfully",
+            "message": confirmation_message,
             "registration_id": str(registration.id),
         }
 

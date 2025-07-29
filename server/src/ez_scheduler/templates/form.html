@@ -144,8 +144,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                         </svg>
                     </div>
-                    <h3 class="text-lg font-semibold text-green-800 mb-2">Registration Successful!</h3>
-                    <p class="text-green-700">Thank you for signing up for <strong>{{ form.title }}</strong>. We've received your registration and will be in touch with any additional details.</p>
+                    <h3 class="text-lg font-semibold text-green-800 mb-2" x-text="confirmationMessage || 'Registration Successful!'"></h3>
                 </div>
             </div>
         </div>
@@ -162,6 +161,7 @@
                 submitting: false,
                 submitted: false,
                 error: null,
+                confirmationMessage: null,
 
                 async submitForm() {
                     this.submitting = true;
@@ -177,6 +177,7 @@
                         const result = await response.json();
 
                         if (response.ok && result.success) {
+                            this.confirmationMessage = result.message;
                             this.submitted = true;
                         } else {
                             this.error = result.detail || 'An error occurred while submitting the form.';

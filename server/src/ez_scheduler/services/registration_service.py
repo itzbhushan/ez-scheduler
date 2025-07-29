@@ -4,8 +4,10 @@ import logging
 import uuid
 from typing import Optional
 
+from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.models.registration import Registration
 from ez_scheduler.models.signup_form import SignupForm
+from ez_scheduler.system_prompts import CONFIRMATION_MESSAGE_PROMPT
 from sqlmodel import Session, select
 
 logger = logging.getLogger(__name__)
@@ -14,8 +16,9 @@ logger = logging.getLogger(__name__)
 class RegistrationService:
     """Service for managing user registrations"""
 
-    def __init__(self, db_session: Session):
+    def __init__(self, db_session: Session, llm_client: LLMClient):
         self.db = db_session
+        self.llm_client = llm_client
 
     def create_registration(
         self,
@@ -84,3 +87,32 @@ class RegistrationService:
         """Get the total number of registrations for a form"""
         stmt = select(Registration).where(Registration.form_id == form_id)
         return len(list(self.db.exec(stmt).all()))
+
+    async def generate_confirmation_message(self, form, registrant_name: str) -> str:
+        """Generate a personalized confirmation message using LLM"""
+        try:
+
+            # User message with event context
+            user_message = f"""Generate a confirmation message for this registration:
+
+Event: {form.title}
+Date: {form.event_date}
+Time: {form.start_time.strftime('%I:%M %p') if form.start_time else 'TBD'} - {form.end_time.strftime('%I:%M %p') if form.end_time else 'TBD'}
+Location: {form.location}
+Description: {form.description if form.description else 'No description provided'}
+
+Registrant: {registrant_name}
+
+Generate just the confirmation message, nothing else."""
+
+            messages = [{"role": "user", "content": user_message}]
+
+            response = await self.llm_client.process_instruction(
+                messages=messages, system=CONFIRMATION_MESSAGE_PROMPT, max_tokens=150
+            )
+            return response.strip()
+
+        except Exception as e:
+            logger.warning(f"Failed to generate LLM confirmation message: {e}")
+            # Fallback to a simple personalized message
+            return f"Thanks for registering for {form.title}, {registrant_name}! We're excited to see you there."

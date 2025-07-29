@@ -166,9 +166,9 @@ def user_service(test_db_session):
 
 
 @pytest.fixture
-def registration_service(test_db_session):
+def registration_service(test_db_session, llm_client):
     """Create a RegistrationService instance for testing"""
-    return RegistrationService(test_db_session)
+    return RegistrationService(test_db_session, llm_client)
 
 
 @pytest.fixture

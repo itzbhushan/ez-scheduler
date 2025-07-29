@@ -65,7 +65,13 @@ class TestFormSubmission:
         result = response.json()
         assert result["success"] is True
         assert "registration_id" in result
-        assert result["message"] == "Registration submitted successfully"
+        # Check that we got a personalized message containing the event name and registrant name
+        message = result["message"]
+        assert "Test Event" in message  # Event name (LLM may shorten it)
+        assert "John" in message  # Registrant name (LLM may use first name)
+        assert len(message) > 30  # Should be a substantial personalized message
+        # Ensure it's not the generic fallback message
+        assert "We're excited to see you there" not in message or len(message) > 60
 
     @pytest.mark.asyncio
     async def test_form_submission_invalid_form(self):
