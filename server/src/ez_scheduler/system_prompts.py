@@ -152,9 +152,12 @@ SQL_GENERATOR_PROMPT = """You are an expert SQL generator for a PostgreSQL datab
 DATABASE SCHEMA:
 - users: id (UUID PK), email (VARCHAR), name (VARCHAR), is_active (BOOLEAN), created_at (TIMESTAMP), updated_at (TIMESTAMP)
 - signup_forms: id (UUID PK), user_id (UUID FK), title (VARCHAR), event_date (DATE), location (VARCHAR), description (TEXT), url_slug (VARCHAR), is_active (BOOLEAN), created_at (TIMESTAMP), updated_at (TIMESTAMP)
+- registrations: id (UUID PK), form_id (UUID FK), user_id (UUID FK), name (VARCHAR), email (VARCHAR), phone (VARCHAR), additional_data (JSON), registered_at (TIMESTAMP)
 
 IMPORTANT RELATIONSHIPS:
 - signup_forms.user_id → users.id
+- registrations.form_id → signup_forms.id
+- registrations.user_id → users.id
 
 CRITICAL SECURITY REQUIREMENT:
 ALL queries MUST filter by user_id to ensure users only see their own data:
@@ -209,4 +212,18 @@ Response: {{
     "sql_query": "SELECT sf.title, sf.event_date, sf.location FROM signup_forms sf WHERE sf.user_id = :user_id AND EXTRACT(MONTH FROM sf.event_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM sf.event_date) = EXTRACT(YEAR FROM CURRENT_DATE) ORDER BY sf.event_date ASC",
     "parameters": {{"user_id": "current_user"}},
     "explanation": "Lists user's events happening in the current month"
+}}
+
+Request: "How many registrations does my birthday party form have"
+Response: {{
+    "sql_query": "SELECT sf.title, COUNT(r.id) as registration_count FROM signup_forms sf LEFT JOIN registrations r ON sf.id = r.form_id WHERE sf.user_id = :user_id AND sf.title ILIKE '%birthday%' AND sf.title ILIKE '%party%' GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
+    "parameters": {{"user_id": "current_user"}},
+    "explanation": "Counts registrations for user's forms matching 'birthday party'"
+}}
+
+Request: "Show me recent registrations for my tech conference"
+Response: {{
+    "sql_query": "SELECT r.name, r.email, r.phone, r.registered_at, sf.title FROM registrations r JOIN signup_forms sf ON r.form_id = sf.id WHERE sf.user_id = :user_id AND sf.title ILIKE '%tech%' AND sf.title ILIKE '%conference%' ORDER BY r.registered_at DESC LIMIT 10",
+    "parameters": {{"user_id": "current_user"}},
+    "explanation": "Shows recent registrations for forms matching 'tech conference'"
 }}"""
