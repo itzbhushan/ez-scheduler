@@ -137,8 +137,8 @@ cython_debug/
 # VS Code
 .vscode/
 
-# UV lock file (package manager)
-uv.lock
+# UV lock file (package manager) - commented out for deployment
+# uv.lock
 
 # Database files
 *.db
