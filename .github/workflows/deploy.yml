@@ -80,9 +80,7 @@ jobs:
       run: npm install -g @railway/cli
 
     - name: Deploy to Railway Staging
-      run: |
-        railway service list || echo "Listing services failed"
-        railway up --detach --service server || railway up --detach --service ez-scheduler || railway up --detach
+      run: railway up --detach --service ez-scheduler-staging
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
       working-directory: ./server
@@ -100,7 +98,7 @@ jobs:
       run: npm install -g @railway/cli
 
     - name: Deploy to Railway Production
-      run: railway up --detach --service app
+      run: railway up --detach --service ez-scheduler-production
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
       working-directory: ./server
