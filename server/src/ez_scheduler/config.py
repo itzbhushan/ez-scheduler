@@ -5,14 +5,14 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Load environment variables once
+# Load environment variables once (optional .env file for local development)
 server_dir = Path(__file__).parent.parent.parent
 env_path = server_dir / ".env"
 
-if not env_path.exists():
-    raise FileNotFoundError(f"Could not find .env file at {env_path}")
-
-load_dotenv(env_path)
+# Only load .env file if it exists (for local development)
+# Railway and other cloud providers use environment variables directly
+if env_path.exists():
+    load_dotenv(env_path)
 
 # Configuration dictionary
 config = {
