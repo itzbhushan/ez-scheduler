@@ -51,7 +51,13 @@ jobs:
       run: pip install uv
 
     - name: Install dependencies
-      run: uv sync --frozen
+      run: uv sync --frozen --extra dev
+
+    - name: Run linting
+      run: |
+        uv run black --check .
+        uv run flake8 .
+        uv run mypy .
 
     - name: Run database migrations
       run: uv run alembic upgrade head
@@ -63,12 +69,6 @@ jobs:
       env:
         DATABASE_URL: postgresql://ez_user:ez_password@localhost:5432/ez_scheduler
         REDIS_URL: redis://localhost:6379
-
-    - name: Run linting
-      run: |
-        uv run black --check .
-        uv run flake8 .
-        uv run mypy .
 
   deploy-staging:
     needs: test
