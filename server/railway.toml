@@ -1,0 +1,27 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "ez-scheduler-app"
+
+[services.source]
+repo = "your-github-username/ez-scheduler"
+branch = "main"
+
+[[services.variables]]
+name = "MCP_PORT"
+value = "8080"
+
+[[services.variables]]
+name = "ENVIRONMENT"
+value = "production"
+
+# Database will be added automatically by Railway when you add PostgreSQL service
+# Redis will be added automatically by Railway when you add Redis service

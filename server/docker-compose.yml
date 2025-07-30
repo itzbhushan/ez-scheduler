@@ -38,12 +38,15 @@ services:
       DATABASE_URL: postgresql://ez_user:ez_password@postgres:5432/ez_scheduler
       REDIS_URL: redis://redis:6379
       MCP_PORT: 8080
+      ENVIRONMENT: development
     ports:
       - "8080:8080"
     volumes:
       - ./src:/app/src
       - ./tests:/app/tests
       - ./.env:/app/.env
+    # Override user for local development (allows file editing)
+    user: "0:0"
 
 volumes:
   postgres_data:
