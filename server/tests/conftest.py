@@ -139,7 +139,7 @@ def llm_client():
 @pytest.fixture
 def mcp_client():
     """Create an MCP client connected to the test server"""
-    return StreamableHttpTransport(f"http://localhost:{test_config['mcp_port']}/mcp")
+    return StreamableHttpTransport(f"http://localhost:{test_config['mcp_port']}/mcp/")
 
 
 @pytest.fixture
