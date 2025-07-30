@@ -1,9 +1,9 @@
-name: Deploy to Railway
+name: CI/CD Pipeline
 
 on:
-  push:
-    branches: [main]
   pull_request:
+    branches: [main]
+  push:
     branches: [main]
 
 jobs:
@@ -66,10 +66,14 @@ jobs:
       env:
         DATABASE_URL: postgresql://ez_user:ez_password@localhost:5432/ez_scheduler
         REDIS_URL: redis://localhost:6379
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        MCP_PORT: 8080
+        LOG_LEVEL: DEBUG
 
   deploy-staging:
     needs: test
     runs-on: ubuntu-latest
+    # Only deploy when code is merged to main branch (not on PRs)
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
