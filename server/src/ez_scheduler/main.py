@@ -26,8 +26,8 @@ app = FastAPI(
 
 app.include_router(health)
 app.include_router(registration_router)
-# Mount this at the end...
-app.mount("/", mcp_app)
+# Mount MCP app at /mcp path
+app.mount("/mcp", mcp_app)
 
 
 if __name__ == "__main__":

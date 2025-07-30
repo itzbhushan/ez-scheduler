@@ -65,4 +65,4 @@ async def get_form_analytics(user_id: str, analytics_query: str) -> str:
 
 
 # Create the ASGI app from the MCP server
-mcp_app = mcp.http_app(path="/mcp")
+mcp_app = mcp.http_app()
