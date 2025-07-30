@@ -80,7 +80,7 @@ jobs:
       run: npm install -g @railway/cli
 
     - name: Deploy to Railway Staging
-      run: railway up --detach
+      run: railway up --detach --service app
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
       working-directory: ./server
@@ -98,7 +98,7 @@ jobs:
       run: npm install -g @railway/cli
 
     - name: Deploy to Railway Production
-      run: railway up --detach
+      run: railway up --detach --service app
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
       working-directory: ./server
