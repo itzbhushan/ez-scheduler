@@ -66,7 +66,7 @@ async def create_form_handler(
 
     Returns:
         Response from the form creation process
-        
+
     Raises:
         ValueError: If user_id is not a valid UUID
     """
@@ -75,7 +75,7 @@ async def create_form_handler(
         uuid.UUID(user_id)
     except (ValueError, TypeError):
         raise ValueError(f"Invalid user_id: '{user_id}' is not a valid UUID")
-    
+
     logger.info(f"Creating form for user {user_id}: {initial_request}")
 
     # Create or continue conversation
