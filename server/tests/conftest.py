@@ -32,7 +32,7 @@ def verify_test_requirements():
     return True
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 async def mcp_server_process(postgres_container):
     """Start the HTTP MCP server once for the entire test session"""
     env = os.environ.copy()
@@ -137,8 +137,9 @@ def llm_client():
 
 
 @pytest.fixture
-def mcp_client():
+def mcp_client(mcp_server_process):
     """Create an MCP client connected to the test server"""
+    # mcp_server_process dependency ensures server is running
     return StreamableHttpTransport(f"http://localhost:{test_config['mcp_port']}/mcp/")
 
 
@@ -175,13 +176,3 @@ def registration_service(test_db_session, llm_client):
 def signup_service(test_db_session):
     """Create a SignupFormService instance for testing"""
     return SignupFormService(test_db_session)
-
-
-@pytest.fixture(autouse=True)
-def clear_conversations():
-    """Clear the global conversations dictionary before each test"""
-    from ez_scheduler.tools.create_form import conversations
-    conversations.clear()
-    yield
-    # Clean up after test as well
-    conversations.clear()
