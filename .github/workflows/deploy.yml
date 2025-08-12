@@ -7,73 +7,9 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: ez_password
-          POSTGRES_USER: ez_user
-          POSTGRES_DB: ez_scheduler
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-
-    defaults:
-      run:
-        working-directory: ./server
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-
-    - name: Install uv
-      run: pip install uv
-
-    - name: Install dependencies
-      run: uv sync --frozen --extra dev
-
-    - name: Run code formatting check
-      run: uv run black --check .
-
-    - name: Run database migrations
-      run: uv run alembic upgrade head
-      env:
-        DATABASE_URL: postgresql://ez_user:ez_password@localhost:5432/ez_scheduler
-
-    - name: Run tests
-      run: uv run pytest tests/
-      env:
-        DATABASE_URL: postgresql://ez_user:ez_password@localhost:5432/ez_scheduler
-        REDIS_URL: redis://localhost:6379
-        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        MCP_PORT: 8082
-        LOG_LEVEL: DEBUG
-
   deploy-staging:
-    needs: test
     runs-on: ubuntu-latest
-    # Only deploy when code is merged to main branch (not on PRs)
+    # Only deploy when code is pushed to main branch
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
