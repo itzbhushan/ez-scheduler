@@ -88,7 +88,6 @@ async def test_create_form_complete_success(
         pytest.fail(f"Failed to create complete form: {e}")
 
 
-@pytest.mark.skip(reason="Times out in CI/CD. Works locally.")
 async def test_create_form_with_end_time(
     mcp_client, test_db_session: Session, user_service
 ):
@@ -155,7 +154,6 @@ async def test_create_form_with_end_time(
         pytest.fail(f"Failed to create form with end time: {e}")
 
 
-@pytest.mark.skip(reason="Times out in CI/CD. Works locally.")
 async def test_create_form_with_start_and_end_time(
     mcp_client, test_db_session: Session, user_service
 ):
