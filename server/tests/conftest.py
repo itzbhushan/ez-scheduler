@@ -175,3 +175,13 @@ def registration_service(test_db_session, llm_client):
 def signup_service(test_db_session):
     """Create a SignupFormService instance for testing"""
     return SignupFormService(test_db_session)
+
+
+@pytest.fixture(autouse=True)
+def clear_conversations():
+    """Clear the global conversations dictionary before each test"""
+    from ez_scheduler.tools.create_form import conversations
+    conversations.clear()
+    yield
+    # Clean up after test as well
+    conversations.clear()
