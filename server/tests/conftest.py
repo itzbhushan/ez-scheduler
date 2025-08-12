@@ -140,6 +140,7 @@ def llm_client():
 def mcp_client(mcp_server_process):
     """Create an MCP client connected to the test server"""
     # mcp_server_process dependency ensures server is running
+    _ = mcp_server_process  # Dependency ensures server startup
     return StreamableHttpTransport(f"http://localhost:{test_config['mcp_port']}/mcp/")
 
 
@@ -176,3 +177,13 @@ def registration_service(test_db_session, llm_client):
 def signup_service(test_db_session):
     """Create a SignupFormService instance for testing"""
     return SignupFormService(test_db_session)
+
+
+@pytest.fixture(autouse=True)
+def clear_conversations():
+    """Clear the global conversations dictionary before each test"""
+    from ez_scheduler.tools.create_form import conversations
+
+    conversations.clear()
+    yield
+    conversations.clear()
