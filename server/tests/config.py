@@ -17,7 +17,9 @@ if env_path.exists():
 # Test configuration dictionary
 test_config = {
     "anthropic_api_key": os.getenv("ANTHROPIC_API_KEY"),
-    "mcp_port": 8082,  # Different port for tests (don't use env var here)
+    "mcp_port": int(
+        os.getenv("MCP_PORT", "8082")
+    ),  # Use CI/CD env var or default 8082 for local
     "log_level": os.getenv("LOG_LEVEL", "INFO"),
     "database_url": os.getenv(
         "DATABASE_URL", "postgresql://ez_user:ez_password@localhost:5432/ez_scheduler"
