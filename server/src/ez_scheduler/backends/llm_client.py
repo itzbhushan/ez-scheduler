@@ -1,5 +1,6 @@
 """Simplified LLM client for core Anthropic API interactions"""
 
+import httpx
 from anthropic import Anthropic
 
 
@@ -7,7 +8,15 @@ class LLMClient:
     """Client for LLM-based instruction processing"""
 
     def __init__(self, config: dict):
-        self.client = Anthropic(api_key=config["anthropic_api_key"])
+        # Configure HTTP client with timeouts for CI/CD environments
+        http_client = httpx.Client(
+            timeout=httpx.Timeout(
+                60.0, connect=10.0, read=45.0
+            )  # 60s total, 10s connect, 45s read
+        )
+        self.client = Anthropic(
+            api_key=config["anthropic_api_key"], http_client=http_client
+        )
 
     async def process_instruction(
         self, messages: list, max_tokens: int = 1000, system: str = None
