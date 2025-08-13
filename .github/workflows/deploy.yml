@@ -7,10 +7,47 @@ on:
     branches: [main]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    # Run linting on pull requests
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install UV
+      run: curl -LsSf https://astral.sh/uv/install.sh | sh
+    
+    - name: Install dependencies
+      run: uv sync
+      working-directory: ./server
+    
+    - name: Run Black (formatting check)
+      run: uv run black --check .
+      working-directory: ./server
+    
+    - name: Run isort (import sorting check)
+      run: uv run isort --check-only .
+      working-directory: ./server
+    
+    - name: Run flake8 (linting)
+      run: uv run flake8 .
+      working-directory: ./server
+    
+    - name: Run mypy (type checking)
+      run: uv run mypy .
+      working-directory: ./server
+
   deploy-staging:
     runs-on: ubuntu-latest
-    # Deploy to staging ONLY on pull requests
+    # Deploy to staging ONLY on pull requests, after linting passes
     if: github.event_name == 'pull_request'
+    needs: lint
 
     steps:
     - uses: actions/checkout@v4
