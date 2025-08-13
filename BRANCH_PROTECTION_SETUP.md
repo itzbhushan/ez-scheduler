@@ -33,7 +33,7 @@ Enable these settings:
 - ✅ **Require status checks to pass before merging**
 - ✅ **Require branches to be up to date before merging**
 - Select status checks:
-  - `test` (from GitHub Actions)
+  - `deploy-staging` (from GitHub Actions)
 
 #### Pull Request Requirements
 - ✅ **Require a pull request before merging**
