@@ -8,8 +8,7 @@ from datetime import date, time
 import pytest
 import requests
 from ez_scheduler.models.signup_form import SignupForm
-
-from .config import test_config
+from tests.config import test_config
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +45,7 @@ class TestRegistrationForm:
 
         # Test that the form can be served
         response = requests.get(
-            f"http://localhost:{test_config['mcp_port']}/form/{test_form.url_slug}"
+            f"{test_config['app_base_url']}/form/{test_form.url_slug}"
         )
 
         logger.info(f"Response message: {response.text}")
@@ -76,9 +75,7 @@ class TestRegistrationForm:
         await asyncio.sleep(2)
 
         # Test with a non-existent URL slug
-        response = requests.get(
-            f"http://localhost:{test_config['mcp_port']}/form/nonexistent-form"
-        )
+        response = requests.get(f"{test_config['app_base_url']}/form/nonexistent-form")
 
         print(f"Status code: {response.status_code}")
         print(f"Response text: {response.text}")
@@ -114,7 +111,7 @@ class TestRegistrationForm:
 
         # Test that the inactive form returns 404
         response = requests.get(
-            f"http://localhost:{test_config['mcp_port']}/form/{test_form.url_slug}"
+            f"{test_config['app_base_url']}/form/{test_form.url_slug}"
         )
 
         assert response.status_code == 404

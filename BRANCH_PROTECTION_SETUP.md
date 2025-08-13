@@ -30,10 +30,8 @@ First, set up the required secrets for CI/CD:
 Enable these settings:
 
 #### Required Status Checks
-- ✅ **Require status checks to pass before merging**
+- ❌ **Require status checks to pass before merging** (No longer needed - tests removed from CI/CD)
 - ✅ **Require branches to be up to date before merging**
-- Select status checks:
-  - `test` (from GitHub Actions)
 
 #### Pull Request Requirements
 - ✅ **Require a pull request before merging**
@@ -56,26 +54,27 @@ Click **Create** to save the branch protection rule.
 ## 3. Workflow After Setup
 
 ### For Contributors:
-1. **Create feature branch**: `git checkout -b feature/your-feature`
-2. **Make changes**: Commit your changes to the feature branch
-3. **Push branch**: `git push origin feature/your-feature`
-4. **Create PR**: Go to GitHub and create a pull request to `main`
-5. **Wait for CI**: GitHub Actions will run tests automatically
+1. **Run tests locally**: `uv run pytest` (ensure all tests pass)
+2. **Create feature branch**: `git checkout -b feature/your-feature`
+3. **Make changes**: Commit your changes to the feature branch
+4. **Push branch**: `git push origin feature/your-feature`
+5. **Create PR**: Go to GitHub and create a pull request to `main`
 6. **Request review**: Ask for code review if required
-7. **Merge**: Once approved and tests pass, merge the PR
+7. **Merge**: Once approved, merge the PR
 
 ### For Deployments:
-- **Pull Requests**: Only run tests (no deployment)
+- **Pull Requests**: No CI/CD actions (tests run locally)
 - **Main Branch**: After PR merge, automatically deploys to staging
-- **Production**: Removed from pipeline (manual deployment when ready)
+- **Production**: Manual deployment when ready
 
 ## Current CI/CD Flow:
 ```
-Feature Branch → Pull Request → Tests Run → Review → Merge to Main → Deploy to Staging
+Feature Branch → Pull Request → Review → Merge to Main → Deploy to Staging
 ```
 
 This ensures:
-- All code is tested before merging
-- All changes are reviewed
-- Only stable code reaches main branch
+- All code is tested locally before pushing
+- All changes are reviewed via pull requests
+- Only approved code reaches main branch
 - Automatic staging deployment after merge
+- No CI/CD complexity or hanging issues

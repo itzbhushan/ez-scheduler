@@ -15,8 +15,7 @@ from ez_scheduler.services.user_service import UserService
 from fastmcp.client import Client, StreamableHttpTransport
 from sqlmodel import Session, create_engine
 from testcontainers.postgres import PostgresContainer
-
-from .config import test_config
+from tests.config import test_config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -37,6 +36,9 @@ async def mcp_server_process(postgres_container):
     """Start the HTTP MCP server once for the entire test session"""
     env = os.environ.copy()
     env["MCP_PORT"] = str(test_config["mcp_port"])  # Use test config port
+    env["APP_BASE_DOMAIN"] = test_config[
+        "app_base_domain"
+    ]  # Use test config base domain
 
     # Ensure the MCP server uses the same database as the test
     database_url = postgres_container.get_connection_url()
@@ -56,7 +58,7 @@ async def mcp_server_process(postgres_container):
     )
 
     # Wait for HTTP server to be ready
-    await _wait_for_server(f"http://localhost:{test_config['mcp_port']}")
+    await _wait_for_server(test_config["app_base_url"])
 
     yield process
 
@@ -141,7 +143,7 @@ def mcp_client(mcp_server_process):
     """Create an MCP client connected to the test server"""
     # mcp_server_process dependency ensures server is running
     _ = mcp_server_process  # Dependency ensures server startup
-    return StreamableHttpTransport(f"http://localhost:{test_config['mcp_port']}/mcp/")
+    return StreamableHttpTransport(f"{test_config['app_base_url']}/mcp/")
 
 
 @pytest.fixture

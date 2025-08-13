@@ -27,8 +27,8 @@ alembic upgrade head
 # Start MCP server in development mode
 uv run python run_server.py
 
-# Run tests
-pytest tests/
+# Run tests (ALWAYS use uv as package manager)
+uv run pytest tests/
 
 # Run linting and formatting
 black .
@@ -37,6 +37,10 @@ mypy .
 
 # Generate new migration
 alembic revision --autogenerate -m "description"
+
+# Install dependencies (ALWAYS use uv as package manager)
+uv add package-name
+uv add --dev package-name  # for development dependencies
 ```
 
 ## Architecture Overview
@@ -57,11 +61,19 @@ The system consists of:
 - **DO**: Place all imports at the top of the file in the following order:
 - **DON'T**: Import modules within functions, methods, or conditional blocks
 - **DO**: Group imports logically and separate groups with blank lines
-- **DON'T**: Use relative imports for local modules (use absolute imports)
+- **DO**: Use absolute imports for all local modules (NEVER use relative imports)
+- **DON'T**: Use relative imports like `from ..models import User` or `from .config import test_config`
+
+**Python Package Management**: ALWAYS use `uv` as the Python package manager for all operations.
+
+- **DO**: Use `uv run pytest` for running tests
+- **DO**: Use `uv add package-name` for installing dependencies
+- **DO**: Use `uv run python script.py` for running Python scripts
+- **DON'T**: Use `pip`, `poetry`, or other package managers in this project
 
 #### Example Implementation
 ```python
-# CORRECT: All imports at top of file
+# CORRECT: All imports at top of file with absolute imports
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -70,7 +82,7 @@ from typing import Optional
 from sqlmodel import Session, select
 from fastapi import HTTPException
 
-from ez_scheduler.models.user import User
+from ez_scheduler.models.user import User  # CORRECT: Absolute import
 
 class UserService:
     def __init__(self, db_session: Session):
@@ -78,11 +90,12 @@ class UserService:
 ```
 
 ```python
-# INCORRECT: Imports within functions
+# INCORRECT: Relative imports and imports within functions
 class UserService:
     def create_user(self, email: str):
-        from ez_scheduler.models.user import User  # Wrong!
-        import uuid  # Wrong!
+        from ..models.user import User  # Wrong! Relative import
+        from .config import test_config  # Wrong! Relative import
+        import uuid  # Wrong! Import within function
         # ... rest of method
 ```
 
