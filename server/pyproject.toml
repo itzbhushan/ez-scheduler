@@ -55,6 +55,10 @@ timeout_method = "thread"
 line-length = 88
 target-version = ['py311']
 
+[tool.isort]
+profile = "black"
+line_length = 88
+
 [tool.mypy]
 python_version = "3.11"
 warn_return_any = true
