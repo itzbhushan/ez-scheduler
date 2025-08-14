@@ -11,32 +11,33 @@ jobs:
     runs-on: ubuntu-latest
     # Run linting on pull requests
     if: github.event_name == 'pull_request'
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-    
+
     - name: Install UV
       run: curl -LsSf https://astral.sh/uv/install.sh | sh
-    
+
     - name: Install dependencies
       run: uv sync --extra dev
       working-directory: ./server
-    
+
     - name: Run Black (formatting check)
       run: uv run black --check .
       working-directory: ./server
-    
+
     - name: Run isort (import sorting check)
       run: uv run isort --check-only .
       working-directory: ./server
 
   deploy-staging:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # Deploy to staging ONLY on pull requests, after linting passes
     if: github.event_name == 'pull_request'
     needs: lint
@@ -45,13 +46,18 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Install Railway CLI
-      run: npm install -g @railway/cli
+      run: npm install -g @railway/cli@4.6.3
 
     - name: Deploy to Railway Staging
       run: railway up --detach --service ez-scheduler-staging
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
       working-directory: ./server
+
+    - name: Verify Staging Deployment
+      run: |
+        sleep 300  # Wait for service startup
+        curl -f https://ez-scheduler-staging-staging.up.railway.app/health || exit 1
 
   deploy-production:
     runs-on: ubuntu-latest
@@ -62,7 +68,7 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Install Railway CLI
-      run: npm install -g @railway/cli
+      run: npm install -g @railway/cli@4.6.3
 
     - name: Deploy to Railway Production (TEMPORARILY DISABLED)
       run: echo "Production deployment temporarily disabled. Staging deployment completed successfully."
