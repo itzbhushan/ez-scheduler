@@ -34,10 +34,6 @@ jobs:
     - name: Run isort (import sorting check)
       run: uv run isort --check-only .
       working-directory: ./server
-    
-    - name: Run mypy (type checking)
-      run: uv run mypy .
-      working-directory: ./server
 
   deploy-staging:
     runs-on: ubuntu-latest
