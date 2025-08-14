@@ -1,9 +1,10 @@
 import os
 from datetime import datetime, timezone
 
-from ez_scheduler.models.database import engine
 from fastapi import APIRouter, HTTPException
 from sqlmodel import Session, text
+
+from ez_scheduler.models.database import engine
 
 health = APIRouter()
 

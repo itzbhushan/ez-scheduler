@@ -8,13 +8,14 @@ import time
 from pathlib import Path
 
 import pytest
+from fastmcp.client import Client, StreamableHttpTransport
+from sqlmodel import Session, create_engine
+from testcontainers.postgres import PostgresContainer
+
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.services.registration_service import RegistrationService
 from ez_scheduler.services.signup_form_service import SignupFormService
 from ez_scheduler.services.user_service import UserService
-from fastmcp.client import Client, StreamableHttpTransport
-from sqlmodel import Session, create_engine
-from testcontainers.postgres import PostgresContainer
 
 from .config import test_config
 

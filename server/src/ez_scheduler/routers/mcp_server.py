@@ -1,6 +1,8 @@
 import logging
 import uuid
 
+from fastmcp import FastMCP
+
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.backends.postgres_mcp_client import PostgresMCPClient
 from ez_scheduler.config import config
@@ -8,7 +10,6 @@ from ez_scheduler.models.database import get_db
 from ez_scheduler.services.signup_form_service import SignupFormService
 from ez_scheduler.tools.create_form import create_form_handler
 from ez_scheduler.tools.get_form_analytics import get_form_analytics_handler
-from fastmcp import FastMCP
 
 # Configure logging
 logging.basicConfig(level=getattr(logging, config["log_level"]))

@@ -4,11 +4,12 @@ import logging
 import uuid
 from typing import Optional
 
+from sqlmodel import Session, select
+
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.models.registration import Registration
 from ez_scheduler.models.signup_form import SignupForm
 from ez_scheduler.system_prompts import CONFIRMATION_MESSAGE_PROMPT
-from sqlmodel import Session, select
 
 logger = logging.getLogger(__name__)
 

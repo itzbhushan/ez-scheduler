@@ -2,10 +2,11 @@ import os
 import sys
 from logging.config import fileConfig
 
-from alembic import context
-from ez_scheduler.models.signup_form import SignupForm
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
+
+from alembic import context
+from ez_scheduler.models.signup_form import SignupForm
 
 # Add the src directory to the Python path
 # sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
