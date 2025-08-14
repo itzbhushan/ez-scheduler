@@ -33,7 +33,7 @@ Enable these settings:
 - ✅ **Require status checks to pass before merging**
 - ✅ **Require branches to be up to date before merging**
 - Select status checks:
-  - `test` (from GitHub Actions)
+  - `lint` (from GitHub Actions)
 
 #### Pull Request Requirements
 - ✅ **Require a pull request before merging**
@@ -65,8 +65,8 @@ Click **Create** to save the branch protection rule.
 7. **Merge**: Once approved and tests pass, merge the PR
 
 ### For Deployments:
-- **Pull Requests**: Only run tests (no deployment)
-- **Main Branch**: After PR merge, automatically deploys to staging
+- **Pull Requests**: Deploy to staging for testing
+- **Main Branch**: After PR merge, automatically deploys to production
 - **Production**: Removed from pipeline (manual deployment when ready)
 
 ## Current CI/CD Flow:

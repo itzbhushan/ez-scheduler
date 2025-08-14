@@ -5,12 +5,13 @@ import logging
 import uuid
 
 import uvicorn
+from fastapi import FastAPI
+from fastmcp import FastMCP
+
 from ez_scheduler.config import config
 from ez_scheduler.routers.health import health
 from ez_scheduler.routers.mcp_server import mcp_app
 from ez_scheduler.routers.registration import router as registration_router
-from fastapi import FastAPI
-from fastmcp import FastMCP
 
 # Configure logging
 logging.basicConfig(level=getattr(logging, config["log_level"]))

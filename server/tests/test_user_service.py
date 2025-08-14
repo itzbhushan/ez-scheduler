@@ -3,6 +3,7 @@
 import uuid
 
 import pytest
+
 from ez_scheduler.models.user import User
 
 

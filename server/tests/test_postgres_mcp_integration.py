@@ -4,6 +4,7 @@ import logging
 import uuid
 
 import pytest
+
 from ez_scheduler.backends.postgres_mcp_client import (
     PostgresMCPClient,
     generate_sql_query,
