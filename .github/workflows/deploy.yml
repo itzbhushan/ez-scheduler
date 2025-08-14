@@ -56,8 +56,20 @@ jobs:
 
     - name: Verify Staging Deployment
       run: |
-        sleep 300  # Wait for service startup
-        curl -f https://ez-scheduler-staging-staging.up.railway.app/health || exit 1
+        echo "Waiting for staging deployment to be ready..."
+        for i in {1..10}; do
+          echo "Attempt $i/10: Checking health endpoint..."
+          if curl -f -s https://ez-scheduler-staging-staging.up.railway.app/health; then
+            echo "✅ Staging deployment is healthy!"
+            exit 0
+          fi
+          if [ $i -lt 10 ]; then
+            echo "⏳ Service not ready yet, waiting 30 seconds..."
+            sleep 30
+          fi
+        done
+        echo "❌ Staging deployment failed to become healthy within 300 seconds"
+        exit 1
 
   deploy-production:
     runs-on: ubuntu-latest
