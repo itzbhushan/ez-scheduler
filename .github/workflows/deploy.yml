@@ -27,32 +27,13 @@ jobs:
       run: uv sync --extra dev
       working-directory: ./server
     
-    - name: Run Black (formatting)
-      run: uv run black .
+    - name: Run Black (formatting check)
+      run: uv run black --check .
       working-directory: ./server
     
-    - name: Run isort (import sorting)
-      run: uv run isort .
+    - name: Run isort (import sorting check)
+      run: uv run isort --check-only .
       working-directory: ./server
-    
-    - name: Commit formatting changes
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add .
-        git diff --staged --quiet || git commit -m "Auto-fix: Apply black and isort formatting
-
-        🤖 Generated with [Claude Code](https://claude.ai/code)
-        
-        Co-Authored-By: Claude <noreply@anthropic.com>"
-      working-directory: ./server
-    
-    - name: Push formatting changes
-      if: github.event_name == 'pull_request'
-      uses: ad-m/github-push-action@master
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        branch: ${{ github.head_ref }}
     
     - name: Run flake8 (linting)
       run: uv run flake8 .
