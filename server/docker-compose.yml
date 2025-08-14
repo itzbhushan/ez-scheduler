@@ -38,7 +38,7 @@ services:
       DATABASE_URL: postgresql://ez_user:ez_password@postgres:5432/ez_scheduler
       REDIS_URL: redis://redis:6379
       MCP_PORT: 8080
-      ENVIRONMENT: development
+      ENVIRONMENT: local
     ports:
       - "8080:8080"
     volumes:
