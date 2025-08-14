@@ -5,8 +5,9 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from ez_scheduler.models.signup_form import SignupForm
 from sqlmodel import Session, select
+
+from ez_scheduler.models.signup_form import SignupForm
 
 logger = logging.getLogger(__name__)
 

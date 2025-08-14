@@ -5,8 +5,9 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from ez_scheduler.models.user import User
 from sqlmodel import Session, select
+
+from ez_scheduler.models.user import User
 
 logger = logging.getLogger(__name__)
 
