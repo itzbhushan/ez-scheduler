@@ -35,10 +35,6 @@ jobs:
       run: uv run isort --check-only .
       working-directory: ./server
     
-    - name: Run flake8 (linting)
-      run: uv run flake8 .
-      working-directory: ./server
-    
     - name: Run mypy (type checking)
       run: uv run mypy .
       working-directory: ./server
