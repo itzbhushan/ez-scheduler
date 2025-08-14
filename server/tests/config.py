@@ -26,9 +26,5 @@ test_config = {
     ),
     "redis_url": os.getenv("REDIS_URL", "redis://localhost:6379"),
     "app_base_domain": os.getenv("APP_BASE_DOMAIN", "http://localhost"),
+    "app_base_url": os.getenv("APP_BASE_URL"),
 }
-
-# Construct full base URL from domain and port for tests
-test_config["app_base_url"] = (
-    f"{test_config['app_base_domain']}:{test_config['mcp_port']}"
-)

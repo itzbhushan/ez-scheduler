@@ -28,7 +28,5 @@ config = {
     "mcp_port": int(os.getenv("MCP_PORT", "8080")),
     "log_level": os.getenv("LOG_LEVEL", "INFO"),
     "app_base_domain": os.getenv("APP_BASE_DOMAIN"),
+    "app_base_url": os.getenv("APP_BASE_URL"),
 }
-
-# Construct full base URL from domain and port
-config["app_base_url"] = f"{config['app_base_domain']}:{config['mcp_port']}"
