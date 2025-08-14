@@ -7,6 +7,7 @@ from datetime import date, time
 
 import pytest
 import requests
+
 from ez_scheduler.models.signup_form import SignupForm
 from tests.config import test_config
 

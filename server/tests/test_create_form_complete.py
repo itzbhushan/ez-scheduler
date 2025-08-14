@@ -5,9 +5,10 @@ import re
 from datetime import date, time
 
 import pytest
-from ez_scheduler.models.signup_form import SignupForm
 from fastmcp.client import Client
 from sqlmodel import Session, select
+
+from ez_scheduler.models.signup_form import SignupForm
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

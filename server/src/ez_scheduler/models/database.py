@@ -2,9 +2,10 @@
 
 import os
 
-from ez_scheduler.config import config
 from sqlalchemy import create_engine
 from sqlmodel import Session
+
+from ez_scheduler.config import config
 
 # Database URL from config
 DATABASE_URL = config["database_url"]

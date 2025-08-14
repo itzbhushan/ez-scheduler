@@ -3,13 +3,14 @@
 import logging
 from pathlib import Path
 
+from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi.templating import Jinja2Templates
+
 from ez_scheduler.config import config
 from ez_scheduler.models.database import get_db
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.registration_service import RegistrationService
 from ez_scheduler.services.signup_form_service import SignupFormService
-from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.templating import Jinja2Templates
 
 router = APIRouter()
 

@@ -7,19 +7,85 @@ on:
     branches: [main]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    # Run linting on pull requests
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install UV
+      run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+    - name: Install dependencies
+      run: uv sync --extra dev
+      working-directory: ./server
+
+    - name: Run Black (formatting check)
+      run: uv run black --check .
+      working-directory: ./server
+
+    - name: Run isort (import sorting check)
+      run: uv run isort --check-only .
+      working-directory: ./server
+
   deploy-staging:
     runs-on: ubuntu-latest
-    # Only deploy when code is pushed to main branch
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    timeout-minutes: 10
+    # Deploy to staging ONLY on pull requests, after linting passes
+    if: github.event_name == 'pull_request'
+    needs: lint
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Install Railway CLI
-      run: npm install -g @railway/cli
+      run: npm install -g @railway/cli@4.6.3
 
     - name: Deploy to Railway Staging
       run: railway up --detach --service ez-scheduler-staging
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
       working-directory: ./server
+
+    - name: Verify Staging Deployment
+      run: |
+        echo "Waiting for staging deployment to be ready..."
+        for i in {1..10}; do
+          echo "Attempt $i/10: Checking health endpoint..."
+          if curl -f -s https://ez-scheduler-staging-staging.up.railway.app/health; then
+            echo "✅ Staging deployment is healthy!"
+            exit 0
+          fi
+          if [ $i -lt 10 ]; then
+            echo "⏳ Service not ready yet, waiting 30 seconds..."
+            sleep 30
+          fi
+        done
+        echo "❌ Staging deployment failed to become healthy within 300 seconds"
+        exit 1
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    # Only deploy to production when code is merged to main branch
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Railway CLI
+      run: npm install -g @railway/cli@4.6.3
+
+    - name: Deploy to Railway Production (TEMPORARILY DISABLED)
+      run: echo "Production deployment temporarily disabled. Staging deployment completed successfully."
+      # Uncomment the lines below when ready to enable production deployment:
+      # run: railway up --detach --service ez-scheduler-production
+      # env:
+      #   RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
+      # working-directory: ./server

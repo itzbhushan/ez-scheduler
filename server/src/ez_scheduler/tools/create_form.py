@@ -7,12 +7,13 @@ import uuid
 from datetime import date, datetime, time
 from typing import Any, Dict, Optional
 
+from pydantic import BaseModel, Field
+
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.config import config
 from ez_scheduler.models.signup_form import SignupForm
 from ez_scheduler.services.signup_form_service import SignupFormService
 from ez_scheduler.system_prompts import FORM_BUILDER_PROMPT, FORM_RESPONSE_PROMPT
-from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 

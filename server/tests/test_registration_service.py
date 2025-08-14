@@ -4,6 +4,7 @@ import uuid
 from datetime import date, time
 
 import pytest
+
 from ez_scheduler.models.signup_form import SignupForm
 
 
