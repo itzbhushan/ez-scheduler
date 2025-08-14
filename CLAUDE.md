@@ -71,6 +71,13 @@ The system consists of:
 - **DO**: Use `uv run python script.py` for running Python scripts
 - **DON'T**: Use `pip`, `poetry`, or other package managers in this project
 
+**Git Commit Standards**: NEVER use `--no-verify` flag when committing to ensure code quality.
+
+- **DO**: Use `git commit -m "message"` to run all pre-commit hooks
+- **DON'T**: Use `git commit -m "message" --no-verify` which bypasses quality checks
+- **DO**: Fix any issues found by pre-commit hooks before committing
+- **DON'T**: Skip linting, formatting, or test validation
+
 #### Example Implementation
 ```python
 # CORRECT: All imports at top of file with absolute imports
