@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 from sqlmodel import Session, select
 
-from ..models.user import User
+from ez_scheduler.models.user import User
 
 logger = logging.getLogger(__name__)
 

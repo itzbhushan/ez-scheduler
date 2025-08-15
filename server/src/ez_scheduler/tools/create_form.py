@@ -10,10 +10,10 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field
 
 from ez_scheduler.backends.llm_client import LLMClient
-
-from ..models.signup_form import SignupForm
-from ..services.signup_form_service import SignupFormService
-from ..system_prompts import FORM_BUILDER_PROMPT, FORM_RESPONSE_PROMPT
+from ez_scheduler.config import config
+from ez_scheduler.models.signup_form import SignupForm
+from ez_scheduler.services.signup_form_service import SignupFormService
+from ez_scheduler.system_prompts import FORM_BUILDER_PROMPT, FORM_RESPONSE_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -208,6 +208,8 @@ USER MESSAGE: {user_message}
             return ConversationResponse(**response_data)
         except json.JSONDecodeError as e:
             # Log the actual response that failed to parse
+            logger.error(f"JSON parsing failed for LLM response: {response_text}")
+            logger.error(f"JSON parse error: {e}")
             # Fallback if JSON parsing fails
             return ConversationResponse(
                 response_text="I'm having trouble processing your request. Could you please rephrase it?",
@@ -455,7 +457,7 @@ async def create_form(
         "location": location,
         "description": description,
         "url_slug": url_slug,
-        "url": f"http://localhost:8080/form/{url_slug}",  # TODO: Replace with actual base URL.
+        "url": f"{config['app_base_url']}/form/{url_slug}",
     }
 
     try:

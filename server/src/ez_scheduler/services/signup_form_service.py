@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 from sqlmodel import Session, select
 
-from ..models.signup_form import SignupForm
+from ez_scheduler.models.signup_form import SignupForm
 
 logger = logging.getLogger(__name__)
 

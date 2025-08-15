@@ -1,18 +1,25 @@
-"""Simple configuration loader for EZ Scheduler"""
+"""Configuration loader for EZ Scheduler with environment-specific support"""
 
 import os
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Load environment variables once (optional .env file for local development)
+# Determine environment and load appropriate .env file
+environment = os.getenv("ENVIRONMENT", "local")
 server_dir = Path(__file__).parent.parent.parent
-env_path = server_dir / ".env"
 
-# Only load .env file if it exists (for local development)
-# Railway and other cloud providers use environment variables directly
-if env_path.exists():
-    load_dotenv(env_path)
+# Load environment-specific .env file only for local and test environments
+# Staging and production use Railway environment variables directly
+if environment in ["local", "test"]:
+    env_files = {"local": ".env", "test": ".env.test"}
+
+    env_file = env_files.get(environment, ".env")
+    env_path = server_dir / env_file
+
+    # Load .env file if it exists
+    if env_path.exists():
+        load_dotenv(env_path)
 
 # Configuration dictionary
 config = {
@@ -20,4 +27,6 @@ config = {
     "database_url": os.getenv("DATABASE_URL"),
     "mcp_port": int(os.getenv("MCP_PORT", "8080")),
     "log_level": os.getenv("LOG_LEVEL", "INFO"),
+    "app_base_domain": os.getenv("APP_BASE_DOMAIN"),
+    "app_base_url": os.getenv("APP_BASE_URL"),
 }

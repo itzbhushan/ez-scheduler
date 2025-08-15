@@ -9,8 +9,7 @@ import pytest
 import requests
 
 from ez_scheduler.models.signup_form import SignupForm
-
-from .config import test_config
+from tests.config import test_config
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +51,7 @@ class TestFormSubmission:
         }
 
         response = requests.post(
-            f"http://localhost:{test_config['mcp_port']}/form/{test_form.url_slug}",
+            f"{test_config['app_base_url']}/form/{test_form.url_slug}",
             data=form_data,
         )
 
@@ -85,7 +84,7 @@ class TestFormSubmission:
         }
 
         response = requests.post(
-            f"http://localhost:{test_config['mcp_port']}/form/nonexistent-form",
+            f"{test_config['app_base_url']}/form/nonexistent-form",
             data=form_data,
         )
 
@@ -125,7 +124,7 @@ class TestFormSubmission:
         }
 
         response = requests.post(
-            f"http://localhost:{test_config['mcp_port']}/form/{test_form.url_slug}",
+            f"{test_config['app_base_url']}/form/{test_form.url_slug}",
             data=form_data,
         )
 

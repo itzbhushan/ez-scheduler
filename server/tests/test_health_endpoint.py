@@ -5,7 +5,7 @@ import asyncio
 import pytest
 import requests
 
-from .config import test_config
+from tests.config import test_config
 
 
 class TestHealthEndpoint:
@@ -18,7 +18,7 @@ class TestHealthEndpoint:
         await asyncio.sleep(2)
 
         # Test health endpoint
-        response = requests.get(f"http://localhost:{test_config['mcp_port']}/health")
+        response = requests.get(f"{test_config['app_base_url']}/health")
 
         assert response.status_code == 200
         data = response.json()

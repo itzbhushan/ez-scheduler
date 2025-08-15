@@ -9,8 +9,7 @@ from ez_scheduler.backends.postgres_mcp_client import (
     PostgresMCPClient,
     generate_sql_query,
 )
-
-from .config import test_config
+from tests.config import test_config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
