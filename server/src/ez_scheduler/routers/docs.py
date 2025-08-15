@@ -1,5 +1,7 @@
 """OpenAPI documentation endpoints"""
 
+from pathlib import Path
+
 from fastapi import APIRouter
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
@@ -74,7 +76,6 @@ For API support, contact support@ez-scheduler.com
             "name": "MIT",
         },
         servers=[
-            {"url": "http://localhost:8080", "description": "Local development server"},
             {
                 "url": "https://ez-scheduler-staging-staging.up.railway.app",
                 "description": "Staging server",
@@ -82,10 +83,8 @@ For API support, contact support@ez-scheduler.com
         ],
     )
 
-    # Add additional metadata
-    openapi_schema["info"]["x-logo"] = {
-        "url": "https://fastapi.tiangolo.com/img/logo-margin/logo-teal.png"
-    }
+    # Add additional metadata with local logo
+    openapi_schema["info"]["x-logo"] = {"url": "/static/ez-scheduler-logo.ico"}
 
     _app_instance.openapi_schema = openapi_schema
     return _app_instance.openapi_schema
@@ -103,7 +102,7 @@ async def get_swagger_ui():
     return get_swagger_ui_html(
         openapi_url="/v1/api/docs.json",
         title="EZ Scheduler API Documentation",
-        swagger_favicon_url="https://fastapi.tiangolo.com/img/favicon.png",
+        swagger_favicon_url="/static/ez-scheduler-logo.ico",
     )
 
 
@@ -113,5 +112,5 @@ async def get_redoc():
     return get_redoc_html(
         openapi_url="/v1/api/docs.json",
         title="EZ Scheduler API Documentation",
-        redoc_favicon_url="https://fastapi.tiangolo.com/img/favicon.png",
+        redoc_favicon_url="/static/ez-scheduler-logo.ico",
     )

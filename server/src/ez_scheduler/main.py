@@ -6,6 +6,7 @@ import uuid
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastmcp import FastMCP
 
 from ez_scheduler.config import config
@@ -39,6 +40,9 @@ app = FastAPI(
 app.include_router(health)
 app.include_router(registration_router)
 app.include_router(docs_router)
+
+# Mount static files for assets (logo, etc.)
+app.mount("/static", StaticFiles(directory="."), name="static")
 
 # Set app instance for docs router
 set_app_instance(app)
