@@ -1,6 +1,7 @@
 """Get Form Analytics Tool - Queries analytics about user's events via PostgreSQL MCP"""
 
 import logging
+import uuid
 
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.backends.postgres_mcp_client import PostgresMCPClient
@@ -9,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 async def get_form_analytics_handler(
-    user_id: str,
+    user_id: uuid.UUID,
     analytics_query: str,
     postgres_mcp_client: PostgresMCPClient,
     llm_client: LLMClient,
@@ -18,7 +19,7 @@ async def get_form_analytics_handler(
     Get analytics about user's forms using natural language queries.
 
     Args:
-        user_id: User identifier
+        user_id: User identifier (UUID)
         analytics_query: Natural language query about form analytics
 
     Returns:

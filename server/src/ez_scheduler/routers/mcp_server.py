@@ -3,10 +3,10 @@ import uuid
 
 from fastmcp import FastMCP
 
-from ez_scheduler.backends.llm_client import LLMClient
-from ez_scheduler.backends.postgres_mcp_client import PostgresMCPClient
 from ez_scheduler.config import config
 from ez_scheduler.models.database import get_db
+from ez_scheduler.services.llm_service import get_llm_client
+from ez_scheduler.services.postgres_mcp_service import get_postgres_mcp_client
 from ez_scheduler.services.signup_form_service import SignupFormService
 from ez_scheduler.tools.create_form import create_form_handler
 from ez_scheduler.tools.get_form_analytics import get_form_analytics_handler
@@ -17,10 +17,10 @@ logger = logging.getLogger(__name__)
 
 # Create shared instances
 logger.info("Creating shared LLM client...")
-llm_client = LLMClient(config)
+llm_client = get_llm_client()
 
 logger.info("Creating shared PostgresMCPClient...")
-postgres_mcp_client = PostgresMCPClient(config, llm_client)
+postgres_mcp_client = get_postgres_mcp_client(llm_client)
 
 logger.info("Creating shared SignupFormService...")
 db_session = next(get_db())
@@ -44,17 +44,17 @@ async def create_form(user_id: uuid.UUID, initial_request: str) -> str:
         Response from the form creation process
     """
     return await create_form_handler(
-        str(user_id), initial_request, llm_client, signup_form_service
+        user_id, initial_request, llm_client, signup_form_service
     )
 
 
 @mcp.tool()
-async def get_form_analytics(user_id: str, analytics_query: str) -> str:
+async def get_form_analytics(user_id: uuid.UUID, analytics_query: str) -> str:
     """
     Get analytics about user's forms and registrations.
 
     Args:
-        user_id: User identifier
+        user_id: User identifier (UUID)
         analytics_query: Natural language query about form analytics
 
     Returns:
