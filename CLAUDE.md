@@ -78,6 +78,16 @@ The system consists of:
 - **DO**: Fix any issues found by pre-commit hooks before committing
 - **DON'T**: Skip linting, formatting, or test validation
 
+**Git Workflow Standards**: NEVER commit directly to main branch during development.
+
+- **DO**: Check current branch with `git branch` before committing
+- **DO**: Create a new feature branch if on main: `git checkout -b feature-name`
+- **DO**: Always work on feature branches for development changes
+- **DON'T**: Commit any development changes directly to the main branch
+- **DO**: Push feature branch and create pull request: `git push -u origin feature-name && gh pr create`
+- **DO**: Create PR automatically if none exists for the branch after pushing
+- **DON'T**: Push directly to main branch during development
+
 **Pull Request Guidelines**: Keep PR messages concise and focused.
 
 - **DO**: Address only the main features being added in the PR
