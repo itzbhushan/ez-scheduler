@@ -47,9 +47,14 @@ class GPTAnalyticsRequest(BaseModel):
     )
 
 
+class GPTResponse(BaseModel):
+    response: str = Field(..., description="Response message for the user")
+
+
 @router.post(
     "/create-form",
     summary="Create Signup Form",
+    response_model=GPTResponse,
     openapi_extra={"x-openai-isConsequential": False},
 )
 async def gpt_create_form(request: GPTFormRequest):
@@ -59,17 +64,19 @@ async def gpt_create_form(request: GPTFormRequest):
     This endpoint wraps the existing MCP create_form tool to provide
     REST API access for ChatGPT Custom GPTs.
     """
-    return await create_form_handler(
+    response_text = await create_form_handler(
         user_id=request.user_id,
         initial_request=request.description,
         llm_client=llm_client,
         signup_form_service=signup_form_service,
     )
+    return GPTResponse(response=response_text)
 
 
 @router.post(
     "/analytics",
     summary="Get Form Analytics",
+    response_model=GPTResponse,
     openapi_extra={"x-openai-isConsequential": False},
 )
 async def gpt_analytics(request: GPTAnalyticsRequest):
@@ -79,9 +86,10 @@ async def gpt_analytics(request: GPTAnalyticsRequest):
     This endpoint wraps the existing MCP analytics tool to provide
     REST API access for ChatGPT Custom GPTs.
     """
-    return await get_form_analytics_handler(
+    response_text = await get_form_analytics_handler(
         user_id=request.user_id,
         analytics_query=request.query,
         postgres_mcp_client=postgres_mcp_client,
         llm_client=llm_client,
     )
+    return GPTResponse(response=response_text)

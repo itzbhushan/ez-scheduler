@@ -47,7 +47,12 @@ async def test_gpt_create_form_success(test_db_session: Session, user_service):
             response.status_code == 200
         ), f"Expected 200, got {response.status_code}: {response.text}"
 
-        result_str = response.text
+        # Parse JSON response
+        response_json = response.json()
+        assert (
+            "response" in response_json
+        ), f"Expected 'response' field in JSON: {response_json}"
+        result_str = response_json["response"]
 
         # Extract form URL slug from response
         url_pattern = r"form/([a-zA-Z0-9-]+)"
@@ -121,7 +126,12 @@ async def test_gpt_analytics_success(test_db_session: Session, user_service):
             response.status_code == 200
         ), f"Expected 200, got {response.status_code}: {response.text}"
 
-        result_str = response.text
+        # Parse JSON response
+        response_json = response.json()
+        assert (
+            "response" in response_json
+        ), f"Expected 'response' field in JSON: {response_json}"
+        result_str = response_json["response"]
 
         # Verify we got a meaningful response (should contain analytics information or error message)
         assert len(result_str) > 0, "Analytics response should not be empty"
