@@ -47,7 +47,11 @@ class GPTAnalyticsRequest(BaseModel):
     )
 
 
-@router.post("/create-form", summary="Create Signup Form")
+@router.post(
+    "/create-form",
+    summary="Create Signup Form",
+    openapi_extra={"x-openai-isConsequential": False},
+)
 async def gpt_create_form(request: GPTFormRequest):
     """
     Create a signup form using natural language description.
@@ -63,7 +67,11 @@ async def gpt_create_form(request: GPTFormRequest):
     )
 
 
-@router.post("/analytics", summary="Get Form Analytics")
+@router.post(
+    "/analytics",
+    summary="Get Form Analytics",
+    openapi_extra={"x-openai-isConsequential": False},
+)
 async def gpt_analytics(request: GPTAnalyticsRequest):
     """
     Get analytics about forms and registrations using natural language queries.
