@@ -55,6 +55,7 @@ class GPTResponse(BaseModel):
     "/create-form",
     summary="Create Signup Form",
     response_model=GPTResponse,
+    openapi_extra={"x-openai-isConsequential": False},
 )
 async def gpt_create_form(request: GPTFormRequest):
     """
@@ -76,6 +77,7 @@ async def gpt_create_form(request: GPTFormRequest):
     "/analytics",
     summary="Get Form Analytics",
     response_model=GPTResponse,
+    openapi_extra={"x-openai-isConsequential": False},
 )
 async def gpt_analytics(request: GPTAnalyticsRequest):
     """
