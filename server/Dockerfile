@@ -29,6 +29,9 @@ COPY src/ ./src/
 COPY alembic.ini ./
 COPY alembic/ ./alembic/
 
+# Copy logo file
+COPY ./ez-scheduler-logo.ico ./
+
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash app
 RUN chown -R app:app /app
