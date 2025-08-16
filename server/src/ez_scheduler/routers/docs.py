@@ -61,7 +61,7 @@ EZ Scheduler provides two main capabilities:
 
 ## Base URLs
 
-- **Staging**: `https://ez-scheduler-staging-staging.up.railway.app`
+- **Staging**: `https://ez-scheduler-staging.up.railway.app`
 
 ## Support
 
@@ -77,7 +77,7 @@ For API support, contact support@ez-scheduler.com
         },
         servers=[
             {
-                "url": "https://ez-scheduler-staging-staging.up.railway.app",
+                "url": "https://ez-scheduler-staging.up.railway.app",
                 "description": "Staging server",
             },
         ],

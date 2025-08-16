@@ -59,7 +59,7 @@ jobs:
         echo "Waiting for staging deployment to be ready..."
         for i in {1..10}; do
           echo "Attempt $i/10: Checking health endpoint..."
-          if curl -f -s https://ez-scheduler-staging-staging.up.railway.app/health; then
+          if curl -f -s https://ez-scheduler-staging.up.railway.app/health; then
             echo "✅ Staging deployment is healthy!"
             exit 0
           fi
