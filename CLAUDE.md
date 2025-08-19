@@ -78,6 +78,38 @@ The system consists of:
 - **DO**: Fix any issues found by pre-commit hooks before committing
 - **DON'T**: Skip linting, formatting, or test validation
 
+**Git Workflow Standards**: NEVER commit directly to main branch during development.
+
+- **DO**: Check current branch with `git branch` before committing
+- **DO**: Create a new feature branch if on main: `git checkout -b feature-name`
+- **DO**: Always work on feature branches for development changes
+- **DON'T**: Commit any development changes directly to the main branch
+- **DO**: Push feature branch and create pull request: `git push -u origin feature-name && gh pr create`
+- **DO**: Create PR automatically if none exists for the branch after pushing
+- **DON'T**: Push directly to main branch during development
+
+**Pull Request Guidelines**: Keep PR messages concise and focused.
+
+- **DO**: Address only the main features being added in the PR
+- **DON'T**: Include extensive technical details or implementation specifics
+- **DO**: Use clear, descriptive titles that summarize the core functionality
+- **DON'T**: Write lengthy descriptions when a simple summary suffices
+
+**File Management**: Always update Dockerfile when adding new files.
+
+- **DO**: Update Dockerfile COPY instructions when adding new asset files (logos, configs, etc.)
+- **DO**: Add new directories to .dockerignore if they shouldn't be copied
+- **DO**: Test Docker builds after adding new files to ensure they're properly included
+- **DON'T**: Forget to update container deployment when local files change
+
+**API Architecture**: Keep main.py minimal and organize endpoints in routers.
+
+- **DO**: Add new API endpoints in the `routers/` directory with dedicated router files
+- **DO**: Import and include routers in main.py using `app.include_router()`
+- **DO**: Keep main.py focused on app configuration, middleware, and router mounting
+- **DON'T**: Define API endpoints directly in main.py
+- **DON'T**: Add business logic or complex configurations to main.py
+
 #### Example Implementation
 ```python
 # CORRECT: All imports at top of file with absolute imports

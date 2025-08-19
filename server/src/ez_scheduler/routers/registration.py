@@ -109,7 +109,7 @@ async def submit_registration_form(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/form/{url_slug}/success")
+@router.get("/form/{url_slug}/success", include_in_schema=False)
 async def registration_success(request: Request, url_slug: str, registration_id: str):
     """Show registration success page"""
 

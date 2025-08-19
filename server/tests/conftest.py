@@ -32,7 +32,7 @@ def verify_test_requirements():
     return True
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session", autouse=True)
 async def mcp_server_process(postgres_container):
     """Start the HTTP MCP server once for the entire test session"""
     env = os.environ.copy()

@@ -86,7 +86,7 @@ class TestMCPServerValidation:
         result = await generate_sql_query(
             llm_client=llm_client,
             request="How many active signup forms do I have",
-            user_id=str(test_user.id),
+            user_id=test_user.id,
         )
 
         # Validate through MCP server
