@@ -22,7 +22,10 @@ def generate_test_jwt_token(user_id: uuid.UUID) -> str:
     response = requests.post(
         f"{test_config['app_base_url']}/admin/generate-token",
         json={"user_id": str(user_id)},
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            "X-Admin-Key": test_config["admin_api_key"],
+        },
     )
     if response.status_code != 200:
         raise Exception(f"Failed to generate test token: {response.text}")

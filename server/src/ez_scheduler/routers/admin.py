@@ -2,10 +2,11 @@
 
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException, status
 from pydantic import BaseModel, Field
 
 from ez_scheduler.auth.jwt_utils import jwt_utils
+from ez_scheduler.config import config
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -30,13 +31,25 @@ class TokenResponse(BaseModel):
     response_model=TokenResponse,
     description="Development endpoint to generate JWT tokens for testing",
 )
-async def generate_token(request: TokenRequest):
+async def generate_token(
+    request: TokenRequest,
+    x_admin_key: str = Header(..., description="Admin API key for authentication"),
+):
     """
     Generate a JWT token for testing purposes.
 
+    Requires admin API key in X-Admin-Key header for security.
     This is a temporary endpoint for Phase 1 testing.
     In production, tokens will be generated through OAuth flow.
     """
+    # Verify admin API key
+    expected_key = config.get("admin_api_key")
+
+    if not expected_key or x_admin_key != expected_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid admin API key"
+        )
+
     try:
         # Generate JWT token
         access_token = jwt_utils.create_access_token(request.user_id)
