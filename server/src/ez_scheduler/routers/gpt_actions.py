@@ -2,9 +2,10 @@
 
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from ez_scheduler.auth.dependencies import get_current_user_id
 from ez_scheduler.models.database import get_db
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.postgres_mcp_service import get_postgres_mcp_client
@@ -22,11 +23,6 @@ postgres_mcp_client = get_postgres_mcp_client(llm_client)
 
 
 class GPTFormRequest(BaseModel):
-    user_id: uuid.UUID = Field(
-        ...,
-        description="Unique identifier for the user creating the form",
-        example="123e4567-e89b-12d3-a456-426614174000",
-    )
     description: str = Field(
         ...,
         description="Natural language description of the event form to create",
@@ -35,11 +31,6 @@ class GPTFormRequest(BaseModel):
 
 
 class GPTAnalyticsRequest(BaseModel):
-    user_id: uuid.UUID = Field(
-        ...,
-        description="Unique identifier for the user requesting analytics",
-        example="123e4567-e89b-12d3-a456-426614174000",
-    )
     query: str = Field(
         ...,
         description="Natural language query about form analytics",
@@ -57,7 +48,9 @@ class GPTResponse(BaseModel):
     response_model=GPTResponse,
     openapi_extra={"x-openai-isConsequential": False},
 )
-async def gpt_create_form(request: GPTFormRequest):
+async def gpt_create_form(
+    request: GPTFormRequest, user_id: uuid.UUID = Depends(get_current_user_id)
+):
     """
     Create a signup form using natural language description.
 
@@ -65,7 +58,7 @@ async def gpt_create_form(request: GPTFormRequest):
     REST API access for ChatGPT Custom GPTs.
     """
     response_text = await create_form_handler(
-        user_id=request.user_id,
+        user_id=user_id,
         initial_request=request.description,
         llm_client=llm_client,
         signup_form_service=signup_form_service,
@@ -79,7 +72,9 @@ async def gpt_create_form(request: GPTFormRequest):
     response_model=GPTResponse,
     openapi_extra={"x-openai-isConsequential": False},
 )
-async def gpt_analytics(request: GPTAnalyticsRequest):
+async def gpt_analytics(
+    request: GPTAnalyticsRequest, user_id: uuid.UUID = Depends(get_current_user_id)
+):
     """
     Get analytics about forms and registrations using natural language queries.
 
@@ -87,7 +82,7 @@ async def gpt_analytics(request: GPTAnalyticsRequest):
     REST API access for ChatGPT Custom GPTs.
     """
     response_text = await get_form_analytics_handler(
-        user_id=request.user_id,
+        user_id=user_id,
         analytics_query=request.query,
         postgres_mcp_client=postgres_mcp_client,
         llm_client=llm_client,
