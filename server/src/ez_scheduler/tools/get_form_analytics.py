@@ -78,6 +78,7 @@ async def _format_analytics_response(
                 - Include counts, totals, or summaries where relevant
                 - Keep the response concise but informative
                 - If no results, explain that no data was found
+                - If the user's intent includes request for the registration form url, return the full URL instead of just the slug.
 
                 Format the response as if you're directly answering the user's question about their event analytics.""",
                 }
