@@ -29,4 +29,5 @@ config = {
     "log_level": os.getenv("LOG_LEVEL", "INFO"),
     "app_base_domain": os.getenv("APP_BASE_DOMAIN"),
     "app_base_url": os.getenv("APP_BASE_URL"),
+    "jwt_secret_key": os.getenv("JWT_SECRET_KEY"),
 }

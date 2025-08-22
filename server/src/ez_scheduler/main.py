@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastmcp import FastMCP
 
 from ez_scheduler.config import config
+from ez_scheduler.routers.admin import router as admin_router
 from ez_scheduler.routers.docs import docs_router, set_app_instance
 from ez_scheduler.routers.gpt_actions import router as gpt_router
 from ez_scheduler.routers.health import health
@@ -42,6 +43,7 @@ app.include_router(health)
 app.include_router(registration_router)
 app.include_router(docs_router)
 app.include_router(gpt_router)
+app.include_router(admin_router)
 
 # Mount static files for assets (logo, etc.)
 app.mount("/static", StaticFiles(directory="."), name="static")
