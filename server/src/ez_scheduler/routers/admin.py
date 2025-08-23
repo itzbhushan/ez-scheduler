@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from ez_scheduler.auth.jwt_utils import jwt_utils
 from ez_scheduler.config import config
 
-router = APIRouter(prefix="/admin", tags=["Admin"])
+router = APIRouter(prefix="/admin", tags=["Admin"], include_in_schema=False)
 
 
 class TokenRequest(BaseModel):

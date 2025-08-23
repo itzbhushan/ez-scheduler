@@ -12,7 +12,7 @@ from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.registration_service import RegistrationService
 from ez_scheduler.services.signup_form_service import SignupFormService
 
-router = APIRouter()
+router = APIRouter(include_in_schema=False)
 
 # Get template directory relative to this file
 template_dir = Path(__file__).parent.parent / "templates"

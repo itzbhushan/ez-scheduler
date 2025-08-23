@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from ez_scheduler.config import config
 
-router = APIRouter(prefix="/oauth", tags=["Authentication"])
+router = APIRouter(prefix="/oauth", tags=["Authentication"], include_in_schema=False)
 
 # Configure logging
 logging.basicConfig(level=getattr(logging, config["log_level"]))
