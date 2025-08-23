@@ -4,7 +4,7 @@ from typing import Annotated
 from urllib.parse import urlencode
 
 import requests
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
@@ -86,14 +86,14 @@ class TokenResponse(BaseModel):
 
 
 @router.post("/token", response_model=TokenResponse)
-async def post_token(tokenRequest: TokenRequest) -> TokenResponse:
+async def post_token(token_request: Annotated[TokenRequest, Form()]) -> TokenResponse:
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
     payload = (
-        f"grant_type={tokenRequest.grant_type.value}"
-        f"&client_id={tokenRequest.client_id}"
-        f"&code={tokenRequest.code}"
-        f"&redirect_uri={tokenRequest.redirect_uri}"
-        f"&client_secret={tokenRequest.client_secret}"
+        f"grant_type={token_request.grant_type.value}"
+        f"&client_id={token_request.client_id}"
+        f"&code={token_request.code}"
+        f"&redirect_uri={token_request.redirect_uri}"
+        f"&client_secret={token_request.client_secret}"
     )
 
     logger.info(f"Token request: {payload}")
