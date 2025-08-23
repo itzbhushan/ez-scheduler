@@ -1,8 +1,10 @@
 import logging
 from enum import Enum
+from typing import Annotated
+from urllib.parse import urlencode
 
 import requests
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
@@ -24,19 +26,21 @@ class AuthorizeRequest(BaseModel):
     client_id: str
     redirect_uri: str = config["redirect_uri"]
     scope: str = "offline_access"
+    state: str
     audience: str = "https://ez-scheduler-staging.up.railway.app/gpt"
 
 
 @router.get("/authorize")
-async def authorize(authorizeRequest: AuthorizeRequest):
-    uri = (
-        f"https://{config['auth0_domain']}/authorize"
-        f"?response_type={authorizeRequest.response_type.value}"
-        f"&client_id={authorizeRequest.client_id}"
-        f"&redirect_uri={authorizeRequest.redirect_uri}"
-        f"&scope={authorizeRequest.scope}"
-        f"&audience={authorizeRequest.audience}"
-    )
+async def authorize(authorize_request: Annotated[AuthorizeRequest, Query()]):
+    params = {
+        "response_type": authorize_request.response_type.value,
+        "client_id": authorize_request.client_id,
+        "redirect_uri": authorize_request.redirect_uri,
+        "scope": authorize_request.scope,
+        "state": authorize_request.state,
+        "audience": authorize_request.audience,
+    }
+    uri = f"https://{config['auth0_domain']}/authorize?{urlencode(params)}"
     logger.info(f"Redirecting to {uri}")
     return RedirectResponse(uri)
 
