@@ -1,10 +1,10 @@
 """Tests for PostgreSQL MCP integration with real LLM and real SQL validation"""
 
 import logging
-import uuid
 
 import pytest
 
+from ez_scheduler.auth.models import UserClaims
 from ez_scheduler.backends.postgres_mcp_client import (
     PostgresMCPClient,
     generate_sql_query,
@@ -83,10 +83,12 @@ class TestMCPServerValidation:
             email="mcp_test@example.com", name="MCP Test User"
         )
 
+        user_claims = UserClaims(user_id=str(test_user.id), claims={})
+
         result = await generate_sql_query(
             llm_client=llm_client,
             request="How many active signup forms do I have",
-            user_id=test_user.id,
+            user=user_claims,
         )
 
         # Validate through MCP server

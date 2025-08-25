@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from ez_scheduler.auth.dependencies import UserClaims
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.system_prompts import SQL_GENERATOR_PROMPT
 
@@ -149,7 +150,7 @@ class PostgresMCPClient:
     async def query_from_intent(
         self,
         user_intent: str,
-        user_id: uuid.UUID,
+        user: UserClaims,
         context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Execute a query by having LLM generate SQL from user's natural language intent"""
@@ -158,7 +159,7 @@ class PostgresMCPClient:
             sql_response = await generate_sql_query(
                 llm_client=self.llm_client,
                 request=user_intent,
-                user_id=user_id,
+                user=user,
                 context=context or {},
             )
 
@@ -182,19 +183,19 @@ class PostgresMCPClient:
 async def generate_sql_query(
     llm_client: LLMClient,
     request: str,
-    user_id: uuid.UUID,
+    user: UserClaims,
     context: Dict[str, Any] = None,
 ) -> SQLQueryResponse:
     """Generate SQL query from natural language request"""
 
     # Ensure user_id is always included in context
     context = context or {}
-    context["user_id"] = str(user_id)
+    context["user_id"] = user.user_id
 
     prompt_context = f"""
 REQUEST: {request}
 
-USER_ID: {str(user_id)}
+USER_ID: {user.user_id}
 
 CONTEXT: {json.dumps(context, indent=2)}
 

@@ -8,22 +8,23 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from ez_scheduler.auth.jwt_utils import jwt_utils
+from ez_scheduler.auth.models import UserClaims
 
 # Create HTTPBearer security scheme
 security = HTTPBearer()
 
 
-async def get_current_user_id(
+async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> uuid.UUID:
+) -> UserClaims:
     """
-    FastAPI dependency to extract and validate user ID from JWT Bearer token
+    FastAPI dependency to extract and validate user ID from Auth0 JWT Bearer token
 
     Args:
         credentials: HTTP Bearer token credentials from Authorization header
 
     Returns:
-        User UUID extracted from valid JWT token
+        UserClaims with user ID extracted from valid Auth0 JWT token
 
     Raises:
         HTTPException: 401 if token is missing, invalid, or expired
@@ -38,8 +39,8 @@ async def get_current_user_id(
     token = credentials.credentials
 
     try:
-        user_id = jwt_utils.extract_user_id(token)
-        return user_id
+        user_claims = await jwt_utils.extract_user(token)
+        return user_claims
 
     except InvalidTokenError as e:
         raise HTTPException(

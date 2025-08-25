@@ -5,14 +5,21 @@ import logging
 import os
 import subprocess
 import time
+import uuid
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
+from fastapi.testclient import TestClient
 from fastmcp.client import Client, StreamableHttpTransport
 from sqlmodel import Session, create_engine
 from testcontainers.postgres import PostgresContainer
 
+from ez_scheduler.auth.dependencies import get_current_user
+from ez_scheduler.auth.models import UserClaims
 from ez_scheduler.backends.llm_client import LLMClient
+from ez_scheduler.main import app
+from ez_scheduler.models.database import get_db
 from ez_scheduler.services.registration_service import RegistrationService
 from ez_scheduler.services.signup_form_service import SignupFormService
 from ez_scheduler.services.user_service import UserService
@@ -190,3 +197,55 @@ def clear_conversations():
     conversations.clear()
     yield
     conversations.clear()
+
+
+@pytest.fixture
+def mock_current_user():
+    """Create a mock current user for testing authenticated endpoints"""
+
+    def _create_mock_user(user_id: str = None, claims: dict = None):
+        """Create a UserClaims object for testing"""
+        if user_id is None:
+            user_id = str(uuid.uuid4())
+        if claims is None:
+            claims = {
+                "iss": "https://ez-scheduler-dev.us.auth0.com/",
+                "aud": "test-audience",
+                "scope": "openid profile email",
+                "permissions": [],
+            }
+        return UserClaims(user_id=user_id, claims=claims)
+
+    return _create_mock_user
+
+
+@pytest.fixture
+def authenticated_client(mock_current_user, test_db_session):
+    """Create a test client that bypasses authentication and uses test database"""
+
+    # Store original overrides to restore them later
+    original_overrides = app.dependency_overrides.copy()
+
+    # Create a test user
+    test_user_claims = mock_current_user()
+
+    # Override the get_current_user dependency
+    async def mock_get_current_user():
+        return test_user_claims
+
+    # Override the database dependency to use test database
+    def get_test_db():
+        return test_db_session
+
+    # Clear all existing overrides and set only our test overrides
+    app.dependency_overrides.clear()
+    app.dependency_overrides[get_current_user] = mock_get_current_user
+    app.dependency_overrides[get_db] = get_test_db
+
+    client = TestClient(app)
+
+    yield client, test_user_claims
+
+    # Completely restore original state
+    app.dependency_overrides.clear()
+    app.dependency_overrides.update(original_overrides)

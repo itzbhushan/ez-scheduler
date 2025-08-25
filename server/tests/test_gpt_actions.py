@@ -1,63 +1,38 @@
 """Test for GPT Actions HTTP endpoints"""
 
-import asyncio
 import logging
 import re
-import uuid
 from datetime import date
 
 import pytest
-import requests
 from sqlmodel import Session, select
 
 from ez_scheduler.models.signup_form import SignupForm
-from tests.config import test_config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def generate_test_jwt_token(user_id: uuid.UUID) -> str:
-    """Helper function to generate JWT tokens for testing via admin endpoint"""
-    response = requests.post(
-        f"{test_config['app_base_url']}/admin/generate-token",
-        json={"user_id": str(user_id)},
-        headers={
-            "Content-Type": "application/json",
-            "X-Admin-Key": test_config["admin_api_key"],
-        },
-    )
-    if response.status_code != 200:
-        raise Exception(f"Failed to generate test token: {response.text}")
-
-    token_data = response.json()
-    return token_data["access_token"]
-
-
-@pytest.mark.asyncio
-async def test_gpt_create_form_success(test_db_session: Session, user_service):
+def test_gpt_create_form_success(
+    test_db_session: Session, user_service, authenticated_client
+):
     """Test GPT create form endpoint with complete information"""
-    # Create a test user
+    client, user_claims = authenticated_client
+
+    # Create a test user in the database to match the user_claims
     test_user = user_service.create_user(
         email="party_planner@example.com", name="Party Planner"
     )
 
+    # Update user_claims to match the database user
+    user_claims.user_id = str(test_user.id)
+
     try:
-        # Wait for server to start
-        await asyncio.sleep(2)
-
-        # Generate JWT token for authentication
-        access_token = generate_test_jwt_token(test_user.id)
-
         # Test the GPT create form endpoint
-        response = requests.post(
-            f"{test_config['app_base_url']}/gpt/create-form",
+        response = client.post(
+            "/gpt/create-form",
             json={
                 "description": "Create a signup form for John's Birthday Party on December 25th, 2024 at Central Park. We're celebrating John's 30th birthday with cake, games, and fun activities. Please include name, email, and phone fields.",
-            },
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {access_token}",
             },
         )
 
@@ -121,27 +96,24 @@ async def test_gpt_create_form_success(test_db_session: Session, user_service):
         raise
 
 
-@pytest.mark.asyncio
-async def test_gpt_analytics_success(user_service):
+def test_gpt_analytics_success(user_service, authenticated_client):
     """Test GPT analytics endpoint"""
-    # Create a test user
+    client, user_claims = authenticated_client
+
+    # Create a test user in the database to match the user_claims
     test_user = user_service.create_user(
         email="analytics_user@example.com", name="Analytics User"
     )
 
-    try:
-        # Generate JWT token for authentication
-        access_token = generate_test_jwt_token(test_user.id)
+    # Update user_claims to match the database user
+    user_claims.user_id = str(test_user.id)
 
+    try:
         # Test the GPT analytics endpoint
-        response = requests.post(
-            f"{test_config['app_base_url']}/gpt/analytics",
+        response = client.post(
+            "/gpt/analytics",
             json={
                 "query": "How many active forms do I have?",
-            },
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {access_token}",
             },
         )
 
@@ -170,15 +142,20 @@ async def test_gpt_analytics_success(user_service):
         raise
 
 
-@pytest.mark.asyncio
-async def test_gpt_endpoints_require_authentication():
+def test_gpt_endpoints_require_authentication():
     """Test that GPT endpoints return 401 when no authentication is provided"""
+    from fastapi.testclient import TestClient
+
+    from ez_scheduler.main import app
+
+    # Create a client without authentication override
+    client = TestClient(app)
+
     try:
         # Test create-form endpoint without authentication
-        response = requests.post(
-            f"{test_config['app_base_url']}/gpt/create-form",
+        response = client.post(
+            "/gpt/create-form",
             json={"description": "Test form without auth"},
-            headers={"Content-Type": "application/json"},
         )
 
         assert response.status_code == 403, f"Expected 403, got {response.status_code}"
@@ -187,10 +164,9 @@ async def test_gpt_endpoints_require_authentication():
         ), f"Expected 'Not authenticated' in response: {response.text}"
 
         # Test analytics endpoint without authentication
-        response = requests.post(
-            f"{test_config['app_base_url']}/gpt/analytics",
+        response = client.post(
+            "/gpt/analytics",
             json={"query": "Test analytics without auth"},
-            headers={"Content-Type": "application/json"},
         )
 
         assert response.status_code == 403, f"Expected 403, got {response.status_code}"

@@ -3,6 +3,7 @@ import uuid
 
 from fastmcp import FastMCP
 
+from ez_scheduler.auth.models import UserClaims
 from ez_scheduler.config import config
 from ez_scheduler.models.database import get_db
 from ez_scheduler.services.llm_service import get_llm_client
@@ -43,8 +44,11 @@ async def create_form(user_id: uuid.UUID, initial_request: str) -> str:
     Returns:
         Response from the form creation process
     """
+    # Convert UUID to UserClaims for the handler
+    user_claims = UserClaims(user_id=str(user_id), claims={})
+
     return await create_form_handler(
-        user_id, initial_request, llm_client, signup_form_service
+        user_claims, initial_request, llm_client, signup_form_service
     )
 
 
@@ -60,8 +64,12 @@ async def get_form_analytics(user_id: uuid.UUID, analytics_query: str) -> str:
     Returns:
         Analytics results formatted for the user
     """
+
+    # Convert UUID to UserClaims for the handler
+    user_claims = UserClaims(user_id=str(user_id), claims={})
+
     return await get_form_analytics_handler(
-        user_id, analytics_query, postgres_mcp_client, llm_client
+        user_claims, analytics_query, postgres_mcp_client, llm_client
     )
 
 
