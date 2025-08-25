@@ -1,8 +1,5 @@
 """Authentication dependencies for FastAPI"""
 
-import uuid
-from typing import Optional
-
 from authlib.jose.errors import InvalidTokenError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer

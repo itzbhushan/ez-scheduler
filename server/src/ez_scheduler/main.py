@@ -2,7 +2,6 @@
 """EZ Scheduler - Combined MCP and Web Server"""
 
 import logging
-import uuid
 
 import uvicorn
 from fastapi import FastAPI

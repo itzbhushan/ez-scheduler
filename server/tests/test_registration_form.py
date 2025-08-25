@@ -18,20 +18,18 @@ class TestRegistrationForm:
     """Test registration form serving functionality"""
 
     @pytest.mark.asyncio
-    async def test_serve_registration_form(self, user_service, signup_service):
+    async def test_serve_registration_form(self, signup_service):
         """Test that a registration form can be served via HTTP"""
         # Wait for server to start
         await asyncio.sleep(2)
 
-        # Create a test user using the user service
-        test_user = user_service.create_user(
-            email="test2@example.com", name="Test User"
-        )
+        # Use Auth0 user ID directly
+        test_user_id = "auth0|test_serve_form_user_123"
 
         # Create a test signup form
         test_form = SignupForm(
             id=uuid.uuid4(),
-            user_id=test_user.id,
+            user_id=test_user_id,
             title="Test Event",
             event_date=date(2024, 12, 25),
             start_time=time(14, 0),
@@ -86,20 +84,18 @@ class TestRegistrationForm:
         assert "Form not found or inactive" in data["detail"]
 
     @pytest.mark.asyncio
-    async def test_serve_inactive_form(self, user_service, signup_service):
+    async def test_serve_inactive_form(self, signup_service):
         """Test that requesting an inactive form returns 404"""
         # Wait for server to start
         await asyncio.sleep(2)
 
-        # Create a test user using the user service
-        test_user = user_service.create_user(
-            email="test5@example.com", name="Test User 5"
-        )
+        # Use Auth0 user ID directly
+        test_user_id = "auth0|test_inactive_form_user_456"
 
         # Create an inactive test signup form
         test_form = SignupForm(
             id=uuid.uuid4(),
-            user_id=test_user.id,
+            user_id=test_user_id,
             title="Inactive Event",
             event_date=date(2024, 12, 31),
             location="Test Location",

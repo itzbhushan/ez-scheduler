@@ -22,7 +22,6 @@ from ez_scheduler.main import app
 from ez_scheduler.models.database import get_db
 from ez_scheduler.services.registration_service import RegistrationService
 from ez_scheduler.services.signup_form_service import SignupFormService
-from ez_scheduler.services.user_service import UserService
 from tests.config import test_config
 
 logging.basicConfig(level=logging.INFO)
@@ -169,12 +168,6 @@ def test_db_session(postgres_container):
 
     # Cleanup
     session.close()
-
-
-@pytest.fixture(autouse=True)
-def user_service(test_db_session):
-    """Create a UserService instance for testing"""
-    return UserService(test_db_session)
 
 
 @pytest.fixture

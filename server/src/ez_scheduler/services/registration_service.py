@@ -27,7 +27,7 @@ class RegistrationService:
         name: str,
         email: str,
         phone: str,
-        user_id: Optional[uuid.UUID] = None,
+        user_id: Optional[str] = None,
         additional_data: Optional[dict] = None,
     ) -> Registration:
         """
@@ -38,7 +38,7 @@ class RegistrationService:
             name: User's name
             email: User's email address
             phone: User's phone number
-            user_id: Optional user ID if user is authenticated
+            user_id: Optional Auth0 user ID string if user is authenticated
             additional_data: Optional additional form data
 
         Returns:

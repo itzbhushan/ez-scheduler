@@ -13,19 +13,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def test_gpt_create_form_success(
-    test_db_session: Session, user_service, authenticated_client
-):
+def test_gpt_create_form_success(test_db_session: Session, authenticated_client):
     """Test GPT create form endpoint with complete information"""
     client, user_claims = authenticated_client
 
-    # Create a test user in the database to match the user_claims
-    test_user = user_service.create_user(
-        email="party_planner@example.com", name="Party Planner"
-    )
-
-    # Update user_claims to match the database user
-    user_claims.user_id = str(test_user.id)
+    # user_claims already has a proper Auth0 user ID from the fixture
 
     try:
         # Test the GPT create form endpoint
@@ -68,8 +60,8 @@ def test_gpt_create_form_success(
             created_form is not None
         ), f"Form with slug '{url_slug}' should exist in database"
         assert (
-            created_form.user_id == test_user.id
-        ), f"Form should belong to test user {test_user.id}"
+            created_form.user_id == user_claims.user_id
+        ), f"Form should belong to test user {user_claims.user_id}"
         assert (
             "john" in created_form.title.lower()
         ), f"Title '{created_form.title}' should contain 'John'"
@@ -96,17 +88,11 @@ def test_gpt_create_form_success(
         raise
 
 
-def test_gpt_analytics_success(user_service, authenticated_client):
+def test_gpt_analytics_success(authenticated_client):
     """Test GPT analytics endpoint"""
     client, user_claims = authenticated_client
 
-    # Create a test user in the database to match the user_claims
-    test_user = user_service.create_user(
-        email="analytics_user@example.com", name="Analytics User"
-    )
-
-    # Update user_claims to match the database user
-    user_claims.user_id = str(test_user.id)
+    # user_claims already has a proper Auth0 user ID from the fixture
 
     try:
         # Test the GPT analytics endpoint

@@ -18,19 +18,17 @@ class TestFormGetEndpoint:
     """Test GET form endpoint"""
 
     @pytest.mark.asyncio
-    async def test_get_form_endpoint(self, user_service, signup_service):
+    async def test_get_form_endpoint(self, signup_service):
         """Test that GET /form/{url_slug} works correctly"""
         # Wait for server to start
         await asyncio.sleep(2)
 
-        # Create a test user and form
-        test_user = user_service.create_user(
-            email="test3@example.com", name="Test User"
-        )
+        # Use Auth0 user ID directly
+        test_user_id = "auth0|test_get_user_123"
 
         test_form = SignupForm(
             id=uuid.uuid4(),
-            user_id=test_user.id,
+            user_id=test_user_id,
             title="Test Event Get",
             event_date=date(2024, 12, 25),
             start_time=time(14, 0),

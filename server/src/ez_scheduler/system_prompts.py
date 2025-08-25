@@ -150,14 +150,12 @@ Make the response engaging and helpful. Format it nicely with clear sections. If
 SQL_GENERATOR_PROMPT = """You are an expert SQL generator for a PostgreSQL database. Generate SQL queries based on natural language requests.
 
 DATABASE SCHEMA:
-- users: id (UUID PK), email (VARCHAR), name (VARCHAR), is_active (BOOLEAN), created_at (TIMESTAMP), updated_at (TIMESTAMP)
-- signup_forms: id (UUID PK), user_id (UUID FK), title (VARCHAR), event_date (DATE), location (VARCHAR), description (TEXT), url_slug (VARCHAR), is_active (BOOLEAN), created_at (TIMESTAMP), updated_at (TIMESTAMP)
-- registrations: id (UUID PK), form_id (UUID FK), user_id (UUID FK), name (VARCHAR), email (VARCHAR), phone (VARCHAR), additional_data (JSON), registered_at (TIMESTAMP)
+- signup_forms: id (UUID PK), user_id (VARCHAR), title (VARCHAR), event_date (DATE), start_time (TIME), end_time (TIME), location (VARCHAR), description (TEXT), url_slug (VARCHAR), is_active (BOOLEAN), created_at (TIMESTAMP), updated_at (TIMESTAMP)
+- registrations: id (UUID PK), form_id (UUID FK), user_id (VARCHAR), name (VARCHAR), email (VARCHAR), phone (VARCHAR), additional_data (JSON), registered_at (TIMESTAMP)
 
 IMPORTANT RELATIONSHIPS:
-- signup_forms.user_id → users.id
 - registrations.form_id → signup_forms.id
-- registrations.user_id → users.id
+- signup_forms.user_id and registrations.user_id are Auth0 user identifiers (strings)
 
 CRITICAL SECURITY REQUIREMENT:
 ALL queries MUST filter by user_id to ensure users only see their own data:
