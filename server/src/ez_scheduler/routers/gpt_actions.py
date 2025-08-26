@@ -18,7 +18,9 @@ class GPTFormRequest(BaseModel):
     description: str = Field(
         ...,
         description="Natural language description of the event form to create",
-        example="Create a form for John's birthday party on December 15th at 6 PM at Central Park",
+        json_schema_extra={
+            "example": "Create a form for John's birthday party on December 15th at 6 PM at Central Park"
+        },
     )
 
 
@@ -26,7 +28,9 @@ class GPTAnalyticsRequest(BaseModel):
     query: str = Field(
         ...,
         description="Natural language query about form analytics",
-        example="How many people have registered for the birthday party?",
+        json_schema_extra={
+            "example": "How many people have registered for the birthday party?"
+        },
     )
 
 
