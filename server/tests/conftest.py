@@ -182,14 +182,14 @@ def signup_service(test_db_session):
     return SignupFormService(test_db_session)
 
 
-@pytest.fixture(autouse=True)
-def clear_conversations():
-    """Clear the global conversations dictionary before each test"""
-    from ez_scheduler.tools.create_form import conversations
+# @pytest.fixture(autouse=True)
+# def clear_conversations():
+#     """Clear the global conversations dictionary before each test"""
+#     from ez_scheduler.tools.create_form import conversations
 
-    conversations.clear()
-    yield
-    conversations.clear()
+#     conversations.clear()
+#     yield
+#     conversations.clear()
 
 
 @pytest.fixture

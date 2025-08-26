@@ -4,7 +4,7 @@ from typing import Annotated
 from urllib.parse import urlencode
 
 import requests
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, status
+from fastapi import APIRouter, Form, Query
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
@@ -43,26 +43,6 @@ async def authorize(authorize_request: Annotated[AuthorizeRequest, Query()]):
     uri = f"https://{config['auth0_domain']}/authorize?{urlencode(params)}"
     logger.info(f"Redirecting to {uri}")
     return RedirectResponse(uri)
-
-
-@router.get("/token")
-async def get_token(code: str):
-    payload = (
-        "grant_type=authorization_code"
-        f"&client_id={config['auth0_client_id']}"
-        f"&code={code}"
-        f"&redirect_uri={config['redirect_uri']}"
-        f"&client_secret={config['auth0_client_secret']}"
-    )
-    headers = {"Content-Type": "application/x-www-form-urlencoded"}
-
-    logger.info(f"Exchanging code for token with payload: {payload}")
-
-    response = requests.post(
-        f"https://{config['auth0_domain']}/oauth/token", payload, headers=headers
-    )
-
-    return response.json()
 
 
 class GrantType(Enum):

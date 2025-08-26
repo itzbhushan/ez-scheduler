@@ -4,9 +4,8 @@ import logging
 from typing import Dict
 
 import httpx
-from authlib.jose import JoseError, JsonWebKey, JsonWebToken
+from authlib.jose import JoseError, JsonWebToken
 from authlib.jose.errors import InvalidTokenError
-from deprecated import deprecated
 
 from ez_scheduler.auth.models import UserClaims
 from ez_scheduler.config import config
@@ -24,8 +23,8 @@ class JWTUtils:
     def __init__(self):
         self.jwt = JsonWebToken(["RS256"])
         self.auth0_domain = config.get("auth0_domain")
-        self.algorithm = "RS256"
-        self.token_expire_hours = 24
+        self.jwks_url = f"https://{self.auth0_domain}/.well-known/jwks.json"
+        self.expected_issuer = f"https://{self.auth0_domain}/"
 
         if not self.auth0_domain:
             raise ValueError("AUTH0_DOMAIN must be configured")
@@ -37,19 +36,18 @@ class JWTUtils:
         Returns:
             JWKS dictionary from Auth0
         """
-        jwks_url = f"https://{self.auth0_domain}/.well-known/jwks.json"
 
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(jwks_url, timeout=10.0)
+                response = await client.get(self.jwks_url, timeout=10.0)
                 response.raise_for_status()
                 jwks_data = response.json()
 
-                logger.info(f"Successfully fetched JWKS from {jwks_url}")
+                logger.info(f"Successfully fetched JWKS from {self.jwks_url}")
                 return jwks_data
 
         except httpx.RequestError as e:
-            logger.error(f"Failed to fetch JWKS from {jwks_url}: {e}")
+            logger.error(f"Failed to fetch JWKS from {self.jwks_url}: {e}")
             raise InvalidTokenError(f"Unable to fetch JWKS: {e}")
         except Exception as e:
             logger.error(f"Unexpected error fetching JWKS: {e}")
@@ -76,10 +74,10 @@ class JWTUtils:
             claims = self.jwt.decode(token, jwks)
 
             # Verify issuer matches Auth0 domain
-            expected_issuer = f"https://{self.auth0_domain}/"
-            if claims.get("iss") != expected_issuer:
+
+            if claims.get("iss") != self.expected_issuer:
                 raise InvalidTokenError(
-                    f"Invalid issuer. Expected: {expected_issuer}, Got: {claims.get('iss')}"
+                    f"Invalid issuer. Expected: {self.expected_issuer}, Got: {claims.get('iss')}"
                 )
 
             logger.info(
@@ -93,35 +91,6 @@ class JWTUtils:
         except Exception as e:
             logger.error(f"Unexpected error during token validation: {e}")
             raise InvalidTokenError(f"Token validation error: {str(e)}")
-
-    @deprecated(reason="Legacy admin method")
-    def verify_token(self, token: str) -> Dict:
-        """
-        Verify and decode a JWT token
-
-        Args:
-            token: JWT token string
-
-        Returns:
-            Decoded token payload
-
-        Raises:
-            InvalidTokenError: If token is invalid or expired
-        """
-
-        logger.warning(f"Verifying token: {token}")
-
-        try:
-            claims = self.jwt.decode(token, self.secret_key)
-
-            # Verify issuer
-            if claims.get("iss") != self.issuer:
-                raise InvalidTokenError("Invalid issuer")
-
-            return claims
-
-        except JoseError as e:
-            raise InvalidTokenError(f"Token validation failed: {str(e)}")
 
     async def extract_user(self, token: str) -> UserClaims:
         """
