@@ -1,10 +1,10 @@
 """Tests for PostgreSQL MCP integration with real LLM and real SQL validation"""
 
 import logging
-import uuid
 
 import pytest
 
+from ez_scheduler.auth.models import User
 from ez_scheduler.backends.postgres_mcp_client import (
     PostgresMCPClient,
     generate_sql_query,
@@ -74,19 +74,17 @@ class TestMCPServerValidation:
             raise AssertionError(f"MCP validation failed: {e}")
 
     @pytest.mark.asyncio
-    async def test_mcp_server_validation_basic(
-        self, postgres_mcp_client, llm_client, user_service
-    ):
+    async def test_mcp_server_validation_basic(self, postgres_mcp_client, llm_client):
         """Test SQL validation through MCP server - basic forms query"""
-        # Create a test user
-        test_user = user_service.create_user(
-            email="mcp_test@example.com", name="MCP Test User"
-        )
+        # Use Auth0 user ID directly
+        test_user_id = "auth0|mcp_test_user_789"
+
+        user = User(user_id=test_user_id, claims={})
 
         result = await generate_sql_query(
             llm_client=llm_client,
             request="How many active signup forms do I have",
-            user_id=test_user.id,
+            user=user,
         )
 
         # Validate through MCP server
@@ -96,7 +94,7 @@ class TestMCPServerValidation:
 
         # Verify basic structure
         assert ":user_id" in result.sql_query
-        assert result.parameters.get("user_id") == str(test_user.id)
+        assert result.parameters.get("user_id") == test_user_id
         assert "count" in result.sql_query.lower()
         assert "signup_forms" in result.sql_query.lower()
 

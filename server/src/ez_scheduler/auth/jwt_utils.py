@@ -1,58 +1,64 @@
 """JWT utilities for authentication using authlib"""
 
-import secrets
-import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional
+import logging
+from typing import Dict
 
+import httpx
 from authlib.jose import JoseError, JsonWebToken
 from authlib.jose.errors import InvalidTokenError
 
+from ez_scheduler.auth.models import User
 from ez_scheduler.config import config
+
+# Configure logging
+logging.basicConfig(level=getattr(logging, config["log_level"]))
+logger = logging.getLogger(__name__)
+
+# TODO: Add caching for JWKS to avoid fetching on every request
 
 
 class JWTUtils:
     """JWT token utilities using authlib"""
 
     def __init__(self):
-        self.jwt = JsonWebToken(["HS256"])
-        self.secret_key = config.get("jwt_secret_key")
-        self.algorithm = "HS256"
-        self.issuer = "ez-scheduler"
-        self.token_expire_hours = 24
+        self.jwt = JsonWebToken(["RS256"])
+        self.auth0_domain = config.get("auth0_domain")
+        self.jwks_url = f"https://{self.auth0_domain}/.well-known/jwks.json"
+        self.expected_issuer = f"https://{self.auth0_domain}/"
 
-        if not self.secret_key:
-            raise ValueError("JWT_SECRET_KEY must be configured")
+        if not self.auth0_domain:
+            raise ValueError("AUTH0_DOMAIN must be configured")
 
-    def create_access_token(self, user_id: uuid.UUID) -> str:
+    async def _fetch_jwks(self) -> Dict:
         """
-        Create a JWT access token
-
-        Args:
-            user_id: User UUID
+        Fetch JWKS from Auth0 well-known endpoint
 
         Returns:
-            JWT token string
+            JWKS dictionary from Auth0
         """
-        expire = datetime.now(timezone.utc) + timedelta(hours=self.token_expire_hours)
 
-        payload = {
-            "sub": str(user_id),  # Subject (user ID)
-            "iss": self.issuer,  # Issuer
-            "exp": expire,  # Expiration time
-            "iat": datetime.now(timezone.utc),  # Issued at
-        }
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(self.jwks_url, timeout=10.0)
+                response.raise_for_status()
+                jwks_data = response.json()
 
-        header = {"alg": self.algorithm}
+                logger.info(f"Successfully fetched JWKS from {self.jwks_url}")
+                return jwks_data
 
-        return self.jwt.encode(header, payload, self.secret_key)
+        except httpx.RequestError as e:
+            logger.error(f"Failed to fetch JWKS from {self.jwks_url}: {e}")
+            raise InvalidTokenError(f"Unable to fetch JWKS: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error fetching JWKS: {e}")
+            raise InvalidTokenError(f"JWKS fetch failed: {e}")
 
-    def verify_token(self, token: str) -> Dict:
+    async def verify_auth0_token(self, token: str) -> Dict:
         """
-        Verify and decode a JWT token
+        Verify and decode an Auth0 JWT token using JWKS
 
         Args:
-            token: JWT token string
+            token: JWT token string from Auth0
 
         Returns:
             Decoded token payload
@@ -61,37 +67,62 @@ class JWTUtils:
             InvalidTokenError: If token is invalid or expired
         """
         try:
-            claims = self.jwt.decode(token, self.secret_key)
+            # Fetch JWKS
+            jwks = await self._fetch_jwks()
 
-            # Verify issuer
-            if claims.get("iss") != self.issuer:
-                raise InvalidTokenError("Invalid issuer")
+            # Verify and decode token - jwt.decode will automatically find the right key using kid
+            claims = self.jwt.decode(token, jwks)
 
+            # Verify issuer matches Auth0 domain
+
+            if claims.get("iss") != self.expected_issuer:
+                raise InvalidTokenError(
+                    f"Invalid issuer. Expected: {self.expected_issuer}, Got: {claims.get('iss')}"
+                )
+
+            logger.info(
+                f"Successfully verified Auth0 token for user: {claims.get('sub')}"
+            )
             return claims
 
         except JoseError as e:
+            logger.error(f"JWT validation failed: {e}")
             raise InvalidTokenError(f"Token validation failed: {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error during token validation: {e}")
+            raise InvalidTokenError(f"Token validation error: {str(e)}")
 
-    def extract_user_id(self, token: str) -> uuid.UUID:
+    async def extract_user(self, token: str) -> User:
         """
-        Extract user ID from JWT token
+        Extract user ID and claims from Auth0 JWT token
 
         Args:
-            token: JWT token string
+            token: JWT token string from Auth0
 
         Returns:
-            User UUID
+            User object with user_id and claims
 
         Raises:
             InvalidTokenError: If token is invalid or missing user ID
         """
-        claims = self.verify_token(token)
+
+        claims = await self.verify_auth0_token(token)
         user_id_str = claims.get("sub")
 
-        try:
-            return uuid.UUID(user_id_str)
-        except ValueError:
-            raise InvalidTokenError("Invalid user ID format in token")
+        if not user_id_str:
+            raise InvalidTokenError("Token missing 'sub' claim")
+
+        # Extract relevant claims from the token
+        user_claims = {
+            "iss": claims.get("iss"),
+            "aud": claims.get("aud"),
+            "exp": claims.get("exp"),
+            "iat": claims.get("iat"),
+            "scope": claims.get("scope"),
+            "permissions": claims.get("permissions", []),
+        }
+
+        return User(user_id=user_id_str, claims=user_claims)
 
 
 # Global JWT utilities instance

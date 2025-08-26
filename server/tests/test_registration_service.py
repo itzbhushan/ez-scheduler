@@ -11,17 +11,14 @@ from ez_scheduler.models.signup_form import SignupForm
 class TestRegistrationService:
     """Test registration service functionality"""
 
-    def _create_test_form(
-        self, user_service, signup_service, title="Test Event", is_active=True
-    ):
+    def _create_test_form(self, signup_service, title="Test Event", is_active=True):
         """Helper method to create a test signup form"""
-        user = user_service.create_user(
-            email=f"test-{uuid.uuid4()}@example.com", name="Test User"
-        )
+        # Use Auth0 user ID directly
+        test_user_id = f"auth0|test_user_{uuid.uuid4()}"
 
         form = SignupForm(
             id=uuid.uuid4(),
-            user_id=user.id,
+            user_id=test_user_id,
             title=title,
             event_date=date(2024, 12, 25),
             start_time=time(14, 0),
@@ -42,11 +39,9 @@ class TestRegistrationService:
                 f"Failed to create signup form: {result.get('error', 'Unknown error')}"
             )
 
-    def test_create_registration_success(
-        self, user_service, registration_service, signup_service
-    ):
+    def test_create_registration_success(self, registration_service, signup_service):
         """Test successful registration creation"""
-        form = self._create_test_form(user_service, signup_service)
+        form = self._create_test_form(signup_service)
 
         registration = registration_service.create_registration(
             form_id=form.id, name="John Doe", email="john@example.com", phone="555-1234"
@@ -60,10 +55,10 @@ class TestRegistrationService:
         assert registration.registered_at is not None
 
     def test_create_registration_allows_duplicates(
-        self, user_service, registration_service, signup_service
+        self, registration_service, signup_service
     ):
         """Test that duplicate registrations are now allowed (no unique constraint)"""
-        form = self._create_test_form(user_service, signup_service)
+        form = self._create_test_form(signup_service)
 
         # Create first registration
         reg1 = registration_service.create_registration(
@@ -85,11 +80,11 @@ class TestRegistrationService:
         assert reg1.form_id == reg2.form_id
 
     def test_create_registration_same_user_different_forms(
-        self, user_service, registration_service, signup_service
+        self, registration_service, signup_service
     ):
         """Test that same user can register for different forms"""
-        form1 = self._create_test_form(user_service, signup_service, title="Event 1")
-        form2 = self._create_test_form(user_service, signup_service, title="Event 2")
+        form1 = self._create_test_form(signup_service, title="Event 1")
+        form2 = self._create_test_form(signup_service, title="Event 2")
 
         # Register for first form
         reg1 = registration_service.create_registration(
@@ -112,10 +107,10 @@ class TestRegistrationService:
         assert reg1.phone == reg2.phone
 
     def test_create_registration_inactive_form_fails(
-        self, user_service, registration_service, signup_service
+        self, registration_service, signup_service
     ):
         """Test that registration fails for inactive form"""
-        form = self._create_test_form(user_service, signup_service, is_active=False)
+        form = self._create_test_form(signup_service, is_active=False)
 
         with pytest.raises(ValueError, match="Form not found or inactive"):
             registration_service.create_registration(
@@ -137,11 +132,9 @@ class TestRegistrationService:
                 phone="555-1234",
             )
 
-    def test_get_registrations_for_form(
-        self, user_service, registration_service, signup_service
-    ):
+    def test_get_registrations_for_form(self, registration_service, signup_service):
         """Test getting all registrations for a form"""
-        form = self._create_test_form(user_service, signup_service)
+        form = self._create_test_form(signup_service)
 
         # Create multiple registrations
         reg1 = registration_service.create_registration(
@@ -163,10 +156,10 @@ class TestRegistrationService:
         assert reg2.id in registration_ids
 
     def test_get_registration_count_for_form(
-        self, user_service, registration_service, signup_service
+        self, registration_service, signup_service
     ):
         """Test getting registration count for a form"""
-        form = self._create_test_form(user_service, signup_service)
+        form = self._create_test_form(signup_service)
 
         # Initially no registrations
         assert registration_service.get_registration_count_for_form(form.id) == 0
@@ -185,11 +178,9 @@ class TestRegistrationService:
 
         assert registration_service.get_registration_count_for_form(form.id) == 2
 
-    def test_get_registration_by_id(
-        self, user_service, registration_service, signup_service
-    ):
+    def test_get_registration_by_id(self, registration_service, signup_service):
         """Test getting registration by ID"""
-        form = self._create_test_form(user_service, signup_service)
+        form = self._create_test_form(signup_service)
 
         registration = registration_service.create_registration(
             form_id=form.id, name="John Doe", email="john@example.com", phone="555-1234"

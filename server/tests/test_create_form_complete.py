@@ -15,22 +15,18 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.asyncio
-async def test_create_form_complete_success(
-    mcp_client, test_db_session: Session, user_service
-):
+async def test_create_form_complete_success(mcp_client, test_db_session: Session):
     """Test complete form creation when user provides all required information"""
-    # Create a test user at the start of the test
-    test_user = user_service.create_user(
-        email="wedding_organizer@example.com", name="Wedding Organizer"
-    )
+    # Use Auth0 user ID directly
+    test_user_id = "auth0|wedding_organizer_123"
 
     try:
         async with Client(mcp_client) as client:
-            # Call the create_form tool with complete information using the test user's UUID
+            # Call the create_form tool with complete information using the test user's Auth0 ID
             result = await client.call_tool(
                 "create_form",
                 {
-                    "user_id": test_user.id,
+                    "user_id": test_user_id,
                     "initial_request": "Create a signup form for Sarah's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown. We're celebrating Sarah and Mike's wedding with dinner, dancing, and celebration. Please include name, email, and phone fields.",
                 },
             )
@@ -84,19 +80,20 @@ async def test_create_form_complete_success(
             assert (
                 created_form.updated_at is not None
             ), "Updated timestamp should be set"
+            # Verify user_id is stored as string
+            assert (
+                created_form.user_id == test_user_id
+            ), f"User ID should be {test_user_id}"
 
     except Exception as e:
         pytest.fail(f"Failed to create complete form: {e}")
 
 
-async def test_create_form_with_end_time(
-    mcp_client, test_db_session: Session, user_service
-):
+@pytest.mark.asyncio
+async def test_create_form_with_end_time(mcp_client, test_db_session: Session):
     """Test form creation with end time specified"""
-    # Create a test user
-    test_user = user_service.create_user(
-        email="conference_organizer@example.com", name="Conference Organizer"
-    )
+    # Use Auth0 user ID directly
+    test_user_id = "auth0|conference_organizer_456"
 
     try:
         async with Client(mcp_client) as client:
@@ -104,7 +101,7 @@ async def test_create_form_with_end_time(
             result = await client.call_tool(
                 "create_form",
                 {
-                    "user_id": test_user.id,
+                    "user_id": test_user_id,
                     "initial_request": "Create a signup form for Tech Conference 2024 on September 20th, 2024 at Convention Center. The event ends at 5:00 PM. We're hosting a tech conference with speakers and networking.",
                 },
             )
@@ -150,19 +147,21 @@ async def test_create_form_with_end_time(
                 17, 0, 0
             ), f"End time should be 17:00 (5:00 PM), but was {created_form.end_time}"
             assert created_form.is_active is True, "Form should be active"
+            assert (
+                created_form.user_id == test_user_id
+            ), f"User ID should be {test_user_id}"
 
     except Exception as e:
         pytest.fail(f"Failed to create form with end time: {e}")
 
 
+@pytest.mark.asyncio
 async def test_create_form_with_start_and_end_time(
-    mcp_client, test_db_session: Session, user_service
+    mcp_client, test_db_session: Session
 ):
     """Test form creation with both start and end time specified"""
-    # Create a test user
-    test_user = user_service.create_user(
-        email="workshop_organizer@example.com", name="Workshop Organizer"
-    )
+    # Use Auth0 user ID directly
+    test_user_id = "auth0|workshop_organizer_789"
 
     try:
         async with Client(mcp_client) as client:
@@ -170,7 +169,7 @@ async def test_create_form_with_start_and_end_time(
             result = await client.call_tool(
                 "create_form",
                 {
-                    "user_id": test_user.id,
+                    "user_id": test_user_id,
                     "initial_request": "Create a signup form for Python Workshop on October 10th, 2024 at Tech Hub from 9:00 AM to 4:30 PM. We're teaching Python programming fundamentals with hands-on coding exercises.",
                 },
             )
@@ -211,16 +210,6 @@ async def test_create_form_with_start_and_end_time(
             assert (
                 "tech hub" in created_form.location.lower()
             ), f"Location should contain 'tech hub'"
-
-            # Debug output for time values
-            logger.info(
-                f"Expected start_time: {time(9, 0, 0)}, actual: {created_form.start_time}"
-            )
-            logger.info(
-                f"Expected end_time: {time(16, 30, 0)}, actual: {created_form.end_time}"
-            )
-
-            # Assert time values
             assert created_form.start_time == time(
                 9, 0, 0
             ), f"Start time should be 09:00 (9:00 AM), but was {created_form.start_time}"
@@ -228,6 +217,9 @@ async def test_create_form_with_start_and_end_time(
                 16, 30, 0
             ), f"End time should be 16:30 (4:30 PM), but was {created_form.end_time}"
             assert created_form.is_active is True, "Form should be active"
+            assert (
+                created_form.user_id == test_user_id
+            ), f"User ID should be {test_user_id}"
 
     except Exception as e:
         pytest.fail(f"Failed to create form with start and end time: {e}")

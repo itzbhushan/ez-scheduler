@@ -13,7 +13,7 @@ class SignupForm(SQLModel, table=True):
     __tablename__ = "signup_forms"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    user_id: uuid.UUID = Field(foreign_key="users.id")
+    user_id: str = Field(index=True)  # Auth0 user ID as string
     title: str
     event_date: date = Field(index=True)
     start_time: Optional[time] = None

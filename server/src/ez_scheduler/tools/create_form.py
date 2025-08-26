@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
+from ez_scheduler.auth.dependencies import User
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.config import config
 from ez_scheduler.models.signup_form import SignupForm
@@ -53,7 +54,7 @@ conversations: Dict[str, Dict[str, Any]] = {}
 
 
 async def create_form_handler(
-    user_id: uuid.UUID,
+    user: User,
     initial_request: str,
     llm_client: LLMClient,
     signup_form_service: SignupFormService,
@@ -69,14 +70,14 @@ async def create_form_handler(
         Response from the form creation process
     """
 
-    logger.info(f"Creating form for user {user_id}: {initial_request}")
+    logger.info(f"Creating form for user {user.user_id}: {initial_request}")
 
     # Create or continue conversation
-    conversation_id = f"conv_{user_id}_{len(conversations) + 1}"
+    conversation_id = f"conv_{user.user_id}_{len(conversations) + 1}"
 
     if conversation_id not in conversations:
         conversations[conversation_id] = {
-            "user_id": user_id,
+            "user_id": user.user_id,
             "status": "active",
             "messages": [],
             "form_data": {},
@@ -121,7 +122,7 @@ async def create_form_handler(
                 validate_form_data(conversation["form_data"])
 
                 # Create form
-                response_text = await create_form(
+                response_text = await _create_form(
                     conversation["form_data"],
                     llm_client,
                     signup_form_service,
@@ -361,7 +362,7 @@ def validate_form_data(form_data: Dict[str, Any]) -> None:
         )
 
 
-async def create_form(
+async def _create_form(
     form_data: Dict[str, Any],
     llm_client: LLMClient,
     signup_form_service: SignupFormService,

@@ -7,7 +7,7 @@ from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
-docs_router = APIRouter()
+docs_router = APIRouter(include_in_schema=False)
 
 # Store app reference for use in endpoints
 _app_instance = None
@@ -90,13 +90,13 @@ For API support, contact support@ez-scheduler.com
     return _app_instance.openapi_schema
 
 
-@docs_router.get("/v1/api/docs.json", include_in_schema=False)
+@docs_router.get("/v1/api/docs.json")
 async def get_openapi_json():
     """Return the OpenAPI JSON schema"""
     return JSONResponse(content=get_custom_openapi())
 
 
-@docs_router.get("/v1/api/docs", include_in_schema=False)
+@docs_router.get("/v1/api/docs")
 async def get_swagger_ui():
     """Swagger UI documentation page"""
     return get_swagger_ui_html(
@@ -106,7 +106,7 @@ async def get_swagger_ui():
     )
 
 
-@docs_router.get("/v1/api/redoc", include_in_schema=False)
+@docs_router.get("/v1/api/redoc")
 async def get_redoc():
     """ReDoc documentation page"""
     return get_redoc_html(

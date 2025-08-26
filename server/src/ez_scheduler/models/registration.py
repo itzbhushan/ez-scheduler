@@ -15,7 +15,7 @@ class Registration(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     form_id: uuid.UUID = Field(foreign_key="signup_forms.id")
-    user_id: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
+    user_id: Optional[str] = Field(default=None, index=True)  # Auth0 user ID as string
     name: str
     email: str
     phone: str

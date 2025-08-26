@@ -6,10 +6,10 @@ from sqlmodel import Session, text
 
 from ez_scheduler.models.database import engine
 
-health = APIRouter()
+health = APIRouter(include_in_schema=False)
 
 
-@health.get("/health", include_in_schema=False)
+@health.get("/health")
 async def health_check():
     """Basic health check endpoint"""
     return {
@@ -20,7 +20,7 @@ async def health_check():
     }
 
 
-@health.get("/health/detailed", include_in_schema=False)
+@health.get("/health/detailed")
 async def detailed_health_check():
     """Detailed health check with database and dependency checks"""
     health_status = {

@@ -1,8 +1,8 @@
 """Get Form Analytics Tool - Queries analytics about user's events via PostgreSQL MCP"""
 
 import logging
-import uuid
 
+from ez_scheduler.auth.dependencies import User
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.backends.postgres_mcp_client import PostgresMCPClient
 
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 async def get_form_analytics_handler(
-    user_id: uuid.UUID,
+    user: User,
     analytics_query: str,
     postgres_mcp_client: PostgresMCPClient,
     llm_client: LLMClient,
@@ -19,20 +19,20 @@ async def get_form_analytics_handler(
     Get analytics about user's forms using natural language queries.
 
     Args:
-        user_id: User identifier (UUID)
+        user_id: User object
         analytics_query: Natural language query about form analytics
 
     Returns:
         Analytics results formatted for the user
     """
-    logger.info(f"Analytics query for user {user_id}: {analytics_query}")
+    logger.info(f"Analytics query for user {user.user_id}: {analytics_query}")
 
     try:
         # Use PostgreSQL MCP to execute analytics query
         async with postgres_mcp_client:
             results = await postgres_mcp_client.query_from_intent(
                 user_intent=analytics_query,
-                user_id=user_id,
+                user=user,
                 context={"query_type": "analytics"},
             )
 

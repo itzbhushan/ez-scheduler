@@ -18,19 +18,17 @@ class TestFormSubmission:
     """Test form submission functionality"""
 
     @pytest.mark.asyncio
-    async def test_form_submission_endpoint(self, user_service, signup_service):
+    async def test_form_submission_endpoint(self, signup_service):
         """Test that POST /form/{url_slug} processes form submission correctly"""
         # Wait for server to start
         await asyncio.sleep(2)
 
-        # Create a test user and form
-        test_user = user_service.create_user(
-            email="test1@example.com", name="Test User"
-        )
+        # Use Auth0 user ID directly
+        test_user_id = "auth0|test_submission_user_123"
 
         test_form = SignupForm(
             id=uuid.uuid4(),
-            user_id=test_user.id,
+            user_id=test_user_id,
             title="Test Event Submission",
             event_date=date(2024, 12, 25),
             start_time=time(14, 0),
@@ -93,19 +91,17 @@ class TestFormSubmission:
         assert "Form not found or inactive" in result["detail"]
 
     @pytest.mark.asyncio
-    async def test_form_submission_missing_fields(self, user_service, signup_service):
+    async def test_form_submission_missing_fields(self, signup_service):
         """Test form submission with missing required fields returns 422"""
         # Wait for server to start
         await asyncio.sleep(2)
 
-        # Create a test form
-        test_user = user_service.create_user(
-            email="test4@example.com", name="Test User 2"
-        )
+        # Use Auth0 user ID directly
+        test_user_id = "auth0|test_missing_fields_user_456"
 
         test_form = SignupForm(
             id=uuid.uuid4(),
-            user_id=test_user.id,
+            user_id=test_user_id,
             title="Test Event Missing Fields",
             event_date=date(2024, 12, 25),
             location="Test Location",
