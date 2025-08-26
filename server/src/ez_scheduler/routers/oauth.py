@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Annotated
 from urllib.parse import urlencode
 
-import requests
+import httpx
 from fastapi import APIRouter, Form, Query
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
@@ -76,10 +76,11 @@ async def post_token(token_request: Annotated[TokenRequest, Form()]) -> TokenRes
         f"&client_secret={token_request.client_secret}"
     )
 
-    logger.info(f"Token request: {payload}")
-
-    response = requests.post(
-        f"https://{config['auth0_domain']}/oauth/token", payload, headers=headers
-    )
-    logger.info(f"Token response: {response.status_code} {response.json()}")
-    return response.json()
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"https://{config['auth0_domain']}/oauth/token",
+            data=payload,
+            headers=headers,
+        )
+        response.raise_for_status()
+        return response.json()
