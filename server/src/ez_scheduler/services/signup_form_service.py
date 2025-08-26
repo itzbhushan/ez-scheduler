@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 from sqlmodel import Session, select
 
-from ez_scheduler.auth.models import UserClaims
+from ez_scheduler.auth.models import User
 from ez_scheduler.models.signup_form import SignupForm
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ class SignupFormService:
         self.db = db_session
 
     def create_signup_form(
-        self, signup_form: SignupForm, user: Optional[UserClaims] = None
+        self, signup_form: SignupForm, user: Optional[User] = None
     ) -> Dict[str, Any]:
         """
         Create a new signup form in the database

@@ -16,7 +16,7 @@ from sqlmodel import Session, create_engine
 from testcontainers.postgres import PostgresContainer
 
 from ez_scheduler.auth.dependencies import get_current_user
-from ez_scheduler.auth.models import UserClaims
+from ez_scheduler.auth.models import User
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.main import app
 from ez_scheduler.models.database import get_db
@@ -197,7 +197,7 @@ def mock_current_user():
     """Create a mock current user for testing authenticated endpoints"""
 
     def _create_mock_user(user_id: str = None, claims: dict = None):
-        """Create a UserClaims object for testing"""
+        """Create a User object for testing"""
         if user_id is None:
             user_id = str(uuid.uuid4())
         if claims is None:
@@ -207,7 +207,7 @@ def mock_current_user():
                 "scope": "openid profile email",
                 "permissions": [],
             }
-        return UserClaims(user_id=user_id, claims=claims)
+        return User(user_id=user_id, claims=claims)
 
     return _create_mock_user
 
@@ -220,11 +220,11 @@ def authenticated_client(mock_current_user, test_db_session):
     original_overrides = app.dependency_overrides.copy()
 
     # Create a test user
-    test_user_claims = mock_current_user()
+    test_user = mock_current_user()
 
     # Override the get_current_user dependency
     async def mock_get_current_user():
-        return test_user_claims
+        return test_user
 
     # Override the database dependency to use test database
     def get_test_db():
@@ -237,7 +237,7 @@ def authenticated_client(mock_current_user, test_db_session):
 
     client = TestClient(app)
 
-    yield client, test_user_claims
+    yield client, test_user
 
     # Completely restore original state
     app.dependency_overrides.clear()

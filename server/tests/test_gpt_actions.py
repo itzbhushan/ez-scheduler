@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 
 def test_gpt_create_form_success(test_db_session: Session, authenticated_client):
     """Test GPT create form endpoint with complete information"""
-    client, user_claims = authenticated_client
+    client, user = authenticated_client
 
-    # user_claims already has a proper Auth0 user ID from the fixture
+    # user already has a proper Auth0 user ID from the fixture
 
     try:
         # Test the GPT create form endpoint
@@ -60,8 +60,8 @@ def test_gpt_create_form_success(test_db_session: Session, authenticated_client)
             created_form is not None
         ), f"Form with slug '{url_slug}' should exist in database"
         assert (
-            created_form.user_id == user_claims.user_id
-        ), f"Form should belong to test user {user_claims.user_id}"
+            created_form.user_id == user.user_id
+        ), f"Form should belong to test user {user.user_id}"
         assert (
             "john" in created_form.title.lower()
         ), f"Title '{created_form.title}' should contain 'John'"
@@ -90,9 +90,9 @@ def test_gpt_create_form_success(test_db_session: Session, authenticated_client)
 
 def test_gpt_analytics_success(authenticated_client):
     """Test GPT analytics endpoint"""
-    client, user_claims = authenticated_client
+    client, user = authenticated_client
 
-    # user_claims already has a proper Auth0 user ID from the fixture
+    # user already has a proper Auth0 user ID from the fixture
 
     try:
         # Test the GPT analytics endpoint

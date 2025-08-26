@@ -2,7 +2,7 @@ import logging
 
 from fastmcp import FastMCP
 
-from ez_scheduler.auth.models import UserClaims
+from ez_scheduler.auth.models import User
 from ez_scheduler.config import config
 from ez_scheduler.models.database import get_db
 from ez_scheduler.services.llm_service import get_llm_client
@@ -43,11 +43,11 @@ async def create_form(user_id: str, initial_request: str) -> str:
     Returns:
         Response from the form creation process
     """
-    # Create UserClaims for the handler
-    user_claims = UserClaims(user_id=user_id, claims={})
+    # Create User for the handler
+    user = User(user_id=user_id, claims={})
 
     return await create_form_handler(
-        user_claims, initial_request, llm_client, signup_form_service
+        user, initial_request, llm_client, signup_form_service
     )
 
 
@@ -64,11 +64,11 @@ async def get_form_analytics(user_id: str, analytics_query: str) -> str:
         Analytics results formatted for the user
     """
 
-    # Create UserClaims for the handler
-    user_claims = UserClaims(user_id=user_id, claims={})
+    # Create User for the handler
+    user = User(user_id=user_id, claims={})
 
     return await get_form_analytics_handler(
-        user_claims, analytics_query, postgres_mcp_client, llm_client
+        user, analytics_query, postgres_mcp_client, llm_client
     )
 
 

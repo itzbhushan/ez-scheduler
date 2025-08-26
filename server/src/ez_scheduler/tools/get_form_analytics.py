@@ -2,7 +2,7 @@
 
 import logging
 
-from ez_scheduler.auth.dependencies import UserClaims
+from ez_scheduler.auth.dependencies import User
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.backends.postgres_mcp_client import PostgresMCPClient
 
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 async def get_form_analytics_handler(
-    user: UserClaims,
+    user: User,
     analytics_query: str,
     postgres_mcp_client: PostgresMCPClient,
     llm_client: LLMClient,

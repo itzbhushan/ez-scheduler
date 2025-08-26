@@ -3,6 +3,6 @@
 from pydantic import BaseModel
 
 
-class UserClaims(BaseModel):
+class User(BaseModel):
     user_id: str
     claims: dict

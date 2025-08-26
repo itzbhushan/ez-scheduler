@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from ez_scheduler.auth.dependencies import UserClaims
+from ez_scheduler.auth.dependencies import User
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.system_prompts import SQL_GENERATOR_PROMPT
 
@@ -149,7 +149,7 @@ class PostgresMCPClient:
     async def query_from_intent(
         self,
         user_intent: str,
-        user: UserClaims,
+        user: User,
         context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Execute a query by having LLM generate SQL from user's natural language intent"""
@@ -182,7 +182,7 @@ class PostgresMCPClient:
 async def generate_sql_query(
     llm_client: LLMClient,
     request: str,
-    user: UserClaims,
+    user: User,
     context: Dict[str, Any] = None,
 ) -> SQLQueryResponse:
     """Generate SQL query from natural language request"""

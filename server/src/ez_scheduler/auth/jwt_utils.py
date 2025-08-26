@@ -7,7 +7,7 @@ import httpx
 from authlib.jose import JoseError, JsonWebToken
 from authlib.jose.errors import InvalidTokenError
 
-from ez_scheduler.auth.models import UserClaims
+from ez_scheduler.auth.models import User
 from ez_scheduler.config import config
 
 # Configure logging
@@ -92,7 +92,7 @@ class JWTUtils:
             logger.error(f"Unexpected error during token validation: {e}")
             raise InvalidTokenError(f"Token validation error: {str(e)}")
 
-    async def extract_user(self, token: str) -> UserClaims:
+    async def extract_user(self, token: str) -> User:
         """
         Extract user ID and claims from Auth0 JWT token
 
@@ -100,7 +100,7 @@ class JWTUtils:
             token: JWT token string from Auth0
 
         Returns:
-            UserClaims object with user_id and claims
+            User object with user_id and claims
 
         Raises:
             InvalidTokenError: If token is invalid or missing user ID
@@ -122,7 +122,7 @@ class JWTUtils:
             "permissions": claims.get("permissions", []),
         }
 
-        return UserClaims(user_id=user_id_str, claims=user_claims)
+        return User(user_id=user_id_str, claims=user_claims)
 
 
 # Global JWT utilities instance

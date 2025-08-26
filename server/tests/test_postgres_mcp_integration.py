@@ -4,7 +4,7 @@ import logging
 
 import pytest
 
-from ez_scheduler.auth.models import UserClaims
+from ez_scheduler.auth.models import User
 from ez_scheduler.backends.postgres_mcp_client import (
     PostgresMCPClient,
     generate_sql_query,
@@ -79,12 +79,12 @@ class TestMCPServerValidation:
         # Use Auth0 user ID directly
         test_user_id = "auth0|mcp_test_user_789"
 
-        user_claims = UserClaims(user_id=test_user_id, claims={})
+        user = User(user_id=test_user_id, claims={})
 
         result = await generate_sql_query(
             llm_client=llm_client,
             request="How many active signup forms do I have",
-            user=user_claims,
+            user=user,
         )
 
         # Validate through MCP server

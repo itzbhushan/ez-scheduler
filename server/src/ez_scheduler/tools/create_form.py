@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
-from ez_scheduler.auth.dependencies import UserClaims
+from ez_scheduler.auth.dependencies import User
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.config import config
 from ez_scheduler.models.signup_form import SignupForm
@@ -54,7 +54,7 @@ conversations: Dict[str, Dict[str, Any]] = {}
 
 
 async def create_form_handler(
-    user: UserClaims,
+    user: User,
     initial_request: str,
     llm_client: LLMClient,
     signup_form_service: SignupFormService,

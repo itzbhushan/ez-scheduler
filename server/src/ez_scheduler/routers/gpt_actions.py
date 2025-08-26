@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from ez_scheduler.auth.dependencies import UserClaims, get_current_user
+from ez_scheduler.auth.dependencies import User, get_current_user
 from ez_scheduler.models.database import get_db
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.postgres_mcp_service import get_postgres_mcp_client
@@ -46,7 +46,7 @@ class GPTResponse(BaseModel):
 )
 async def gpt_create_form(
     request: GPTFormRequest,
-    userClaims: UserClaims = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db_session=Depends(get_db),
 ):
     """
@@ -59,7 +59,7 @@ async def gpt_create_form(
     signup_form_service = SignupFormService(db_session)
 
     response_text = await create_form_handler(
-        user=userClaims,
+        user=user,
         initial_request=request.description,
         llm_client=llm_client,
         signup_form_service=signup_form_service,
@@ -74,7 +74,7 @@ async def gpt_create_form(
     openapi_extra={"x-openai-isConsequential": False},
 )
 async def gpt_analytics(
-    request: GPTAnalyticsRequest, userClaims: UserClaims = Depends(get_current_user)
+    request: GPTAnalyticsRequest, user: User = Depends(get_current_user)
 ):
     """
     Get analytics about forms and registrations using natural language queries.
@@ -86,7 +86,7 @@ async def gpt_analytics(
     postgres_mcp_client = get_postgres_mcp_client(llm_client)
 
     response_text = await get_form_analytics_handler(
-        user=userClaims,
+        user=user,
         analytics_query=request.query,
         postgres_mcp_client=postgres_mcp_client,
         llm_client=llm_client,
