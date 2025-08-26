@@ -6,6 +6,7 @@ from typing import Dict
 import httpx
 from authlib.jose import JoseError, JsonWebToken
 from authlib.jose.errors import InvalidTokenError
+from cachetools import TTLCache, cached
 
 from ez_scheduler.auth.models import User
 from ez_scheduler.config import config
@@ -14,11 +15,9 @@ from ez_scheduler.config import config
 logging.basicConfig(level=getattr(logging, config["log_level"]))
 logger = logging.getLogger(__name__)
 
-# TODO: Add caching for JWKS to avoid fetching on every request
-
 
 class JWTUtils:
-    """JWT token utilities using authlib"""
+    """JWT token utilities using authlib with JWKS caching"""
 
     def __init__(self):
         self.jwt = JsonWebToken(["RS256"])
@@ -29,14 +28,14 @@ class JWTUtils:
         if not self.auth0_domain:
             raise ValueError("AUTH0_DOMAIN must be configured")
 
+    @cached(cache=TTLCache(maxsize=50, ttl=3600))
     async def _fetch_jwks(self) -> Dict:
         """
-        Fetch JWKS from Auth0 well-known endpoint
+        Fetch JWKS from Auth0 well-known endpoint (cached)
 
         Returns:
             JWKS dictionary from Auth0
         """
-
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(self.jwks_url, timeout=10.0)
@@ -53,9 +52,9 @@ class JWTUtils:
             logger.error(f"Unexpected error fetching JWKS: {e}")
             raise InvalidTokenError(f"JWKS fetch failed: {e}")
 
-    async def verify_auth0_token(self, token: str) -> Dict:
+    async def _verify_auth0_token(self, token: str) -> Dict:
         """
-        Verify and decode an Auth0 JWT token using JWKS
+        Verify and decode an Auth0 JWT token using cached JWKS
 
         Args:
             token: JWT token string from Auth0
@@ -67,22 +66,18 @@ class JWTUtils:
             InvalidTokenError: If token is invalid or expired
         """
         try:
-            # Fetch JWKS
+            # Fetch JWKS (cached)
             jwks = await self._fetch_jwks()
 
             # Verify and decode token - jwt.decode will automatically find the right key using kid
             claims = self.jwt.decode(token, jwks)
 
             # Verify issuer matches Auth0 domain
-
             if claims.get("iss") != self.expected_issuer:
                 raise InvalidTokenError(
                     f"Invalid issuer. Expected: {self.expected_issuer}, Got: {claims.get('iss')}"
                 )
 
-            logger.info(
-                f"Successfully verified Auth0 token for user: {claims.get('sub')}"
-            )
             return claims
 
         except JoseError as e:
@@ -106,7 +101,7 @@ class JWTUtils:
             InvalidTokenError: If token is invalid or missing user ID
         """
 
-        claims = await self.verify_auth0_token(token)
+        claims = await self._verify_auth0_token(token)
         user_id_str = claims.get("sub")
 
         if not user_id_str:
