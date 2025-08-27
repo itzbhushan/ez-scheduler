@@ -317,4 +317,4 @@ The system supports queries like:
 
 *This file will be updated as development progresses and tools are completed.*
 
-- TODOs: Add JWKS caching, add auth for MCP server, improve performance: postgres_mcp_client process is started for each request. Should be created only once and reused.
+- TODOs: add auth for MCP server
