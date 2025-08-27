@@ -6,7 +6,6 @@ from ez_scheduler.auth.models import User
 from ez_scheduler.config import config
 from ez_scheduler.models.database import get_db
 from ez_scheduler.services.llm_service import get_llm_client
-from ez_scheduler.services.postgres_mcp_service import get_postgres_mcp_client
 from ez_scheduler.services.signup_form_service import SignupFormService
 from ez_scheduler.tools.create_form import create_form_handler
 from ez_scheduler.tools.get_form_analytics import get_form_analytics_handler
@@ -20,7 +19,10 @@ logger.info("Creating shared LLM client...")
 llm_client = get_llm_client()
 
 logger.info("Creating shared PostgresMCPClient...")
-postgres_mcp_client = get_postgres_mcp_client(llm_client)
+# For MCP server (non-FastAPI), manually pass the llm_client
+from ez_scheduler.backends.postgres_mcp_client import PostgresMCPClient
+
+postgres_mcp_client = PostgresMCPClient(config, llm_client)
 
 logger.info("Creating shared SignupFormService...")
 db_session = next(get_db())

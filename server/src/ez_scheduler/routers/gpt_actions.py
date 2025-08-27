@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from ez_scheduler.auth.dependencies import User, get_current_user
+from ez_scheduler.backends.llm_client import LLMClient
+from ez_scheduler.backends.postgres_mcp_client import PostgresMCPClient
 from ez_scheduler.models.database import get_db
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.postgres_mcp_service import get_postgres_mcp_client
@@ -48,6 +50,7 @@ async def gpt_create_form(
     request: GPTFormRequest,
     user: User = Depends(get_current_user),
     db_session=Depends(get_db),
+    llm_client: LLMClient = Depends(get_llm_client),
 ):
     """
     Create a signup form using natural language description.
@@ -55,7 +58,6 @@ async def gpt_create_form(
     This endpoint wraps the existing MCP create_form tool to provide
     REST API access for ChatGPT Custom GPTs.
     """
-    llm_client = get_llm_client()
     signup_form_service = SignupFormService(db_session)
 
     response_text = await create_form_handler(
@@ -74,7 +76,10 @@ async def gpt_create_form(
     openapi_extra={"x-openai-isConsequential": False},
 )
 async def gpt_analytics(
-    request: GPTAnalyticsRequest, user: User = Depends(get_current_user)
+    request: GPTAnalyticsRequest,
+    user: User = Depends(get_current_user),
+    llm_client: LLMClient = Depends(get_llm_client),
+    postgres_mcp_client: PostgresMCPClient = Depends(get_postgres_mcp_client),
 ):
     """
     Get analytics about forms and registrations using natural language queries.
@@ -82,9 +87,6 @@ async def gpt_analytics(
     This endpoint wraps the existing MCP analytics tool to provide
     REST API access for ChatGPT Custom GPTs.
     """
-    llm_client = get_llm_client()
-    postgres_mcp_client = get_postgres_mcp_client(llm_client)
-
     response_text = await get_form_analytics_handler(
         user=user,
         analytics_query=request.query,
