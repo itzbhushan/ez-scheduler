@@ -14,6 +14,15 @@ env_path = server_dir / ".env.test"
 if env_path.exists():
     load_dotenv(env_path)
 
+# Set default environment variables for tests if not already set
+if not os.getenv("READ_ONLY_DATABASE_URL"):
+    os.environ["READ_ONLY_DATABASE_URL"] = (
+        "postgresql://ez_analytics_readonly:test_password@localhost:5432/ez_scheduler"
+    )
+
+if not os.getenv("ANALYTICS_DB_PASSWORD"):
+    os.environ["ANALYTICS_DB_PASSWORD"] = "test_password"
+
 # Test configuration dictionary
 test_config = {
     "anthropic_api_key": os.getenv("ANTHROPIC_API_KEY"),
