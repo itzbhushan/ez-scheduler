@@ -28,56 +28,11 @@ class SQLQueryResponse(BaseModel):
 
 
 class PostgresClient:
-    """High-performance PostgreSQL client for read-only analytics operations"""
+    """Simple PostgreSQL client for read-only analytics operations"""
 
     def __init__(self, llm_client: LLMClient):
         self.llm_client = llm_client
-        self.pool: Optional[asyncpg.Pool] = None
         logger.info("Initialized PostgresClient for analytics queries")
-
-    async def __aenter__(self):
-        """Initialize connection pool"""
-        if not self.pool:
-            # Get the database URL from environment at connection time
-            # NOTE: This is an exception to the centralized config pattern in config.py
-            # Required because PostgresClient is instantiated at module import time in mcp_server.py,
-            # but test environments set READ_ONLY_DATABASE_URL after imports complete
-            readonly_database_url = os.getenv("READ_ONLY_DATABASE_URL")
-
-            if not readonly_database_url:
-                raise ValueError(
-                    "READ_ONLY_DATABASE_URL environment variable is required for analytics operations. "
-                    "Please set it to a PostgreSQL connection string in the format: "
-                    "postgresql://username:password@host:port/database"
-                )
-
-            # Convert SQLAlchemy-style URL to asyncpg-compatible URL
-            if "postgresql+psycopg2://" in readonly_database_url:
-                readonly_database_url = readonly_database_url.replace(
-                    "postgresql+psycopg2://", "postgresql://"
-                )
-
-            self.pool = await asyncpg.create_pool(
-                readonly_database_url,
-                min_size=2,
-                max_size=10,
-                command_timeout=30,
-            )
-            logger.info("Created asyncpg connection pool for read-only operations")
-        return self
-
-    async def __aexit__(self, _exc_type, _exc_val, _exc_tb):
-        """Close connection pool after each operation"""
-        if self.pool:
-            await self.pool.close()
-            self.pool = None
-            logger.info("Closed asyncpg connection pool")
-
-    async def cleanup(self):
-        """Cleanup method for application shutdown"""
-        if self.pool:
-            await self.pool.close()
-            logger.info("Closed asyncpg connection pool during cleanup")
 
     async def _generate_sql_query(
         self, user: User, analytics_query: str
@@ -125,7 +80,7 @@ class PostgresClient:
     async def _execute_readonly_query(
         self, sql_query: str, parameters: Dict[str, Any] = None
     ) -> List[Dict[str, Any]]:
-        """Execute read-only SQL query on connection pool"""
+        """Execute read-only SQL query using direct connection"""
 
         if parameters is None:
             parameters = {}
@@ -133,7 +88,24 @@ class PostgresClient:
         logger.info(f"Executing SQL query: {sql_query}")
         logger.info(f"Query parameters: {parameters}")
 
-        async with self.pool.acquire() as conn:
+        # Get the database URL from environment
+        readonly_database_url = os.getenv("READ_ONLY_DATABASE_URL")
+        if not readonly_database_url:
+            raise ValueError(
+                "READ_ONLY_DATABASE_URL environment variable is required for analytics operations. "
+                "Please set it to a PostgreSQL connection string in the format: "
+                "postgresql://username:password@host:port/database"
+            )
+
+        # Convert SQLAlchemy-style URL to asyncpg-compatible URL
+        if "postgresql+psycopg2://" in readonly_database_url:
+            readonly_database_url = readonly_database_url.replace(
+                "postgresql+psycopg2://", "postgresql://"
+            )
+
+        # Create direct connection for this query
+        conn = await asyncpg.connect(readonly_database_url)
+        try:
             # Handle parameterized queries
             if parameters:
                 # For asyncpg, we need to use $1, $2, etc. format
@@ -154,6 +126,8 @@ class PostgresClient:
             results = [dict(row) for row in rows]
             logger.info(f"Query returned {len(results)} rows")
             return results
+        finally:
+            await conn.close()
 
     async def process_analytics_query(self, user: User, analytics_query: str) -> str:
         """Process natural language analytics query and return formatted results"""
