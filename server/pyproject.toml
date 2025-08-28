@@ -22,7 +22,7 @@ dependencies = [
     "anthropic>=0.36.0",
     "asyncpg>=0.30.0",
     "authlib>=1.6.0",
-    "cachetools>=6.2.0",
+    "aiocache>=0.12.3",
 ]
 
 [project.optional-dependencies]
