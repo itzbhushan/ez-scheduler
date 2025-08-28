@@ -5,10 +5,10 @@ from pydantic import BaseModel, Field
 
 from ez_scheduler.auth.dependencies import User, get_current_user
 from ez_scheduler.backends.llm_client import LLMClient
-from ez_scheduler.backends.postgres_mcp_client import PostgresMCPClient
+from ez_scheduler.backends.postgres_client import PostgresClient
 from ez_scheduler.models.database import get_db
 from ez_scheduler.services.llm_service import get_llm_client
-from ez_scheduler.services.postgres_mcp_service import get_postgres_mcp_client
+from ez_scheduler.services.postgres_service import get_postgres_client
 from ez_scheduler.services.signup_form_service import SignupFormService
 from ez_scheduler.tools.create_form import create_form_handler
 from ez_scheduler.tools.get_form_analytics import get_form_analytics_handler
@@ -78,19 +78,16 @@ async def gpt_create_form(
 async def gpt_analytics(
     request: GPTAnalyticsRequest,
     user: User = Depends(get_current_user),
-    llm_client: LLMClient = Depends(get_llm_client),
-    postgres_mcp_client: PostgresMCPClient = Depends(get_postgres_mcp_client),
+    postgres_client: PostgresClient = Depends(get_postgres_client),
 ):
     """
     Get analytics about forms and registrations using natural language queries.
 
-    This endpoint wraps the existing MCP analytics tool to provide
-    REST API access for ChatGPT Custom GPTs.
+    This endpoint uses high-performance PostgreSQL client for direct database access.
     """
     response_text = await get_form_analytics_handler(
         user=user,
         analytics_query=request.query,
-        postgres_mcp_client=postgres_mcp_client,
-        llm_client=llm_client,
+        postgres_client=postgres_client,
     )
     return GPTResponse(response=response_text)

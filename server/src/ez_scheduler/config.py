@@ -25,6 +25,7 @@ if environment in ["local", "test"]:
 config = {
     "anthropic_api_key": os.getenv("ANTHROPIC_API_KEY"),
     "database_url": os.getenv("DATABASE_URL"),
+    "readonly_database_url": os.getenv("READ_ONLY_DATABASE_URL"),
     "mcp_port": int(os.getenv("MCP_PORT", "8080")),
     "log_level": os.getenv("LOG_LEVEL", "INFO"),
     "app_base_domain": os.getenv("APP_BASE_DOMAIN"),

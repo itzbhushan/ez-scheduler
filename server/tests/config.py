@@ -25,6 +25,10 @@ test_config = {
         "DATABASE_URL", "postgresql://ez_user:ez_password@localhost:5432/ez_scheduler"
     ),
     "redis_url": os.getenv("REDIS_URL", "redis://localhost:6379"),
+    "readonly_database_url": os.getenv(
+        "READ_ONLY_DATABASE_URL",
+        "postgresql://ez_analytics_readonly:test_password@localhost:5432/ez_scheduler",
+    ),
     "app_base_domain": os.getenv("APP_BASE_DOMAIN", "http://localhost"),
     "app_base_url": os.getenv("APP_BASE_URL"),
     "admin_api_key": os.getenv("ADMIN_API_KEY"),
