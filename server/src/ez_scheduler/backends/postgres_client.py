@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 from typing import Any, Dict, List, Optional
 
 import asyncpg
@@ -10,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from ez_scheduler.auth.dependencies import User
 from ez_scheduler.backends.llm_client import LLMClient
+from ez_scheduler.config import get_config
 from ez_scheduler.system_prompts import ANALYTICS_FORMATTER_PROMPT, SQL_GENERATOR_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -32,30 +32,32 @@ class PostgresClient:
 
     def __init__(self, llm_client: LLMClient):
         self.llm_client = llm_client
+        self.readonly_database_url = None  # Will be set lazily
         self.pool: Optional[asyncpg.Pool] = None
         logger.info("Initialized PostgresClient for analytics queries")
 
     async def __aenter__(self):
         """Initialize connection pool"""
         if not self.pool:
-            # Read database URL dynamically to support test environments
-            readonly_database_url = os.getenv("READ_ONLY_DATABASE_URL")
+            # Lazily load the database URL from config (supports dynamic test setup)
+            if not self.readonly_database_url:
+                self.readonly_database_url = get_config()["readonly_database_url"]
 
-            if not readonly_database_url:
-                raise ValueError(
-                    "READ_ONLY_DATABASE_URL environment variable is required for analytics operations. "
-                    "Please set it to a PostgreSQL connection string in the format: "
-                    "postgresql://username:password@host:port/database"
-                )
+                if not self.readonly_database_url:
+                    raise ValueError(
+                        "READ_ONLY_DATABASE_URL environment variable is required for analytics operations. "
+                        "Please set it to a PostgreSQL connection string in the format: "
+                        "postgresql://username:password@host:port/database"
+                    )
 
-            # Convert SQLAlchemy-style URL to asyncpg-compatible URL
-            if "postgresql+psycopg2://" in readonly_database_url:
-                readonly_database_url = readonly_database_url.replace(
-                    "postgresql+psycopg2://", "postgresql://"
-                )
+                # Convert SQLAlchemy-style URL to asyncpg-compatible URL
+                if "postgresql+psycopg2://" in self.readonly_database_url:
+                    self.readonly_database_url = self.readonly_database_url.replace(
+                        "postgresql+psycopg2://", "postgresql://"
+                    )
 
             self.pool = await asyncpg.create_pool(
-                readonly_database_url,
+                self.readonly_database_url,
                 min_size=2,
                 max_size=10,
                 command_timeout=30,
