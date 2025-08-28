@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 logger.info("Creating shared LLM client...")
 llm_client = get_llm_client()
 
-logger.info("Creating shared PostgresMCPClient...")
+logger.info("Creating shared PostgreSQL client...")
 # For MCP server (non-FastAPI), manually pass the llm_client
-from ez_scheduler.backends.postgres_mcp_client import PostgresMCPClient
+from ez_scheduler.backends.postgres_client import PostgresClient
 
-postgres_mcp_client = PostgresMCPClient(config, llm_client)
+postgres_client = PostgresClient(llm_client)
 
 logger.info("Creating shared SignupFormService...")
 db_session = next(get_db())
@@ -69,9 +69,7 @@ async def get_form_analytics(user_id: str, analytics_query: str) -> str:
     # Create User for the handler
     user = User(user_id=user_id, claims={})
 
-    return await get_form_analytics_handler(
-        user, analytics_query, postgres_mcp_client, llm_client
-    )
+    return await get_form_analytics_handler(user, analytics_query, postgres_client)
 
 
 # Create the ASGI app from the MCP server

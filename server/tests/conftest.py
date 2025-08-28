@@ -98,6 +98,7 @@ def postgres_container():
         # Set up database URI in environment
         database_url = postgres.get_connection_url()
         os.environ["DATABASE_URL"] = database_url
+        os.environ["READ_ONLY_DATABASE_URL"] = database_url  # Use same DB for tests
         os.environ["sqlalchemy.url"] = database_url
 
         # Run Alembic migrations to set up schema
