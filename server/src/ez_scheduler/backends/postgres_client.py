@@ -67,10 +67,17 @@ class PostgresClient:
         return self
 
     async def __aexit__(self, _exc_type, _exc_val, _exc_tb):
-        """Close connection pool"""
+        """Close connection pool after each operation"""
         if self.pool:
             await self.pool.close()
+            self.pool = None
             logger.info("Closed asyncpg connection pool")
+
+    async def cleanup(self):
+        """Cleanup method for application shutdown"""
+        if self.pool:
+            await self.pool.close()
+            logger.info("Closed asyncpg connection pool during cleanup")
 
     async def _generate_sql_query(
         self, user: User, analytics_query: str
