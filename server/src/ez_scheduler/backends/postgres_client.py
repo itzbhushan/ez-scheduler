@@ -40,14 +40,20 @@ class PostgresClient:
         if not self.pool:
             # Read database URL dynamically to support test environments
             readonly_database_url = os.getenv("READ_ONLY_DATABASE_URL")
+
+            if not readonly_database_url:
+                raise ValueError(
+                    "READ_ONLY_DATABASE_URL environment variable is required for analytics operations. "
+                    "Please set it to a PostgreSQL connection string in the format: "
+                    "postgresql://username:password@host:port/database"
+                )
+
             # Convert SQLAlchemy-style URL to asyncpg-compatible URL
-            if (
-                readonly_database_url
-                and "postgresql+psycopg2://" in readonly_database_url
-            ):
+            if "postgresql+psycopg2://" in readonly_database_url:
                 readonly_database_url = readonly_database_url.replace(
                     "postgresql+psycopg2://", "postgresql://"
                 )
+
             self.pool = await asyncpg.create_pool(
                 readonly_database_url,
                 min_size=2,
