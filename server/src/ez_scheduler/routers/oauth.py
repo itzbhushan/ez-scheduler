@@ -53,9 +53,12 @@ class GrantType(Enum):
 class TokenRequest(BaseModel):
     grant_type: GrantType
     client_id: str
-    code: str
-    redirect_uri: str
     client_secret: str
+    # Authorization code flow fields
+    code: str = None
+    redirect_uri: str = None
+    # Refresh token flow fields
+    refresh_token: str = None
 
 
 class TokenResponse(BaseModel):
@@ -68,13 +71,28 @@ class TokenResponse(BaseModel):
 @router.post("/token", response_model=TokenResponse)
 async def post_token(token_request: Annotated[TokenRequest, Form()]) -> TokenResponse:
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    payload = (
-        f"grant_type={token_request.grant_type.value}"
-        f"&client_id={token_request.client_id}"
-        f"&code={token_request.code}"
-        f"&redirect_uri={token_request.redirect_uri}"
-        f"&client_secret={token_request.client_secret}"
-    )
+
+    # Build payload based on grant type
+    payload_parts = [
+        f"grant_type={token_request.grant_type.value}",
+        f"client_id={token_request.client_id}",
+        f"client_secret={token_request.client_secret}",
+    ]
+
+    if token_request.grant_type == GrantType.AUTHORIZATION_CODE:
+        if not token_request.code or not token_request.redirect_uri:
+            raise ValueError(
+                "code and redirect_uri required for authorization_code flow"
+            )
+        payload_parts.extend(
+            [f"code={token_request.code}", f"redirect_uri={token_request.redirect_uri}"]
+        )
+    elif token_request.grant_type == GrantType.REFRESH:
+        if not token_request.refresh_token:
+            raise ValueError("refresh_token required for refresh_token flow")
+        payload_parts.append(f"refresh_token={token_request.refresh_token}")
+
+    payload = "&".join(payload_parts)
 
     async with httpx.AsyncClient() as client:
         response = await client.post(

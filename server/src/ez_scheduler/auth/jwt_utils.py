@@ -4,9 +4,9 @@ import logging
 from typing import Dict
 
 import httpx
+from aiocache import Cache, cached
 from authlib.jose import JoseError, JsonWebToken
 from authlib.jose.errors import InvalidTokenError
-from cachetools import TTLCache, cached
 
 from ez_scheduler.auth.models import User
 from ez_scheduler.config import config
@@ -28,7 +28,7 @@ class JWTUtils:
         if not self.auth0_domain:
             raise ValueError("AUTH0_DOMAIN must be configured")
 
-    @cached(cache=TTLCache(maxsize=50, ttl=3600))
+    @cached(ttl=3600, cache=Cache.MEMORY)
     async def _fetch_jwks(self) -> Dict:
         """
         Fetch JWKS from Auth0 well-known endpoint (cached)
