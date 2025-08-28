@@ -23,7 +23,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema."""
     # Create read-only user for analytics queries
-    analytics_password = os.getenv("ANALYTICS_DB_PASSWORD", "ez_analytics_password")
+    analytics_password = os.getenv("ANALYTICS_DB_PASSWORD")
     op.execute(
         f"CREATE USER ez_analytics_readonly WITH PASSWORD '{analytics_password}';"
     )
