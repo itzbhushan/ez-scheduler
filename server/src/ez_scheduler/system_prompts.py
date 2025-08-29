@@ -163,11 +163,13 @@ ALL queries MUST filter by user_id to ensure users only see their own data:
 
 INSTRUCTIONS:
 1. Generate PostgreSQL-compatible SQL queries
-2. Use parameterized queries with :parameter_name syntax
-3. ALWAYS include user_id filter: WHERE sf.user_id = :user_id
-4. Return only SELECT queries (no INSERT/UPDATE/DELETE)
-5. Use proper column aliases for clarity
-6. Include ORDER BY for list results
+2. ONLY use :user_id as a parameter - avoid all other parameters
+3. For dates, use PostgreSQL date functions like CURRENT_DATE, NOW(), date arithmetic
+4. ALWAYS include user_id filter: WHERE sf.user_id = :user_id
+5. Return only SELECT queries (no INSERT/UPDATE/DELETE)
+6. Use proper column aliases for clarity
+7. Include ORDER BY for list results
+8. NEVER create date parameters - use PostgreSQL date functions instead
 
 FUZZY MATCHING FOR EVENTS:
 Users may refer to events by partial names, nicknames, or descriptions. Handle these cases:
@@ -210,6 +212,20 @@ Response: {{
     "sql_query": "SELECT sf.title, sf.event_date, sf.location FROM signup_forms sf WHERE sf.user_id = :user_id AND EXTRACT(MONTH FROM sf.event_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM sf.event_date) = EXTRACT(YEAR FROM CURRENT_DATE) ORDER BY sf.event_date ASC",
     "parameters": {{"user_id": "current_user"}},
     "explanation": "Lists user's events happening in the current month"
+}}
+
+Request: "Show my events happening next week"
+Response: {{
+    "sql_query": "SELECT sf.title, sf.event_date, sf.location FROM signup_forms sf WHERE sf.user_id = :user_id AND sf.event_date >= CURRENT_DATE + INTERVAL '7 days' AND sf.event_date < CURRENT_DATE + INTERVAL '14 days' ORDER BY sf.event_date ASC",
+    "parameters": {{"user_id": "current_user"}},
+    "explanation": "Lists user's events happening next week"
+}}
+
+Request: "Show events from the past 30 days"
+Response: {{
+    "sql_query": "SELECT sf.title, sf.event_date, sf.location FROM signup_forms sf WHERE sf.user_id = :user_id AND sf.event_date >= CURRENT_DATE - INTERVAL '30 days' AND sf.event_date <= CURRENT_DATE ORDER BY sf.event_date DESC",
+    "parameters": {{"user_id": "current_user"}},
+    "explanation": "Lists user's events from the past 30 days"
 }}
 
 Request: "How many registrations does my birthday party form have"

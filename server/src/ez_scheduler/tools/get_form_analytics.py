@@ -26,9 +26,8 @@ async def get_form_analytics_handler(
     """
     logger.info(f"Analytics query for user {user.user_id}: {analytics_query}")
 
-    async with postgres_client:
-        response = await postgres_client.process_analytics_query(
-            user=user, analytics_query=analytics_query
-        )
+    response = await postgres_client.process_analytics_query(
+        user=user, analytics_query=analytics_query
+    )
 
     return response

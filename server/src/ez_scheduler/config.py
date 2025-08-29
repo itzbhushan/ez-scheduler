@@ -21,7 +21,8 @@ if environment in ["local", "test"]:
     if env_path.exists():
         load_dotenv(env_path)
 
-# Configuration dictionary
+
+# Configuration dictionary - set once at initialization
 config = {
     "anthropic_api_key": os.getenv("ANTHROPIC_API_KEY"),
     "database_url": os.getenv("DATABASE_URL"),
@@ -30,7 +31,6 @@ config = {
     "log_level": os.getenv("LOG_LEVEL", "INFO"),
     "app_base_domain": os.getenv("APP_BASE_DOMAIN"),
     "app_base_url": os.getenv("APP_BASE_URL"),
-    "jwt_secret_key": os.getenv("JWT_SECRET_KEY"),
     "admin_api_key": os.getenv("ADMIN_API_KEY"),
     "auth0_client_secret": os.getenv("AUTH0_CLIENT_SECRET"),
     "redirect_uri": os.getenv("REDIRECT_URI"),
