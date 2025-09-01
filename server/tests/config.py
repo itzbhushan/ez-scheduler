@@ -40,5 +40,4 @@ test_config = {
     ),
     "app_base_domain": os.getenv("APP_BASE_DOMAIN", "http://localhost"),
     "app_base_url": os.getenv("APP_BASE_URL"),
-    "admin_api_key": os.getenv("ADMIN_API_KEY"),
 }

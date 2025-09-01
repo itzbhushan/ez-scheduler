@@ -24,7 +24,7 @@ class ResponseType(Enum):
 class AuthorizeRequest(BaseModel):
     response_type: ResponseType
     client_id: str
-    redirect_uri: str = config["redirect_uri"]
+    redirect_uri: str
     scope: str = "offline_access"
     state: str
     audience: str = "https://ez-scheduler-staging.up.railway.app/gpt"
