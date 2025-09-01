@@ -29,11 +29,6 @@ config = {
     "readonly_database_url": os.getenv("READ_ONLY_DATABASE_URL"),
     "mcp_port": int(os.getenv("MCP_PORT", "8080")),
     "log_level": os.getenv("LOG_LEVEL", "INFO"),
-    "app_base_domain": os.getenv("APP_BASE_DOMAIN"),
     "app_base_url": os.getenv("APP_BASE_URL"),
-    "admin_api_key": os.getenv("ADMIN_API_KEY"),
-    "auth0_client_secret": os.getenv("AUTH0_CLIENT_SECRET"),
-    "redirect_uri": os.getenv("REDIRECT_URI"),
     "auth0_domain": os.getenv("AUTH0_DOMAIN"),
-    "auth0_client_id": os.getenv("AUTH0_CLIENT_ID"),
 }
