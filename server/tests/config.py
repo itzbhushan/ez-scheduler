@@ -38,6 +38,5 @@ test_config = {
         "READ_ONLY_DATABASE_URL",
         "postgresql://ez_analytics_readonly:test_password@localhost:5432/ez_scheduler",
     ),
-    "app_base_domain": os.getenv("APP_BASE_DOMAIN", "http://localhost"),
     "app_base_url": os.getenv("APP_BASE_URL"),
 }

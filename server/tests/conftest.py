@@ -43,9 +43,6 @@ async def mcp_server_process(postgres_container):
     """Start the HTTP MCP server once for the entire test session"""
     env = os.environ.copy()
     env["MCP_PORT"] = str(test_config["mcp_port"])  # Use test config port
-    env["APP_BASE_DOMAIN"] = test_config[
-        "app_base_domain"
-    ]  # Use test config base domain
 
     # Ensure the MCP server uses the same database as the test
     database_url = postgres_container.get_connection_url()
