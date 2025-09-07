@@ -116,13 +116,16 @@ async def submit_registration_form(
 
 @router.get("/form/{url_slug}/success", include_in_schema=False)
 async def registration_success(
-    request: Request, url_slug: str, registration_id: str, db: Session = Depends(get_db)
+    request: Request,
+    url_slug: str,
+    registration_id: str,
+    db: Session = Depends(get_db),
+    llm_client=Depends(get_llm_client),
 ):
     """Show registration success page"""
 
     # Create services with injected database session
     signup_form_service = SignupFormService(db)
-    llm_client = get_llm_client()
     registration_service = RegistrationService(db, llm_client)
 
     # Get the form by URL slug

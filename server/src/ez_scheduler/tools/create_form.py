@@ -268,9 +268,9 @@ Requirements:
 - Remove special characters and spaces
 
 Examples:
-- "John's Birthday Party" on "March 15th, 2025" → "johns-birthday-party-2025"
-- "Company Retreat" on "July 2024" → "company-retreat-2024"
-- "Wedding Reception" on "December 12th" → "wedding-reception-dec"
+- "John's Birthday Party" on "March 15th, 2025" → "johns-birthday-march-15-25"
+- "Company Retreat" on "July 2024" → "company-retreat-july-2024"
+- "Wedding Reception" on "December 12th" → "wedding-reception-dec-12"
 
 Generate only the form ID, no explanation:"""
 
