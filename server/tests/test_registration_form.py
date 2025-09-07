@@ -1,15 +1,12 @@
 """Test registration form serving"""
 
-import asyncio
 import logging
 import uuid
 from datetime import date, time
 
 import pytest
-import requests
 
 from ez_scheduler.models.signup_form import SignupForm
-from tests.config import test_config
 
 logger = logging.getLogger(__name__)
 
@@ -18,18 +15,14 @@ class TestRegistrationForm:
     """Test registration form serving functionality"""
 
     @pytest.mark.asyncio
-    async def test_serve_registration_form(self, signup_service):
+    async def test_serve_registration_form(self, signup_service, authenticated_client):
         """Test that a registration form can be served via HTTP"""
-        # Wait for server to start
-        await asyncio.sleep(2)
-
-        # Use Auth0 user ID directly
-        test_user_id = "auth0|test_serve_form_user_123"
+        client, test_user = authenticated_client
 
         # Create a test signup form
         test_form = SignupForm(
             id=uuid.uuid4(),
-            user_id=test_user_id,
+            user_id=test_user.user_id,
             title="Test Event",
             event_date=date(2024, 12, 25),
             start_time=time(14, 0),
@@ -43,9 +36,7 @@ class TestRegistrationForm:
         signup_service.create_signup_form(test_form)
 
         # Test that the form can be served
-        response = requests.get(
-            f"{test_config['app_base_url']}/form/{test_form.url_slug}"
-        )
+        response = client.get(f"/form/{test_form.url_slug}")
 
         logger.info(f"Response message: {response.text}")
         assert response.status_code == 200
@@ -68,13 +59,12 @@ class TestRegistrationForm:
         assert 'type="submit"' in html_content
 
     @pytest.mark.asyncio
-    async def test_serve_nonexistent_form(self):
+    async def test_serve_nonexistent_form(self, authenticated_client):
         """Test that requesting a non-existent form returns 404"""
-        # Wait for server to start
-        await asyncio.sleep(2)
+        client, __ = authenticated_client
 
         # Test with a non-existent URL slug
-        response = requests.get(f"{test_config['app_base_url']}/form/nonexistent-form")
+        response = client.get("/form/nonexistent-form")
 
         print(f"Status code: {response.status_code}")
         print(f"Response text: {response.text}")
@@ -84,18 +74,14 @@ class TestRegistrationForm:
         assert "Form not found or inactive" in data["detail"]
 
     @pytest.mark.asyncio
-    async def test_serve_inactive_form(self, signup_service):
+    async def test_serve_inactive_form(self, signup_service, authenticated_client):
         """Test that requesting an inactive form returns 404"""
-        # Wait for server to start
-        await asyncio.sleep(2)
-
-        # Use Auth0 user ID directly
-        test_user_id = "auth0|test_inactive_form_user_456"
+        client, test_user = authenticated_client
 
         # Create an inactive test signup form
         test_form = SignupForm(
             id=uuid.uuid4(),
-            user_id=test_user_id,
+            user_id=test_user.user_id,
             title="Inactive Event",
             event_date=date(2024, 12, 31),
             location="Test Location",
@@ -107,9 +93,7 @@ class TestRegistrationForm:
         signup_service.create_signup_form(test_form)
 
         # Test that the inactive form returns 404
-        response = requests.get(
-            f"{test_config['app_base_url']}/form/{test_form.url_slug}"
-        )
+        response = client.get(f"/form/{test_form.url_slug}")
 
         assert response.status_code == 404
         data = response.json()

@@ -1,15 +1,12 @@
 """Test form submission end-to-end functionality"""
 
-import asyncio
 import logging
 import uuid
 from datetime import date, time
 
 import pytest
-import requests
 
 from ez_scheduler.models.signup_form import SignupForm
-from tests.config import test_config
 
 logger = logging.getLogger(__name__)
 
@@ -18,17 +15,13 @@ class TestFormSubmission:
     """Test form submission functionality"""
 
     @pytest.mark.asyncio
-    async def test_form_submission_endpoint(self, signup_service):
+    async def test_form_submission_endpoint(self, signup_service, authenticated_client):
         """Test that POST /form/{url_slug} processes form submission correctly"""
-        # Wait for server to start
-        await asyncio.sleep(2)
-
-        # Use Auth0 user ID directly
-        test_user_id = "auth0|test_submission_user_123"
+        client, test_user = authenticated_client
 
         test_form = SignupForm(
             id=uuid.uuid4(),
-            user_id=test_user_id,
+            user_id=test_user.user_id,
             title="Test Event Submission",
             event_date=date(2024, 12, 25),
             start_time=time(14, 0),
@@ -48,8 +41,8 @@ class TestFormSubmission:
             "phone": "555-1234",
         }
 
-        response = requests.post(
-            f"{test_config['app_base_url']}/form/{test_form.url_slug}",
+        response = client.post(
+            f"/form/{test_form.url_slug}",
             data=form_data,
         )
 
@@ -70,10 +63,9 @@ class TestFormSubmission:
         assert len(message) > 30  # Should be a substantial personalized message
 
     @pytest.mark.asyncio
-    async def test_form_submission_invalid_form(self):
+    async def test_form_submission_invalid_form(self, authenticated_client):
         """Test form submission with non-existent form returns 404"""
-        # Wait for server to start
-        await asyncio.sleep(2)
+        client, __ = authenticated_client
 
         form_data = {
             "name": "John Doe",
@@ -81,8 +73,8 @@ class TestFormSubmission:
             "phone": "555-1234",
         }
 
-        response = requests.post(
-            f"{test_config['app_base_url']}/form/nonexistent-form",
+        response = client.post(
+            "/form/nonexistent-form",
             data=form_data,
         )
 
@@ -91,17 +83,15 @@ class TestFormSubmission:
         assert "Form not found or inactive" in result["detail"]
 
     @pytest.mark.asyncio
-    async def test_form_submission_missing_fields(self, signup_service):
+    async def test_form_submission_missing_fields(
+        self, signup_service, authenticated_client
+    ):
         """Test form submission with missing required fields returns 422"""
-        # Wait for server to start
-        await asyncio.sleep(2)
-
-        # Use Auth0 user ID directly
-        test_user_id = "auth0|test_missing_fields_user_456"
+        client, test_user = authenticated_client
 
         test_form = SignupForm(
             id=uuid.uuid4(),
-            user_id=test_user_id,
+            user_id=test_user.user_id,
             title="Test Event Missing Fields",
             event_date=date(2024, 12, 25),
             location="Test Location",
@@ -119,8 +109,8 @@ class TestFormSubmission:
             # Missing email field
         }
 
-        response = requests.post(
-            f"{test_config['app_base_url']}/form/{test_form.url_slug}",
+        response = client.post(
+            f"/form/{test_form.url_slug}",
             data=form_data,
         )
 

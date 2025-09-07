@@ -3,8 +3,9 @@
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.templating import Jinja2Templates
+from sqlmodel import Session
 
 from ez_scheduler.config import config
 from ez_scheduler.models.database import get_db
@@ -18,20 +19,18 @@ router = APIRouter(include_in_schema=False)
 template_dir = Path(__file__).parent.parent / "templates"
 templates = Jinja2Templates(directory=str(template_dir))
 
-db_session = next(get_db())
-llm_client = get_llm_client()
-signup_form_service = SignupFormService(db_session)
-registration_service = RegistrationService(db_session, llm_client)
-
 # Configure logging
 logging.basicConfig(level=getattr(logging, config["log_level"]))
 logger = logging.getLogger(__name__)
 
 
 @router.get("/form/{url_slug}")
-async def serve_registration_form(request: Request, url_slug: str):
+async def serve_registration_form(
+    request: Request, url_slug: str, db: Session = Depends(get_db)
+):
     """Serve registration form HTML for a given URL slug"""
 
+    signup_form_service = SignupFormService(db)
     form = signup_form_service.get_form_by_url_slug(url_slug)
 
     if not form:
@@ -45,9 +44,9 @@ async def serve_registration_form(request: Request, url_slug: str):
     formatted_end_time = form.end_time.strftime("%I:%M %p") if form.end_time else None
 
     return templates.TemplateResponse(
+        request,
         "form.html",
         {
-            "request": request,
             "form": form,
             "url_slug": url_slug,
             "formatted_date": formatted_date,
@@ -64,8 +63,14 @@ async def submit_registration_form(
     name: str = Form(...),
     email: str = Form(...),
     phone: str = Form(...),
+    db: Session = Depends(get_db),
+    llm_client=Depends(get_llm_client),
 ):
     """Handle registration form submission"""
+
+    # Create services with injected database session
+    signup_form_service = SignupFormService(db)
+    registration_service = RegistrationService(db, llm_client)
 
     # Get the form by URL slug
     form = signup_form_service.get_form_by_url_slug(url_slug)
@@ -110,8 +115,15 @@ async def submit_registration_form(
 
 
 @router.get("/form/{url_slug}/success", include_in_schema=False)
-async def registration_success(request: Request, url_slug: str, registration_id: str):
+async def registration_success(
+    request: Request, url_slug: str, registration_id: str, db: Session = Depends(get_db)
+):
     """Show registration success page"""
+
+    # Create services with injected database session
+    signup_form_service = SignupFormService(db)
+    llm_client = get_llm_client()
+    registration_service = RegistrationService(db, llm_client)
 
     # Get the form by URL slug
     form = signup_form_service.get_form_by_url_slug(url_slug)
@@ -128,9 +140,9 @@ async def registration_success(request: Request, url_slug: str, registration_id:
         raise HTTPException(status_code=404, detail="Invalid registration ID")
 
     return templates.TemplateResponse(
+        request,
         "success.html",
         {
-            "request": request,
             "form": form,
             "registration": registration,
             "formatted_date": form.event_date.strftime("%B %d, %Y"),
