@@ -1,15 +1,12 @@
 """Test GET /form endpoint works correctly"""
 
-import asyncio
 import logging
 import uuid
 from datetime import date, time
 
 import pytest
-import requests
 
 from ez_scheduler.models.signup_form import SignupForm
-from tests.config import test_config
 
 logger = logging.getLogger(__name__)
 
@@ -18,17 +15,13 @@ class TestFormGetEndpoint:
     """Test GET form endpoint"""
 
     @pytest.mark.asyncio
-    async def test_get_form_endpoint(self, signup_service):
+    async def test_get_form_endpoint(self, signup_service, authenticated_client):
         """Test that GET /form/{url_slug} works correctly"""
-        # Wait for server to start
-        await asyncio.sleep(2)
-
-        # Use Auth0 user ID directly
-        test_user_id = "auth0|test_get_user_123"
+        client, test_user = authenticated_client
 
         test_form = SignupForm(
             id=uuid.uuid4(),
-            user_id=test_user_id,
+            user_id=test_user.user_id,
             title="Test Event Get",
             event_date=date(2024, 12, 25),
             start_time=time(14, 0),
@@ -42,9 +35,7 @@ class TestFormGetEndpoint:
         signup_service.create_signup_form(test_form)
 
         # Test GET request
-        response = requests.get(
-            f"{test_config['app_base_url']}/form/{test_form.url_slug}"
-        )
+        response = client.get(f"/form/{test_form.url_slug}")
 
         logger.info(f"GET Response status: {response.status_code}")
         logger.info(f"GET Response content length: {len(response.text)}")

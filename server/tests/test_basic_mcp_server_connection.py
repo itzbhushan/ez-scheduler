@@ -16,6 +16,13 @@ class TestMCPServerConnection:
         await asyncio.sleep(1)
 
         # Check if process is still running (hasn't crashed)
+        if mcp_server_process.poll() is not None:
+            # Process has exited, get the output to debug
+            stdout, stderr = mcp_server_process.communicate()
+            print(f"Server stdout: {stdout.decode() if stdout else 'None'}")
+            print(f"Server stderr: {stderr.decode() if stderr else 'None'}")
+            print(f"Server return code: {mcp_server_process.returncode}")
+
         assert mcp_server_process.poll() is None, "Server process should be running"
 
     @pytest.mark.asyncio

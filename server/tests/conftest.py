@@ -7,7 +7,6 @@ import subprocess
 import time
 import uuid
 from pathlib import Path
-from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -184,17 +183,15 @@ def signup_service(test_db_session):
 def mock_current_user():
     """Create a mock current user for testing authenticated endpoints"""
 
-    def _create_mock_user(user_id: str = None, claims: dict = None):
+    def _create_mock_user():
         """Create a User object for testing"""
-        if user_id is None:
-            user_id = str(uuid.uuid4())
-        if claims is None:
-            claims = {
-                "iss": "https://ez-scheduler-dev.us.auth0.com/",
-                "aud": "test-audience",
-                "scope": "openid profile email",
-                "permissions": [],
-            }
+        user_id = str(uuid.uuid4())
+        claims = {
+            "iss": "https://ez-scheduler-dev.us.auth0.com/",
+            "aud": "test-audience",
+            "scope": "openid profile email",
+            "permissions": [],
+        }
         return User(user_id=user_id, claims=claims)
 
     return _create_mock_user
