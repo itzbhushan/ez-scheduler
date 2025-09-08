@@ -7,6 +7,7 @@ from datetime import date, time
 import pytest
 
 from ez_scheduler.models.signup_form import SignupForm
+from ez_scheduler.utils.address_utils import generate_google_maps_url
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class TestFormGetEndpoint:
             event_date=date(2024, 12, 25),
             start_time=time(14, 0),
             end_time=time(16, 0),
-            location="Test Location",
+            location="Golden Gate Bridge, San Francisco, CA",
             description="A test event for GET testing",
             url_slug="test-get-123",
             is_active=True,
@@ -44,3 +45,7 @@ class TestFormGetEndpoint:
         assert response.status_code == 200
         assert "text/html" in response.headers.get("content-type", "")
         assert test_form.title in response.text
+
+        expected_maps_url = generate_google_maps_url(test_form.location)
+        # Check for the unescaped URL since we use |safe filter in template
+        assert expected_maps_url in response.text

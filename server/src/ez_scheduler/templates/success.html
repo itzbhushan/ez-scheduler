@@ -31,7 +31,15 @@
                 <div class="space-y-2 text-gray-700">
                     <p><strong>Event:</strong> {{ form.title }}</p>
                     <p><strong>Date:</strong> {{ form.event_date.strftime('%B %d, %Y') }}</p>
-                    <p><strong>Location:</strong> {{ form.location }}</p>
+                    <p><strong>Location:</strong>
+                        {% if google_maps_url %}
+                        <a href="{{ google_maps_url|safe }}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline">
+                            {{ form.location }}
+                        </a>
+                        {% else %}
+                        {{ form.location }}
+                        {% endif %}
+                    </p>
                     {% if form.start_time or form.end_time %}
                     <p><strong>Time:</strong>
                         {% if form.start_time and form.end_time %}

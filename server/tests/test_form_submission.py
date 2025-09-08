@@ -7,6 +7,7 @@ from datetime import date, time
 import pytest
 
 from ez_scheduler.models.signup_form import SignupForm
+from ez_scheduler.utils.address_utils import generate_google_maps_url
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class TestFormSubmission:
             event_date=date(2024, 12, 25),
             start_time=time(14, 0),
             end_time=time(16, 0),
-            location="Test Location",
+            location="Golden Gate Bridge, San Francisco, CA",
             description="A test event for testing form submission",
             url_slug="test-submission-123",
             is_active=True,
