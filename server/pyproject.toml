@@ -23,6 +23,7 @@ dependencies = [
     "asyncpg>=0.30.0",
     "authlib>=1.6.0",
     "aiocache>=0.12.3",
+    "mailgun>=1.1.0",
 ]
 
 [project.optional-dependencies]
