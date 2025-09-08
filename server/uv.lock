@@ -442,6 +442,7 @@ dependencies = [
     { name = "fastmcp" },
     { name = "httpx" },
     { name = "jinja2" },
+    { name = "mailgun" },
     { name = "mcp" },
     { name = "psycopg2-binary" },
     { name = "pydantic" },
@@ -487,6 +488,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.25.0" },
     { name = "isort", marker = "extra == 'dev'", specifier = ">=5.0.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
+    { name = "mailgun", specifier = ">=1.1.0" },
     { name = "mcp", specifier = ">=1.0.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.0.0" },
@@ -791,6 +793,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/bf/ce/46fbd9c8119cfc3581ee5643ea49464d168028cfb5caff5fc0596d0cf914/jsonschema_specifications-2025.4.1.tar.gz", hash = "sha256:630159c9f4dbea161a6a2205c3011cc4f18ff381b189fff48bb39b9bf26ae608", size = 15513, upload-time = "2025-04-23T12:34:07.418Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/01/0e/b27cdbaccf30b890c40ed1da9fd4a3593a5cf94dae54fb34f8a4b74fcd3f/jsonschema_specifications-2025.4.1-py3-none-any.whl", hash = "sha256:4653bffbd6584f7de83a67e0d620ef16900b390ddc7939d56684d6c81e33f1af", size = 18437, upload-time = "2025-04-23T12:34:05.422Z" },
+]
+
+[[package]]
+name = "mailgun"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/44/a4/34aa18c3a88a366893bdee26161c1482bbd96f557dbb6fbc665828f1615b/mailgun-1.1.0.tar.gz", hash = "sha256:6fd2995be7e704e5c5628872fc978e659d0145d9d741f3d170e934266991a4f1", size = 60549, upload-time = "2025-07-12T05:11:12.914Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/fa/72e03e9581f05b4b17f96a81072f9f1a0a802077bee155b5a3490441c1ea/mailgun-1.1.0-py3-none-any.whl", hash = "sha256:e23dda2330cb7e4a84472b7c20a7abdc478f5d4406c8dd790dd74dd576172022", size = 49630, upload-time = "2025-07-12T05:11:11.494Z" },
 ]
 
 [[package]]
