@@ -13,6 +13,7 @@ from ez_scheduler.models.database import get_db
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.registration_service import RegistrationService
 from ez_scheduler.services.signup_form_service import SignupFormService
+from ez_scheduler.utils.address_utils import generate_google_maps_url
 
 router = APIRouter(include_in_schema=False)
 
@@ -44,6 +45,9 @@ async def serve_registration_form(
     )
     formatted_end_time = form.end_time.strftime("%I:%M %p") if form.end_time else None
 
+    # Generate Google Maps URL for the location
+    google_maps_url = generate_google_maps_url(form.location)
+
     return templates.TemplateResponse(
         request,
         "form.html",
@@ -53,6 +57,7 @@ async def serve_registration_form(
             "formatted_date": formatted_date,
             "formatted_start_time": formatted_start_time,
             "formatted_end_time": formatted_end_time,
+            "google_maps_url": google_maps_url,
         },
     )
 
@@ -165,6 +170,9 @@ async def registration_success(
     except ValueError:
         raise HTTPException(status_code=404, detail="Invalid registration ID")
 
+    # Generate Google Maps URL for the location
+    google_maps_url = generate_google_maps_url(form.location)
+
     return templates.TemplateResponse(
         request,
         "success.html",
@@ -178,5 +186,6 @@ async def registration_success(
             "formatted_end_time": (
                 form.end_time.strftime("%I:%M %p") if form.end_time else None
             ),
+            "google_maps_url": google_maps_url,
         },
     )
