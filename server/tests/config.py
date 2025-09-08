@@ -8,7 +8,7 @@ test_config = {
     "mcp_port": 8082,
     "log_level": "INFO",
     "app_base_url": "http://localhost:8082",
-    "mailgun_api_key": os.getenv("MAILGUN_APIKEY"),
+    "mailgun_api_key": os.getenv("MAILGUN_API_KEY"),
     "mailgun_domain": os.getenv("MAILGUN_DOMAIN"),
     "sender_email": os.getenv("SENDER_EMAIL"),
 }
