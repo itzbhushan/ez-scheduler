@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session
 
+from ez_scheduler.backends.email_client import EmailClient
 from ez_scheduler.config import config
 from ez_scheduler.models.database import get_db
 from ez_scheduler.services.llm_service import get_llm_client
@@ -71,6 +72,7 @@ async def submit_registration_form(
     # Create services with injected database session
     signup_form_service = SignupFormService(db)
     registration_service = RegistrationService(db, llm_client)
+    email_client = EmailClient(config)
 
     # Get the form by URL slug
     form = signup_form_service.get_form_by_url_slug(url_slug)
@@ -99,6 +101,10 @@ async def submit_registration_form(
         confirmation_message = await registration_service.generate_confirmation_message(
             form, name.strip()
         )
+
+        rsp = email_client.send_email(to=registration.email, text=confirmation_message)
+
+        logging.info(f"Email send response: {rsp}")
 
         # Return JSON success response
         return {

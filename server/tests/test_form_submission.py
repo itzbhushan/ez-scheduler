@@ -37,7 +37,7 @@ class TestFormSubmission:
         # Test form submission with POST request
         form_data = {
             "name": "John Doe",
-            "email": "john.doe@example.com",
+            "email": "vb@signuppro.ai",  # Using real email to verify if email sending works
             "phone": "555-1234",
         }
 
