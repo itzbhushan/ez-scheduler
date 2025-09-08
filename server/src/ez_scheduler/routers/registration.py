@@ -102,9 +102,21 @@ async def submit_registration_form(
             form, name.strip()
         )
 
-        rsp = email_client.send_email(to=registration.email, text=confirmation_message)
-
-        logging.info(f"Email send response: {rsp}")
+        # Send confirmation email
+        try:
+            rsp = await email_client.send_email(
+                to=registration.email, text=confirmation_message
+            )
+            logger.info(f"Email sent successfully: {rsp}")
+        except RuntimeError as email_error:
+            # Log email failure but don't fail registration
+            logger.error(
+                f"Failed to send confirmation email to {registration.email}: {email_error}"
+            )
+            # Registration was successful, just email failed
+        except ValueError as email_error:
+            # Email validation failed
+            logger.error(f"Invalid email address {registration.email}: {email_error}")
 
         # Return JSON success response
         return {
@@ -113,11 +125,13 @@ async def submit_registration_form(
             "registration_id": str(registration.id),
         }
 
+    except ValueError as e:
+        # Handle validation errors (400 Bad Request)
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        # Handle all other errors (500 Internal Server Error)
         logger.error(f"Error creating registration: {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/form/{url_slug}/success", include_in_schema=False)
