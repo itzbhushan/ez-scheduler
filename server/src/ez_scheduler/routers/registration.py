@@ -102,12 +102,14 @@ async def submit_registration_form(
             form, name.strip()
         )
 
+        email_sent = False
         # Send confirmation email
         try:
             rsp = await email_client.send_email(
                 to=registration.email, text=confirmation_message
             )
             logger.info(f"Email sent successfully: {rsp}")
+            email_sent = True
         except RuntimeError as email_error:
             # Log email failure but don't fail registration
             logger.error(
@@ -122,6 +124,7 @@ async def submit_registration_form(
         return {
             "success": True,
             "message": confirmation_message,
+            "email_sent": email_sent,
             "registration_id": str(registration.id),
         }
 
