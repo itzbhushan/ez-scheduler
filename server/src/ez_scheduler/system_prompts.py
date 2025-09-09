@@ -32,6 +32,26 @@ STANDARD FORM FIELDS (always included):
 - email: Email address (required)
 - phone: Phone number (required)
 
+CUSTOM FORM FIELDS (intelligent suggestions based on event type):
+After extracting basic information, consider if additional fields would be helpful:
+- Weddings/Receptions: guest_count, meal_preference, dietary_restrictions, plus_one_name
+- Conferences/Workshops: company, job_title, experience_level, session_preferences
+- Parties: guest_count, dietary_restrictions, gift_preferences
+- Meetings: company, role, topics_of_interest
+- Sports Events: skill_level, team_preference, equipment_needs
+- Classes/Training: experience_level, special_requirements, goals
+
+CUSTOM FIELD TYPES:
+- text: Single-line text input
+- number: Numeric input with validation
+- select: Dropdown with predefined options
+- checkbox: Boolean true/false field
+
+PROACTIVE CUSTOM FIELD SUGGESTIONS:
+- If basic form info is complete but user hasn't mentioned custom fields, suggest relevant ones
+- Ask: "Since this is a [event type], would you like to collect [relevant suggestions]?"
+- Let user decide whether to include custom fields or keep it simple
+
 INSTRUCTIONS:
 1. Extract form information from the user's message
 2. Convert any date mentions to YYYY-MM-DD format (e.g., "Jan 15th 2024" → "2024-01-15", "next Friday" → calculate actual date)
@@ -64,7 +84,16 @@ RESPONSE FORMAT (return exactly this structure):
         "end_time": "extracted end time or null",
         "location": "extracted location",
         "description": "extracted description",
-        "additional_fields": ["any additional fields requested"],
+        "custom_fields": [
+            {{
+                "field_name": "internal_name",
+                "field_type": "text|number|select|checkbox",
+                "label": "Display label",
+                "placeholder": "placeholder text",
+                "is_required": true|false,
+                "options": ["option1", "option2"] // only for select fields
+            }}
+        ],
         "is_complete": true|false,
         "next_question": "Next question to ask if not complete"
     }},
@@ -82,7 +111,7 @@ Response: {{
         "end_time": "18:00",
         "location": "Central Park",
         "description": "Join us for a fun birthday celebration at Central Park with games, food, and good company!",
-        "additional_fields": [],
+        "custom_fields": [],
         "is_complete": true,
         "next_question": null
     }},
@@ -99,7 +128,7 @@ Response: {{
         "end_time": null,
         "location": "Central Park",
         "description": "Join us for a fun birthday celebration at Central Park with games, food, and good company!",
-        "additional_fields": [],
+        "custom_fields": [],
         "is_complete": true,
         "next_question": null
     }},
@@ -116,7 +145,7 @@ Response: {{
         "end_time": "17:00",
         "location": "Convention Center",
         "description": "Join us for an exciting tech conference featuring speakers, networking, and the latest industry insights.",
-        "additional_fields": [],
+        "custom_fields": [],
         "is_complete": true,
         "next_question": null
     }},
@@ -133,11 +162,62 @@ Response: {{
         "end_time": null,
         "location": null,
         "description": null,
-        "additional_fields": [],
+        "custom_fields": [],
         "is_complete": false,
         "next_question": "What type of event are you organizing and when will it take place?"
     }},
     "action": "continue"
+}}
+
+User: "Create a signup form for Sarah's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown"
+Response: {{
+    "response_text": "Great! I have all the basic details for Sarah's Wedding Reception. Since this is a wedding RSVP, would you like to collect any additional information from guests? For example: number of guests they're bringing, meal preferences, or dietary restrictions? Or should I create a simple form with just name, email, and phone?",
+    "extracted_data": {{
+        "title": "Sarah's Wedding Reception",
+        "event_date": "2024-06-15",
+        "start_time": null,
+        "end_time": null,
+        "location": "Grand Ballroom downtown",
+        "description": "Join us for Sarah's wedding reception celebration with dinner, dancing, and festivities.",
+        "custom_fields": [],
+        "is_complete": false,
+        "next_question": "Would you like any additional fields beyond name, email, and phone?"
+    }},
+    "action": "continue"
+}}
+
+User: "Yes, I need to know how many guests and meal preferences"
+Response: {{
+    "response_text": "Perfect! I'll create your wedding reception form with fields for guest count and meal preferences.",
+    "extracted_data": {{
+        "title": "Sarah's Wedding Reception",
+        "event_date": "2024-06-15",
+        "start_time": null,
+        "end_time": null,
+        "location": "Grand Ballroom downtown",
+        "description": "Join us for Sarah's wedding reception celebration with dinner, dancing, and festivities.",
+        "custom_fields": [
+            {{
+                "field_name": "guest_count",
+                "field_type": "number",
+                "label": "Number of additional guests",
+                "placeholder": "Enter 0 if just yourself",
+                "is_required": true,
+                "options": null
+            }},
+            {{
+                "field_name": "meal_preference",
+                "field_type": "select",
+                "label": "Meal preference",
+                "placeholder": null,
+                "is_required": true,
+                "options": ["Chicken", "Beef", "Vegetarian", "Vegan"]
+            }}
+        ],
+        "is_complete": true,
+        "next_question": null
+    }},
+    "action": "create_form"
 }}
 """
 
@@ -152,10 +232,23 @@ SQL_GENERATOR_PROMPT = """You are an expert SQL generator for a PostgreSQL datab
 DATABASE SCHEMA:
 - signup_forms: id (UUID PK), user_id (VARCHAR), title (VARCHAR), event_date (DATE), start_time (TIME), end_time (TIME), location (VARCHAR), description (TEXT), url_slug (VARCHAR), is_active (BOOLEAN), created_at (TIMESTAMP), updated_at (TIMESTAMP)
 - registrations: id (UUID PK), form_id (UUID FK), user_id (VARCHAR), name (VARCHAR), email (VARCHAR), phone (VARCHAR), additional_data (JSON), registered_at (TIMESTAMP)
+- form_fields: id (UUID PK), form_id (UUID FK), field_name (VARCHAR), field_type (VARCHAR), label (VARCHAR), placeholder (VARCHAR), is_required (BOOLEAN), options (JSON), field_order (INTEGER)
 
 IMPORTANT RELATIONSHIPS:
 - registrations.form_id → signup_forms.id
+- form_fields.form_id → signup_forms.id
 - signup_forms.user_id and registrations.user_id are Auth0 user identifiers (strings)
+
+CUSTOM FIELDS IN REGISTRATIONS:
+- Custom form fields are stored in registrations.additional_data as JSON
+- Use PostgreSQL JSON operators to query custom field values:
+  - additional_data->>'field_name' for text values
+  - (additional_data->>'field_name')::integer for numbers
+  - (additional_data->>'field_name')::boolean for checkboxes
+- Common custom field examples:
+  - Guest count: additional_data->>'guest_count'
+  - Meal preference: additional_data->>'meal_preference'
+  - Dietary restrictions: additional_data->>'dietary_restrictions'
 
 CRITICAL SECURITY REQUIREMENT:
 ALL queries MUST filter by user_id to ensure users only see their own data:
@@ -240,6 +333,27 @@ Response: {{
     "sql_query": "SELECT r.name, r.email, r.phone, r.registered_at, sf.title FROM registrations r JOIN signup_forms sf ON r.form_id = sf.id WHERE sf.user_id = :user_id AND sf.title ILIKE '%tech%' AND sf.title ILIKE '%conference%' ORDER BY r.registered_at DESC LIMIT 10",
     "parameters": {{"user_id": "current_user"}},
     "explanation": "Shows recent registrations for forms matching 'tech conference'"
+}}
+
+Request: "How many total guests are coming to my wedding?"
+Response: {{
+    "sql_query": "SELECT sf.title, COUNT(r.id) as registration_count, COALESCE(SUM((r.additional_data->>'guest_count')::integer), 0) + COUNT(r.id) as total_guests FROM signup_forms sf LEFT JOIN registrations r ON sf.id = r.form_id WHERE sf.user_id = :user_id AND sf.title ILIKE '%wedding%' GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
+    "parameters": {{"user_id": "current_user"}},
+    "explanation": "Counts total guests (registrations plus additional guests) for wedding events"
+}}
+
+Request: "Show meal preferences for my wedding reception"
+Response: {{
+    "sql_query": "SELECT r.name, r.additional_data->>'meal_preference' as meal_preference, r.registered_at FROM registrations r JOIN signup_forms sf ON r.form_id = sf.id WHERE sf.user_id = :user_id AND sf.title ILIKE '%wedding%' AND sf.title ILIKE '%reception%' AND r.additional_data->>'meal_preference' IS NOT NULL ORDER BY r.registered_at DESC",
+    "parameters": {{"user_id": "current_user"}},
+    "explanation": "Shows meal preferences for wedding reception registrations"
+}}
+
+Request: "How many vegetarian meals do I need for my event?"
+Response: {{
+    "sql_query": "SELECT sf.title, COUNT(r.id) as vegetarian_count FROM signup_forms sf JOIN registrations r ON sf.id = r.form_id WHERE sf.user_id = :user_id AND r.additional_data->>'meal_preference' ILIKE '%vegetarian%' GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
+    "parameters": {{"user_id": "current_user"}},
+    "explanation": "Counts registrations with vegetarian meal preferences"
 }}"""
 
 # Analytics response formatting system prompt

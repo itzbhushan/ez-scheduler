@@ -113,6 +113,64 @@
                     >
                 </div>
 
+                <!-- Custom Fields -->
+                {% if custom_fields %}
+                    {% for field in custom_fields %}
+                        <div>
+                            <label for="{{ field.field_name }}" class="block text-sm font-medium text-gray-700 mb-2">
+                                {{ field.label }}{% if field.is_required %} *{% endif %}
+                            </label>
+
+                            {% if field.field_type == 'text' %}
+                                <input
+                                    type="text"
+                                    id="{{ field.field_name }}"
+                                    name="{{ field.field_name }}"
+                                    {% if field.is_required %}required{% endif %}
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
+                                >
+                            {% elif field.field_type == 'number' %}
+                                <input
+                                    type="number"
+                                    id="{{ field.field_name }}"
+                                    name="{{ field.field_name }}"
+                                    {% if field.is_required %}required{% endif %}
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
+                                    min="0"
+                                >
+                            {% elif field.field_type == 'select' %}
+                                <select
+                                    id="{{ field.field_name }}"
+                                    name="{{ field.field_name }}"
+                                    {% if field.is_required %}required{% endif %}
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                    <option value="">Select an option</option>
+                                    {% for option in field.options %}
+                                        <option value="{{ option }}">{{ option }}</option>
+                                    {% endfor %}
+                                </select>
+                            {% elif field.field_type == 'checkbox' %}
+                                <div class="flex items-center">
+                                    <input
+                                        type="checkbox"
+                                        id="{{ field.field_name }}"
+                                        name="{{ field.field_name }}"
+                                        value="true"
+                                        {% if field.is_required %}required{% endif %}
+                                        class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                    >
+                                    <label for="{{ field.field_name }}" class="ml-2 text-sm text-gray-700">
+                                        {{ field.label }}{% if field.is_required %} *{% endif %}
+                                    </label>
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+
                 <!-- Error Message -->
                 <div x-show="error" class="bg-red-50 border border-red-200 rounded-md p-4">
                     <div class="flex">

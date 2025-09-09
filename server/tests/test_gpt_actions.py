@@ -24,7 +24,7 @@ def test_gpt_create_form_success(test_db_session: Session, authenticated_client)
         response = client.post(
             "/gpt/create-form",
             json={
-                "description": "Create a signup form for John's Birthday Party on December 25th, 2024 at Central Park. We're celebrating John's 30th birthday with cake, games, and fun activities. Please include name, email, and phone fields.",
+                "description": "Create a signup form for John's Birthday Party on December 25th, 2024 at Central Park. We're celebrating John's 30th birthday with cake, games, and fun activities. Please include name, email, and phone fields. No other fields are necessary.",
             },
         )
 

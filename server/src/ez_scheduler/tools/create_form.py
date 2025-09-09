@@ -4,8 +4,8 @@ import json
 import logging
 import re
 import uuid
-from datetime import date, datetime, time
-from typing import Optional
+from datetime import date, datetime, time, timezone
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -13,10 +13,27 @@ from ez_scheduler.auth.dependencies import User
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.config import config
 from ez_scheduler.models.signup_form import SignupForm
+from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.signup_form_service import SignupFormService
 from ez_scheduler.system_prompts import FORM_BUILDER_PROMPT, FORM_RESPONSE_PROMPT
 
 logger = logging.getLogger(__name__)
+
+
+class CustomFieldSchema(BaseModel):
+    """Schema for custom form fields"""
+
+    field_name: str = Field(
+        ..., description="Internal field name (e.g., 'guest_count')"
+    )
+    field_type: str = Field(
+        ..., description="Field type: 'text', 'number', 'select', 'checkbox'"
+    )
+    label: str = Field(..., description="Display label for the field")
+    placeholder: Optional[str] = Field(None, description="Placeholder text for input")
+    is_required: bool = Field(default=False, description="Whether field is required")
+    options: Optional[List[str]] = Field(None, description="Options for select fields")
+    field_order: Optional[int] = Field(None, description="Display order")
 
 
 class FormExtractionSchema(BaseModel):
@@ -30,8 +47,8 @@ class FormExtractionSchema(BaseModel):
     end_time: Optional[str] = Field(None, description="Event end time in HH:MM format")
     location: Optional[str] = Field(None, description="Event location")
     description: Optional[str] = Field(None, description="Event description")
-    additional_fields: Optional[list] = Field(
-        default_factory=list, description="Additional form fields requested"
+    custom_fields: List[CustomFieldSchema] = Field(
+        default_factory=list, description="Custom form fields beyond name/email/phone"
     )
     is_complete: bool = Field(False, description="Whether all required info is present")
     next_question: Optional[str] = Field(
@@ -305,7 +322,7 @@ async def _create_form(
     user: User,
 ) -> str:
     """
-    Create a signup form with validated data
+    Create a signup form with validated data and custom fields
 
     Args:
         form_data: FormExtractionSchema instance (already validated)
@@ -366,17 +383,63 @@ async def _create_form(
         is_active=True,
     )
 
-    # Create form in database
-    result = signup_form_service.create_signup_form(signup_form)
+    # Create form and custom fields in a single transaction
+    try:
+        # Use the database session directly for transaction control
+        db_session = signup_form_service.db
 
-    if not result["success"]:
+        # Set form ID and timestamps
+        if not signup_form.id:
+            signup_form.id = uuid.uuid4()
+        if not signup_form.created_at:
+            signup_form.created_at = datetime.now(timezone.utc)
+        if not signup_form.updated_at:
+            signup_form.updated_at = datetime.now(timezone.utc)
+
+        # Add signup form to session and flush to get the ID in database
+        db_session.add(signup_form)
+        db_session.flush()  # This writes the form to DB but doesn't commit the transaction
+
+        # Create custom fields if any
+        if form_data.custom_fields:
+            form_field_service = FormFieldService(db_session)
+
+            # Convert CustomFieldSchema objects to dictionaries
+            custom_fields_data = [
+                {
+                    "field_name": field.field_name,
+                    "field_type": field.field_type,
+                    "label": field.label,
+                    "placeholder": field.placeholder,
+                    "is_required": field.is_required,
+                    "options": field.options,
+                    "field_order": (
+                        field.field_order if field.field_order is not None else i
+                    ),
+                }
+                for i, field in enumerate(form_data.custom_fields)
+            ]
+
+            form_field_service.create_form_fields(signup_form.id, custom_fields_data)
+
+        # Commit the entire transaction
+        db_session.commit()
+        db_session.refresh(signup_form)
+
+        logger.info(
+            f"Created signup form {signup_form.id} with {len(form_data.custom_fields)} custom fields"
+        )
+
+    except Exception as e:
+        db_session.rollback()
+        logger.error(f"Error creating form with custom fields: {e}")
         raise Exception(
-            f"I encountered an error creating your form: {result['error']}. Please try again."
+            f"I encountered an error creating your form: {str(e)}. Please try again."
         )
 
     # Set form URL and ID in the FormData
     form_data.form_url = f"{config['app_base_url']}/form/{url_slug}"
-    form_data.form_id = result["form_id"]
+    form_data.form_id = str(signup_form.id)
 
     try:
         return await generate_form_response(llm_client, form_data)
