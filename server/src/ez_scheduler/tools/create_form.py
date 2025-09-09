@@ -5,7 +5,7 @@ import logging
 import re
 import uuid
 from datetime import date, datetime, time
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -37,6 +37,8 @@ class FormExtractionSchema(BaseModel):
     next_question: Optional[str] = Field(
         None, description="Next question to ask user if not complete"
     )
+    form_url: Optional[str] = Field(None, description="Generated form URL")
+    form_id: Optional[str] = Field(None, description="Database form ID")
 
 
 class ConversationResponse(BaseModel):
@@ -77,32 +79,18 @@ async def create_form_handler(
             user_message=initial_request,
         )
 
-        # Build form data from extracted information
-        form_data = {}
+        # Use extracted data directly (no conversion needed)
         extracted_data = llm_response.extracted_data
-
-        if extracted_data.title:
-            form_data["title"] = extracted_data.title
-        if extracted_data.event_date:
-            form_data["event_date"] = extracted_data.event_date
-        if extracted_data.start_time:
-            form_data["start_time"] = extracted_data.start_time
-        if extracted_data.end_time:
-            form_data["end_time"] = extracted_data.end_time
-        if extracted_data.location:
-            form_data["location"] = extracted_data.location
-        if extracted_data.description:
-            form_data["description"] = extracted_data.description
 
         # Handle different actions
         if llm_response.action == "create_form" and extracted_data.is_complete:
             try:
                 # Validate form data
-                validate_form_data(form_data)
+                _validate_form_data(extracted_data)
 
                 # Create form
                 response_text = await _create_form(
-                    form_data,
+                    extracted_data,
                     llm_client,
                     signup_form_service,
                     user,
@@ -168,13 +156,20 @@ async def process_form_instruction(
 
 
 async def generate_form_response(
-    llm_client: LLMClient, form_data: Dict[str, Any]
+    llm_client: LLMClient, form_data: FormExtractionSchema
 ) -> str:
     """Generate a form creation confirmation response"""
 
     context = f"""
 FORM CREATED:
-{json.dumps(form_data, indent=2)}
+- Title: {form_data.title}
+- Date: {form_data.event_date}
+- Start Time: {form_data.start_time or 'Not specified'}
+- End Time: {form_data.end_time or 'Not specified'}
+- Location: {form_data.location}
+- Description: {form_data.description}
+- Form URL: {form_data.form_url}
+- Form ID: {form_data.form_id}
 
 Generate a confirmation response that includes:
 1. Confirmation that the form was created
@@ -267,31 +262,25 @@ def _fallback_form_id(title: str, event_date: str) -> str:
     return slug if slug else "event"
 
 
-def validate_form_data(form_data: Dict[str, Any]) -> None:
+def _validate_form_data(form_data: FormExtractionSchema) -> None:
     """
     Validate form data
 
     Args:
-        form_data: Form data from conversation
+        form_data: FormExtractionSchema instance
 
     Raises:
         ValueError: If validation fails with descriptive error message
     """
-    # Extract form fields
-    title = form_data.get("title")
-    event_date_str = form_data.get("event_date")
-    location = form_data.get("location")
-    description = form_data.get("description")
-
     # Check for missing required fields
     missing_fields = []
-    if not title or title.strip() == "":
+    if not form_data.title or form_data.title.strip() == "":
         missing_fields.append("event title")
-    if not event_date_str or event_date_str in ["TBD", ""]:
+    if not form_data.event_date or form_data.event_date in ["TBD", ""]:
         missing_fields.append("event date")
-    if not location or location.strip() in ["TBD", ""]:
+    if not form_data.location or form_data.location.strip() in ["TBD", ""]:
         missing_fields.append("event location")
-    if not description or description.strip() == "":
+    if not form_data.description or form_data.description.strip() == "":
         missing_fields.append("event description")
 
     if missing_fields:
@@ -302,15 +291,15 @@ def validate_form_data(form_data: Dict[str, Any]) -> None:
 
     # Validate and parse event_date
     try:
-        date.fromisoformat(event_date_str)
+        date.fromisoformat(form_data.event_date)
     except ValueError:
         raise ValueError(
-            f"I couldn't understand the date '{event_date_str}'. Please provide the date in a clear format like 'January 15th, 2024' or '2024-01-15'."
+            f"I couldn't understand the date '{form_data.event_date}'. Please provide the date in a clear format like 'January 15th, 2024' or '2024-01-15'."
         )
 
 
 async def _create_form(
-    form_data: Dict[str, Any],
+    form_data: FormExtractionSchema,
     llm_client: LLMClient,
     signup_form_service: SignupFormService,
     user: User,
@@ -319,7 +308,7 @@ async def _create_form(
     Create a signup form with validated data
 
     Args:
-        form_data: Form data from conversation (already validated)
+        form_data: FormExtractionSchema instance (already validated)
         llm_client: LLM client for generating form ID and response
         signup_form_service: Service for database operations
         user: User object
@@ -331,12 +320,12 @@ async def _create_form(
         Exception: If form creation fails
     """
     # Extract and clean form fields
-    title = form_data["title"].strip()
-    event_date_str = form_data["event_date"]
-    start_time_str = form_data.get("start_time")
-    end_time_str = form_data.get("end_time")
-    location = form_data["location"].strip()
-    description = form_data["description"].strip()
+    title = form_data.title.strip()
+    event_date_str = form_data.event_date
+    start_time_str = form_data.start_time
+    end_time_str = form_data.end_time
+    location = form_data.location.strip()
+    description = form_data.description.strip()
 
     # Parse event date
     event_date = date.fromisoformat(event_date_str)
@@ -385,19 +374,12 @@ async def _create_form(
             f"I encountered an error creating your form: {result['error']}. Please try again."
         )
 
-    # Use LLM to generate response with dynamic URL
-    form_data_with_url = {
-        "id": result["form_id"],
-        "title": title,
-        "event_date": event_date_str,
-        "location": location,
-        "description": description,
-        "url_slug": url_slug,
-        "url": f"{config['app_base_url']}/form/{url_slug}",
-    }
+    # Set form URL and ID in the FormData
+    form_data.form_url = f"{config['app_base_url']}/form/{url_slug}"
+    form_data.form_id = result["form_id"]
 
     try:
-        return await generate_form_response(llm_client, form_data_with_url)
+        return await generate_form_response(llm_client, form_data)
     except Exception as e:
         logger.error(f"Error generating form response: {e}")
         # Fallback response
