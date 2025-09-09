@@ -31,8 +31,6 @@ async def test_llm_client_form_processing(llm_client):
     result = await process_form_instruction(
         llm_client=llm_client,
         user_message="Create a signup form for my birthday party on March 15th, 2024 at Central Park",
-        conversation_history=[],
-        current_form_data={},
     )
 
     # Verify response structure
