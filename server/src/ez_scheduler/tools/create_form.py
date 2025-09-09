@@ -49,10 +49,6 @@ class ConversationResponse(BaseModel):
     )
 
 
-# Global storage - shared across the application
-conversations: Dict[str, Dict[str, Any]] = {}
-
-
 async def create_form_handler(
     user: User,
     initial_request: str,
@@ -63,8 +59,10 @@ async def create_form_handler(
     Initiates form creation conversation.
 
     Args:
-        user_id: User identifier (UUID)
+        user: User object
         initial_request: Initial form creation request
+        llm_client: LLM client for processing
+        signup_form_service: Service for form operations
 
     Returns:
         Response from the form creation process
@@ -72,125 +70,74 @@ async def create_form_handler(
 
     logger.info(f"Creating form for user {user.user_id}: {initial_request}")
 
-    # Create or continue conversation
-    conversation_id = f"conv_{user.user_id}_{len(conversations) + 1}"
-
-    if conversation_id not in conversations:
-        conversations[conversation_id] = {
-            "user_id": user.user_id,
-            "status": "active",
-            "messages": [],
-            "form_data": {},
-        }
-
-    # Add user message
-    conversations[conversation_id]["messages"].append(
-        {"role": "user", "content": initial_request}
-    )
-
-    # Process conversation using LLM
-    conversation = conversations[conversation_id]
-
     try:
-        # Use LLM to process the instruction
+        # Process the form instruction directly with LLM
         llm_response = await process_form_instruction(
             llm_client=llm_client,
             user_message=initial_request,
-            conversation_history=conversation["messages"],
-            current_form_data=conversation["form_data"],
         )
 
-        # Update form data with extracted information
+        # Build form data from extracted information
+        form_data = {}
         extracted_data = llm_response.extracted_data
+
         if extracted_data.title:
-            conversation["form_data"]["title"] = extracted_data.title
+            form_data["title"] = extracted_data.title
         if extracted_data.event_date:
-            conversation["form_data"]["event_date"] = extracted_data.event_date
+            form_data["event_date"] = extracted_data.event_date
         if extracted_data.start_time:
-            conversation["form_data"]["start_time"] = extracted_data.start_time
+            form_data["start_time"] = extracted_data.start_time
         if extracted_data.end_time:
-            conversation["form_data"]["end_time"] = extracted_data.end_time
+            form_data["end_time"] = extracted_data.end_time
         if extracted_data.location:
-            conversation["form_data"]["location"] = extracted_data.location
+            form_data["location"] = extracted_data.location
         if extracted_data.description:
-            conversation["form_data"]["description"] = extracted_data.description
+            form_data["description"] = extracted_data.description
 
         # Handle different actions
         if llm_response.action == "create_form" and extracted_data.is_complete:
             try:
                 # Validate form data
-                validate_form_data(conversation["form_data"])
+                validate_form_data(form_data)
 
                 # Create form
                 response_text = await _create_form(
-                    conversation["form_data"],
+                    form_data,
                     llm_client,
                     signup_form_service,
-                    conversation,
+                    user,
                 )
             except ValueError as e:
-                # Validation failed
-                response_text = str(e)
-                conversation["messages"].append(
-                    {"role": "assistant", "content": response_text}
-                )
-                return response_text
+                # Validation failed - return validation error
+                return str(e)
             except Exception as e:
                 # Form creation failed
-                response_text = str(e)
-                conversation["messages"].append(
-                    {"role": "assistant", "content": response_text}
-                )
-                return response_text
+                return str(e)
         else:
             response_text = llm_response.response_text
-
-        # Add assistant response
-        conversation["messages"].append({"role": "assistant", "content": response_text})
 
         return response_text
 
     except Exception as e:
         logger.error(f"Error processing form creation: {e}")
-        error_response = "I'm experiencing technical difficulties. Please try again."
-
-        conversation["messages"].append(
-            {"role": "assistant", "content": error_response}
-        )
-
-        return error_response
+        return "I'm experiencing technical difficulties. Please try again."
 
 
 async def process_form_instruction(
     llm_client: LLMClient,
     user_message: str,
-    conversation_history: list = None,
-    current_form_data: Dict[str, Any] = None,
 ) -> ConversationResponse:
     """Process user instruction for form creation/modification"""
 
-    conversation_history = conversation_history or []
-    current_form_data = current_form_data or {}
-
     # Get current date for prompt context
     current_date = datetime.now().strftime("%Y-%m-%d")
-
-    # Build conversation context
-    context = f"""
-CURRENT FORM DATA: {json.dumps(current_form_data, indent=2)}
-
-CONVERSATION HISTORY:
-{json.dumps(conversation_history[-5:], indent=2) if conversation_history else "No previous messages"}
-
-USER MESSAGE: {user_message}
-"""
 
     try:
         # Format the system prompt with current date
         system_prompt = FORM_BUILDER_PROMPT.format(current_date=current_date)
 
         response_text = await llm_client.process_instruction(
-            messages=[{"role": "user", "content": context}],
+            messages=[{"role": "user", "content": user_message}],
             max_tokens=2000,
             system=system_prompt,
         )
@@ -366,7 +313,7 @@ async def _create_form(
     form_data: Dict[str, Any],
     llm_client: LLMClient,
     signup_form_service: SignupFormService,
-    conversation: Dict[str, Any],
+    user: User,
 ) -> str:
     """
     Create a signup form with validated data
@@ -375,7 +322,7 @@ async def _create_form(
         form_data: Form data from conversation (already validated)
         llm_client: LLM client for generating form ID and response
         signup_form_service: Service for database operations
-        conversation: Conversation context
+        user: User object
 
     Returns:
         Response message for the user
@@ -419,7 +366,7 @@ async def _create_form(
 
     # Create form object
     signup_form = SignupForm(
-        user_id=conversation["user_id"],
+        user_id=user.user_id,
         title=title,
         event_date=event_date,
         start_time=start_time,
@@ -437,10 +384,6 @@ async def _create_form(
         raise Exception(
             f"I encountered an error creating your form: {result['error']}. Please try again."
         )
-
-    # Update conversation
-    conversation["status"] = "completed"
-    conversation["form_id"] = result["form_id"]
 
     # Use LLM to generate response with dynamic URL
     form_data_with_url = {
