@@ -47,6 +47,34 @@ CUSTOM FIELD TYPES:
 - select: Dropdown with predefined options
 - checkbox: Boolean true/false field
 
+BUTTON CONFIGURATION (always determine for complete forms):
+Analyze the event context to determine if this needs RSVP (Yes/No) buttons or a single submit button:
+
+RSVP YES/NO EVENTS (button_type: "rsvp_yes_no"):
+- Weddings, wedding receptions, engagement parties
+- Birthday parties, anniversary celebrations
+- Holiday parties, social gatherings
+- Baby showers, bridal showers
+- Family reunions, intimate dinners
+- Private events requiring attendance confirmation
+
+SINGLE SUBMIT EVENTS (button_type: "single_submit"):
+- Conferences, workshops, training sessions
+- Classes, seminars, educational events
+- Business meetings, networking events
+- Registration-only events (concerts, theater)
+- Volunteer sign-ups, community events
+- Sports events, competitions
+
+BUTTON TEXT GUIDELINES:
+For RSVP events:
+- primary_button_text: "RSVP Yes" or "Accept Invitation" or "Count Me In"
+- secondary_button_text: "RSVP No" or "Decline" or "Can't Make It"
+
+For single submit events:
+- primary_button_text: Choose from "Register", "Sign Up", "Join Event", "Reserve Spot", "Enroll Now"
+- secondary_button_text: null
+
 PROACTIVE CUSTOM FIELD SUGGESTIONS:
 - If basic form info is complete but user hasn't mentioned custom fields, suggest relevant ones
 - Ask: "Since this is a [event type], would you like to collect [relevant suggestions]?"
@@ -94,6 +122,11 @@ RESPONSE FORMAT (return exactly this structure):
                 "options": ["option1", "option2"] // only for select fields
             }}
         ],
+        "button_config": {{
+            "button_type": "rsvp_yes_no|single_submit",
+            "primary_button_text": "button text",
+            "secondary_button_text": "secondary button text or null"
+        }},
         "is_complete": true|false,
         "next_question": "Next question to ask if not complete"
     }},
@@ -112,6 +145,11 @@ Response: {{
         "location": "Central Park",
         "description": "Join us for a fun birthday celebration at Central Park with games, food, and good company!",
         "custom_fields": [],
+        "button_config": {{
+            "button_type": "rsvp_yes_no",
+            "primary_button_text": "Count Me In",
+            "secondary_button_text": "Can't Make It"
+        }},
         "is_complete": true,
         "next_question": null
     }},
@@ -129,6 +167,11 @@ Response: {{
         "location": "Central Park",
         "description": "Join us for a fun birthday celebration at Central Park with games, food, and good company!",
         "custom_fields": [],
+        "button_config": {{
+            "button_type": "rsvp_yes_no",
+            "primary_button_text": "Count Me In",
+            "secondary_button_text": "Can't Make It"
+        }},
         "is_complete": true,
         "next_question": null
     }},
@@ -146,6 +189,11 @@ Response: {{
         "location": "Convention Center",
         "description": "Join us for an exciting tech conference featuring speakers, networking, and the latest industry insights.",
         "custom_fields": [],
+        "button_config": {{
+            "button_type": "single_submit",
+            "primary_button_text": "Register",
+            "secondary_button_text": null
+        }},
         "is_complete": true,
         "next_question": null
     }},
@@ -249,6 +297,7 @@ CUSTOM FIELDS IN REGISTRATIONS:
   - Guest count: additional_data->>'guest_count'
   - Meal preference: additional_data->>'meal_preference'
   - Dietary restrictions: additional_data->>'dietary_restrictions'
+  - RSVP response: additional_data->>'rsvp_response' (values: 'yes', 'no')
 
 CRITICAL SECURITY REQUIREMENT:
 ALL queries MUST filter by user_id to ensure users only see their own data:
@@ -354,6 +403,13 @@ Response: {{
     "sql_query": "SELECT sf.title, COUNT(r.id) as vegetarian_count FROM signup_forms sf JOIN registrations r ON sf.id = r.form_id WHERE sf.user_id = :user_id AND r.additional_data->>'meal_preference' ILIKE '%vegetarian%' GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
     "parameters": {{"user_id": "current_user"}},
     "explanation": "Counts registrations with vegetarian meal preferences"
+}}
+
+Request: "How many people RSVPed yes vs no for my wedding?"
+Response: {{
+    "sql_query": "SELECT sf.title, COUNT(CASE WHEN r.additional_data->>'rsvp_response' = 'yes' THEN 1 END) as yes_count, COUNT(CASE WHEN r.additional_data->>'rsvp_response' = 'no' THEN 1 END) as no_count FROM signup_forms sf LEFT JOIN registrations r ON sf.id = r.form_id WHERE sf.user_id = :user_id AND sf.title ILIKE '%wedding%' GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
+    "parameters": {{"user_id": "current_user"}},
+    "explanation": "Shows RSVP yes/no breakdown for wedding events"
 }}"""
 
 # Analytics response formatting system prompt

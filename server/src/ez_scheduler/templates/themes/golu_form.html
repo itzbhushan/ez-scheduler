@@ -135,12 +135,27 @@
           <!-- Error -->
           <div x-show="error" class="bg-red-50 border border-red-200 rounded-md p-3 text-sm" x-text="error"></div>
 
-          <!-- Submit -->
+          <!-- Submit Buttons -->
           <div class="pt-2">
-            <button type="submit" :disabled="submitting" class="btn-gold w-full">
-              <span x-show="!submitting">RSVP For Golu</span>
-              <span x-show="submitting">Submitting...</span>
-            </button>
+            {% if form.button_type == 'rsvp_yes_no' %}
+              <!-- RSVP Yes/No Buttons -->
+              <div class="grid grid-cols-2 gap-4">
+                <button type="submit" name="rsvp_response" value="yes" :disabled="submitting" class="btn-gold">
+                  <span x-show="!submitting">{{ form.primary_button_text }}</span>
+                  <span x-show="submitting">Submitting...</span>
+                </button>
+                <button type="submit" name="rsvp_response" value="no" :disabled="submitting" class="bg-gray-600 text-white border-0 rounded-xl py-4 px-5 font-bold tracking-wider uppercase hover:bg-gray-700">
+                  <span x-show="!submitting">{{ form.secondary_button_text }}</span>
+                  <span x-show="submitting">Submitting...</span>
+                </button>
+              </div>
+            {% else %}
+              <!-- Single Submit Button -->
+              <button type="submit" :disabled="submitting" class="btn-gold w-full">
+                <span x-show="!submitting">{{ form.primary_button_text }}</span>
+                <span x-show="submitting">Submitting...</span>
+              </button>
+            {% endif %}
           </div>
         </form>
 

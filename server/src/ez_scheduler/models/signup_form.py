@@ -22,6 +22,11 @@ class SignupForm(SQLModel, table=True):
     description: str
     url_slug: str = Field(unique=True, index=True)
     is_active: bool = Field(default=True, index=True)
+    button_type: str = Field(
+        default="single_submit"
+    )  # "rsvp_yes_no" or "single_submit"
+    primary_button_text: str = Field(default="Register")
+    secondary_button_text: Optional[str] = Field(default=None)
     created_at: Optional[datetime] = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
