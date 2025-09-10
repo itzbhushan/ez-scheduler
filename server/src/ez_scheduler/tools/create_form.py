@@ -41,9 +41,11 @@ class ButtonConfiguration(BaseModel):
     """Schema for button configuration"""
 
     button_type: str = Field(..., description="Either 'rsvp_yes_no' or 'single_submit'")
-    primary_button_text: str = Field(..., description="Text for primary/single button")
+    primary_button_text: str = Field(
+        ..., description="Text for primary/single button", max_length=20
+    )
     secondary_button_text: Optional[str] = Field(
-        None, description="Text for secondary button (RSVP No)"
+        None, description="Text for secondary button (RSVP No)", max_length=20
     )
 
 
