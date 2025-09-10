@@ -17,6 +17,15 @@
             </div>
 
             <!-- Success Message -->
+            {% if registration.additional_data and registration.additional_data.get('rsvp_response') == 'no' %}
+            <h1 class="text-3xl font-bold text-gray-900 mb-4">Thank You for Your Response</h1>
+            <p class="text-lg text-gray-600 mb-6">
+                Thank you for letting us know you won't be able to attend <strong>{{ form.title }}</strong>.
+            </p>
+            <p class="text-gray-600 mb-8">
+                We appreciate you taking the time to respond. We'll miss you at the event!
+            </p>
+            {% else %}
             <h1 class="text-3xl font-bold text-gray-900 mb-4">Registration Successful!</h1>
             <p class="text-lg text-gray-600 mb-6">
                 Thank you for signing up for <strong>{{ form.title }}</strong>.
@@ -24,6 +33,7 @@
             <p class="text-gray-600 mb-8">
                 We've received your registration and will be in touch with any additional details about the event.
             </p>
+            {% endif %}
 
             <!-- Event Details -->
             <div class="bg-gray-50 rounded-lg p-6 mb-8">
