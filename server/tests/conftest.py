@@ -180,6 +180,14 @@ def signup_service(test_db_session):
 
 
 @pytest.fixture
+def form_field_service(test_db_session):
+    """Create a FormFieldService instance for testing"""
+    from ez_scheduler.services.form_field_service import FormFieldService
+
+    return FormFieldService(test_db_session)
+
+
+@pytest.fixture
 def mock_current_user():
     """Create a mock current user for testing authenticated endpoints"""
 

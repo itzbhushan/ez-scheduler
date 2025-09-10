@@ -6,23 +6,20 @@ from datetime import date, time
 
 import pytest
 from fastmcp.client import Client
-from sqlmodel import Session, select
 
-from ez_scheduler.models.form_field import FormField
-from ez_scheduler.models.registration import Registration
 from ez_scheduler.models.signup_form import SignupForm
-from ez_scheduler.services.form_field_service import FormFieldService
-from ez_scheduler.services.registration_service import RegistrationService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 @pytest.mark.asyncio
-async def test_custom_fields_wedding_workflow(mcp_client, test_db_session: Session):
+async def test_custom_fields_wedding_workflow(
+    mcp_client, mock_current_user, signup_service, form_field_service
+):
     """Test the complete custom fields workflow for a wedding RSVP"""
-    # Use Auth0 user ID directly
-    test_user_id = "auth0|wedding_organizer_456"
+    test_user = mock_current_user()
+    test_user_id = test_user.user_id
 
     async with Client(mcp_client) as client:
         # Step 1: Initial form request (should ask about custom fields)
@@ -56,7 +53,7 @@ async def test_custom_fields_wedding_workflow(mcp_client, test_db_session: Sessi
             "create_form",
             {
                 "user_id": test_user_id,
-                "initial_request": "Create a signup form for Sarah's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown. Yes, I need to know how many guests they're bringing and their meal preferences. Meal options are Chicken, Beef, Vegetarian, and Vegan.",
+                "initial_request": "Create a signup form for Sarah's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown. Yes, I need to know how many guests they're bringing and their meal preferences. Meal options are Chicken, Beef, Vegetarian, and Vegan. No other information is needed.",
             },
         )
 
@@ -71,10 +68,8 @@ async def test_custom_fields_wedding_workflow(mcp_client, test_db_session: Sessi
         assert url_match, "Should find form URL"
         url_slug = url_match.group(1)
 
-        # Step 3: Verify form was created in database with custom fields
-        statement = select(SignupForm).where(SignupForm.url_slug == url_slug)
-        db_result = test_db_session.exec(statement)
-        created_form = db_result.first()
+        # Step 3: Verify form was created with custom fields using service
+        created_form = signup_service.get_form_by_url_slug(url_slug)
 
         assert created_form is not None, "Form should exist in database"
         assert created_form.title and "sarah" in created_form.title.lower()
@@ -82,16 +77,21 @@ async def test_custom_fields_wedding_workflow(mcp_client, test_db_session: Sessi
         assert "grand ballroom" in created_form.location.lower()
         assert created_form.user_id == test_user_id
 
-        # Step 4: Verify custom fields were created
-        custom_fields_statement = (
-            select(FormField)
-            .where(FormField.form_id == created_form.id)
-            .order_by(FormField.field_order)
-        )
-        custom_fields_result = test_db_session.exec(custom_fields_statement)
-        custom_fields = custom_fields_result.all()
+        # Step 4: Verify custom fields were created using service
+        custom_fields = form_field_service.get_fields_by_form_id(created_form.id)
 
-        assert len(custom_fields) >= 2, "Should have at least 2 custom fields"
+        logger.info(
+            f"Retrieved {len(custom_fields) if custom_fields else 0} custom fields"
+        )
+        if custom_fields:
+            for field in custom_fields:
+                logger.info(
+                    f"Field: {field.field_name} ({field.field_type}) - {field.label}"
+                )
+
+        assert (
+            len(custom_fields) >= 2
+        ), f"Should have at least 2 custom fields, got {len(custom_fields) if custom_fields else 0}"
 
         # Find guest count and meal preference fields
         guest_field = None
@@ -129,11 +129,16 @@ async def test_custom_fields_wedding_workflow(mcp_client, test_db_session: Sessi
 
 @pytest.mark.asyncio
 async def test_custom_fields_registration_workflow(
-    mcp_client, test_db_session: Session, llm_client
+    mcp_client,
+    mock_current_user,
+    signup_service,
+    form_field_service,
+    registration_service,
 ):
     """Test form registration with custom fields"""
-    # Create a test form with custom fields directly
-    test_user_id = "auth0|test_user_789"
+    # Create a test form with custom fields using service
+    test_user = mock_current_user()
+    test_user_id = test_user.user_id
 
     signup_form = SignupForm(
         user_id=test_user_id,
@@ -147,12 +152,10 @@ async def test_custom_fields_registration_workflow(
         is_active=True,
     )
 
-    test_db_session.add(signup_form)
-    test_db_session.commit()
-    test_db_session.refresh(signup_form)
+    result = signup_service.create_signup_form(signup_form, test_user)
+    assert result["success"] is True
 
-    # Add custom fields
-    form_field_service = FormFieldService(test_db_session)
+    # Add custom fields using service
     custom_fields_data = [
         {
             "field_name": "company",
@@ -184,10 +187,8 @@ async def test_custom_fields_registration_workflow(
     ]
 
     form_field_service.create_form_fields(signup_form.id, custom_fields_data)
-    test_db_session.commit()
 
-    # Test registration with custom fields
-    registration_service = RegistrationService(test_db_session, llm_client)
+    # Test registration with custom fields using service
 
     additional_data = {
         "company": "Tech Solutions Inc",
@@ -217,12 +218,13 @@ async def test_custom_fields_registration_workflow(
 
 
 @pytest.mark.asyncio
-async def test_custom_fields_analytics_queries(mcp_client, test_db_session: Session):
+async def test_custom_fields_analytics_queries(mcp_client, mock_current_user):
     """Test analytics queries with custom fields"""
     # This test would verify that the analytics system can query custom field data
     # We'll test this by using the get_form_analytics MCP tool with custom field queries
 
-    test_user_id = "auth0|analytics_test_user"
+    test_user = mock_current_user()
+    test_user_id = test_user.user_id
 
     async with Client(mcp_client) as client:
         # Test a query that involves custom fields
@@ -243,11 +245,10 @@ async def test_custom_fields_analytics_queries(mcp_client, test_db_session: Sess
 
 
 @pytest.mark.asyncio
-async def test_form_creation_without_custom_fields(
-    mcp_client, test_db_session: Session
-):
+async def test_form_creation_without_custom_fields(mcp_client, mock_current_user):
     """Test that forms can still be created without custom fields"""
-    test_user_id = "auth0|simple_form_user"
+    test_user = mock_current_user()
+    test_user_id = test_user.user_id
 
     async with Client(mcp_client) as client:
         # Create a simple form without custom fields

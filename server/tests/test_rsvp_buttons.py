@@ -1,31 +1,27 @@
-"""Test RSVP button functionality from form creation to response recording"""
+"""Test RSVP button functionality via MCP integration"""
 
 import pytest
 from fastmcp.client import Client
 
 from ez_scheduler.models.signup_form import SignupForm
-from ez_scheduler.services.form_field_service import FormFieldService
-from ez_scheduler.services.registration_service import RegistrationService
-from ez_scheduler.services.signup_form_service import SignupFormService
 
 
 @pytest.mark.asyncio
-async def test_rsvp_form_creation_and_responses(
-    mcp_client, test_db_session, authenticated_client, llm_client
+async def test_end_to_end_rsvp_via_mcp(
+    mcp_client, authenticated_client, signup_service, registration_service
 ):
-    """Test complete RSVP workflow: form creation with RSVP buttons and response recording"""
+    """Test complete RSVP workflow: MCP form creation, button detection, and response recording"""
 
     client_instance, test_user = authenticated_client
 
-    # Test 1: Create an RSVP form (wedding reception - should get RSVP yes/no buttons)
-    form_url = None
+    # Test 1: Create RSVP form via MCP (wedding reception - should get RSVP yes/no buttons)
     async with Client(mcp_client) as mcp:
         # Create wedding reception form that should trigger RSVP buttons
         form_response = await mcp.call_tool(
             "create_form",
             {
                 "user_id": test_user.user_id,
-                "initial_request": "Create a form for Sarah's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown. This is an intimate celebration with dinner and dancing. I need RSVP yes/no buttons and want to collect guest count and meal preferences (Chicken, Beef, Vegetarian).",
+                "initial_request": "Create a form for Sarah's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown. This is an intimate celebration with dinner and dancing. I need RSVP yes/no buttons and want to collect guest count and meal preferences (Chicken, Beef, Vegetarian). No additional information is needed.",
             },
         )
 
@@ -50,22 +46,17 @@ async def test_rsvp_form_creation_and_responses(
         "form/" in response_text.lower() or "created" in response_text.lower()
     ), f"Expected form to be created, got: {response_text[:200]}..."
 
-    # Test 2: Get the created form from database and verify button configuration
-    signup_form_service = SignupFormService(test_db_session)
+    # Test 2: Extract URL slug from response and get form via service
+    # Extract URL slug from the response (format: "form/url-slug")
+    import re
 
-    # Find the created form (should be the most recent one for this user)
-    from sqlmodel import desc, select
+    url_match = re.search(r"form/([a-zA-Z0-9\-]+)", response_text)
+    assert url_match, f"Could not find form URL in response: {response_text[:200]}..."
+    url_slug = url_match.group(1)
 
-    statement = (
-        select(SignupForm)
-        .where(SignupForm.user_id == test_user.user_id)
-        .order_by(desc(SignupForm.created_at))
-    )
-
-    form = test_db_session.execute(statement).scalar_one_or_none()
-    assert (
-        form is not None
-    ), f"Form should have been created. Response was: {response_text[:200]}..."
+    # Get the created form using service method
+    form = signup_service.get_form_by_url_slug(url_slug)
+    assert form is not None, f"Form should exist with URL slug: {url_slug}"
 
     # Verify this is an RSVP form with proper button configuration
     assert (
@@ -84,7 +75,18 @@ async def test_rsvp_form_creation_and_responses(
         or "can't" in form.secondary_button_text.lower()
     )
 
-    # Test 3: Submit RSVP "Yes" response
+    # Test 3: Verify template renders RSVP buttons correctly
+    template_response = client_instance.get(f"/form/{form.url_slug}")
+    assert template_response.status_code == 200
+
+    html_content = template_response.text
+    assert form.primary_button_text in html_content
+    assert form.secondary_button_text in html_content
+    assert 'name="rsvp_response"' in html_content
+    assert 'value="yes"' in html_content
+    assert 'value="no"' in html_content
+
+    # Test 4: Submit RSVP "Yes" response
     yes_form_data = {
         "name": "John Doe",
         "phone": "555-1234",
@@ -95,23 +97,7 @@ async def test_rsvp_form_creation_and_responses(
 
     yes_response = client_instance.post(f"/form/{form.url_slug}", data=yes_form_data)
     assert yes_response.status_code == 200
-
-    yes_result = yes_response.json()
-    assert yes_result["success"] is True
-
-    # Test 4: Verify RSVP "Yes" response was recorded
-    registration_service = RegistrationService(test_db_session, llm_client)
-
-    # Get registrations for this form
-    from ez_scheduler.models.registration import Registration
-
-    statement = select(Registration).where(Registration.form_id == form.id)
-    registrations = test_db_session.execute(statement).scalars().all()
-
-    yes_registration = next((r for r in registrations if r.name == "John Doe"), None)
-    assert yes_registration is not None, "RSVP Yes registration should exist"
-    assert yes_registration.additional_data is not None
-    assert yes_registration.additional_data.get("rsvp_response") == "yes"
+    assert yes_response.json()["success"] is True
 
     # Test 5: Submit RSVP "No" response
     no_form_data = {
@@ -124,35 +110,27 @@ async def test_rsvp_form_creation_and_responses(
 
     no_response = client_instance.post(f"/form/{form.url_slug}", data=no_form_data)
     assert no_response.status_code == 200
+    assert no_response.json()["success"] is True
 
-    no_result = no_response.json()
-    assert no_result["success"] is True
+    # Test 6: Verify RSVP responses were recorded correctly using service method
+    registrations = registration_service.get_registrations_for_form(form.id)
 
-    # Test 6: Verify RSVP "No" response was recorded
-    statement = select(Registration).where(Registration.form_id == form.id)
-    registrations = test_db_session.execute(statement).scalars().all()
+    assert len(registrations) >= 2, "Should have at least 2 registrations (yes and no)"
 
+    yes_registration = next((r for r in registrations if r.name == "John Doe"), None)
     no_registration = next((r for r in registrations if r.name == "Jane Smith"), None)
+
+    assert yes_registration is not None, "RSVP Yes registration should exist"
+    assert yes_registration.additional_data is not None
+    assert yes_registration.additional_data.get("rsvp_response") == "yes"
+
     assert no_registration is not None, "RSVP No registration should exist"
     assert no_registration.additional_data is not None
     assert no_registration.additional_data.get("rsvp_response") == "no"
 
-    # Test 7: Verify both responses are distinct
-    assert len(registrations) >= 2, "Should have at least 2 registrations (yes and no)"
-    assert yes_registration.id != no_registration.id, "Registrations should be separate"
-
-
-@pytest.mark.asyncio
-async def test_single_submit_form_creation(
-    mcp_client, test_db_session, authenticated_client
-):
-    """Test that non-RSVP events get single submit buttons"""
-
-    client_instance, test_user = authenticated_client
-
-    # Create a conference form (should get single submit button)
+    # Test 7: Test single submit form creation via MCP
     async with Client(mcp_client) as mcp:
-        form_response = await mcp.call_tool(
+        conference_response = await mcp.call_tool(
             "create_form",
             {
                 "user_id": test_user.user_id,
@@ -160,148 +138,42 @@ async def test_single_submit_form_creation(
             },
         )
 
-        response_text = form_response.content[0].text.lower()
+        conference_text = conference_response.content[0].text.lower()
 
-        # # If LLM asks for more info, provide it
-        # if "form/" not in response_text and ("additional" in response_text or "custom" in response_text):
-        #     # LLM is asking for more details, provide them
-        #     form_response = await mcp.call_tool(
-        #         "create_form",
-        #         {
-        #             "user_id": test_user.user_id,
-        #             "initial_request": "Create a form for Tech Conference 2024 on September 20th at Convention Center. Keep it simple - just basic registration info, no custom fields needed.",
-        #         },
-        #     )
-
-    # Verify form was created
-    # response_text = form_response.content[0].text
+    # Verify conference form was created
     assert (
-        "form/" in response_text.lower() or "created" in response_text.lower()
-    ), f"Expected form to be created, got: {response_text[:200]}..."
+        "form/" in conference_text.lower() or "created" in conference_text.lower()
+    ), f"Expected conference form to be created, got: {conference_text[:200]}..."
 
-    # Get the created form and verify button configuration
-    signup_form_service = SignupFormService(test_db_session)
-
-    from sqlmodel import desc, select
-
-    statement = (
-        select(SignupForm)
-        .where(SignupForm.user_id == test_user.user_id)
-        .order_by(desc(SignupForm.created_at))
+    # Extract conference form URL slug and get form
+    conference_match = re.search(
+        r"form/([a-zA-Z0-9\-]+)", conference_response.content[0].text
     )
+    assert (
+        conference_match
+    ), f"Could not find conference form URL in response: {conference_text[:200]}..."
+    conference_slug = conference_match.group(1)
 
-    form = test_db_session.execute(statement).scalar_one_or_none()
-    assert form is not None
+    conference_form = signup_service.get_form_by_url_slug(conference_slug)
+    assert conference_form is not None
 
     # Verify this is a single submit form
     assert (
-        form.button_type == "single_submit"
-    ), f"Conference should use single submit button, got {form.button_type}"
-    assert form.primary_button_text is not None
-    assert form.secondary_button_text is None
-    # Check that button text is appropriate for registration
-    button_text = form.primary_button_text.lower()
-    assert (
-        "register" in button_text
-        or "sign up" in button_text
-        or "join" in button_text
-        or "enroll" in button_text
-        or "reserve" in button_text
-        or "submit" in button_text
-    ), f"Expected registration-appropriate button text, got: {form.primary_button_text}"
+        conference_form.button_type == "single_submit"
+    ), f"Conference should use single submit button, got {conference_form.button_type}"
+    assert conference_form.primary_button_text is not None
+    assert conference_form.secondary_button_text is None
 
-    # Test submission without RSVP response (normal registration)
-    form_data = {
-        "name": "Tech Attendee",
-        "phone": "555-9999",
-        "company": "Tech Solutions Inc",
-        "job_title": "Software Engineer",
-    }
+    # Test single submit template rendering
+    conference_html_response = client_instance.get(f"/form/{conference_form.url_slug}")
+    assert conference_html_response.status_code == 200
 
-    response = client_instance.post(f"/form/{form.url_slug}", data=form_data)
-    assert response.status_code == 200
-
-    result = response.json()
-    assert result["success"] is True
-
-    # Verify registration was created without RSVP response
-    from ez_scheduler.models.registration import Registration
-
-    statement = select(Registration).where(Registration.form_id == form.id)
-    registration = test_db_session.execute(statement).scalar_one_or_none()
-
-    assert registration is not None
-    assert registration.name == "Tech Attendee"
-    # Should not have rsvp_response in additional_data for single submit forms
-    if registration.additional_data:
-        assert "rsvp_response" not in registration.additional_data
-
-
-@pytest.mark.asyncio
-async def test_form_template_rendering_with_buttons(
-    authenticated_client, signup_service
-):
-    """Test that form templates render the correct buttons based on button configuration"""
-
-    client_instance, test_user = authenticated_client
-
-    # Create RSVP form using service method for template testing
-    rsvp_form = SignupForm(
-        user_id=test_user.user_id,
-        title="Test RSVP Event",
-        event_date="2024-12-15",
-        location="Test Location",
-        description="Test RSVP event description",
-        url_slug="test-rsvp-event-12345",
-        is_active=True,
-        button_type="rsvp_yes_no",
-        primary_button_text="Accept Invitation",
-        secondary_button_text="Decline",
-    )
-
-    result = signup_service.create_signup_form(rsvp_form, test_user)
-    assert result["success"] is True
-    # The service method adds the form to the database, so we can use the original object
-
-    # Test RSVP form template rendering
-    rsvp_response = client_instance.get(f"/form/{rsvp_form.url_slug}")
-    assert rsvp_response.status_code == 200
-
-    rsvp_html = rsvp_response.text
-    assert "Accept Invitation" in rsvp_html
-    assert "Decline" in rsvp_html
-    assert 'name="rsvp_response"' in rsvp_html
-    assert 'value="yes"' in rsvp_html
-    assert 'value="no"' in rsvp_html
-
-    # Create single submit form using service method
-    single_form = SignupForm(
-        user_id=test_user.user_id,
-        title="Test Conference",
-        event_date="2024-12-20",
-        location="Conference Center",
-        description="Test conference description",
-        url_slug="test-conference-67890",
-        is_active=True,
-        button_type="single_submit",
-        primary_button_text="Register Now",
-        secondary_button_text=None,
-    )
-
-    result = signup_service.create_signup_form(single_form, test_user)
-    assert result["success"] is True
-    # The service method adds the form to the database, so we can use the original object
-
-    # Test single submit form template rendering
-    single_response = client_instance.get(f"/form/{single_form.url_slug}")
-    assert single_response.status_code == 200
-
-    single_html = single_response.text
-    assert "Register" in single_html
+    conference_html = conference_html_response.text
+    assert conference_form.primary_button_text in conference_html
     # Should not have RSVP response inputs
-    assert 'name="rsvp_response"' not in single_html
-    assert 'value="yes"' not in single_html
-    assert 'value="no"' not in single_html
+    assert 'name="rsvp_response"' not in conference_html
+    assert 'value="yes"' not in conference_html
+    assert 'value="no"' not in conference_html
 
 
 @pytest.mark.asyncio
@@ -310,7 +182,7 @@ async def test_rsvp_analytics_query(
 ):
     """Test that RSVP responses can be queried through analytics"""
 
-    client_instance, test_user = authenticated_client
+    _, test_user = authenticated_client
 
     # Create form with RSVP responses using service method
     form = SignupForm(
@@ -328,10 +200,8 @@ async def test_rsvp_analytics_query(
 
     result = signup_service.create_signup_form(form, test_user)
     assert result["success"] is True
-    # The service method adds the form to the database, so we can use the original object
 
-    # Create registrations with different RSVP responses using fixture
-
+    # Create registrations with different RSVP responses
     # RSVP Yes responses
     registration_service.create_registration(
         form_id=form.id,

@@ -71,6 +71,8 @@ async def test_comprehensive_rsvp_workflow(
 
     assert "Register" in conference_html
     assert 'name="rsvp_response"' not in conference_html
+    assert 'value="yes"' not in conference_html
+    assert 'value="no"' not in conference_html
 
     # Test 4: Submit various types of responses
 
@@ -161,43 +163,13 @@ async def test_comprehensive_rsvp_workflow(
 
 
 @pytest.mark.asyncio
-async def test_backward_compatibility(signup_service, mock_current_user):
-    """Test that existing forms work with default button configuration"""
-
-    test_user = mock_current_user()
-
-    # Create a form without explicit button configuration (simulating old data)
-    old_form = SignupForm(
-        user_id=test_user.user_id,
-        title="Legacy Event",
-        event_date=date(2024, 10, 1),
-        location="Legacy Location",
-        description="This form was created before button configuration was added",
-        url_slug="legacy-backward-compat-test",
-        is_active=True,
-        # Note: not setting button_type, primary_button_text, secondary_button_text
-    )
-
-    result = signup_service.create_signup_form(old_form, test_user)
-    assert result["success"] is True
-    # The service method adds the form to the database, so we can use the original object
-
-    # Should have default values from the model
-    assert old_form.button_type == "single_submit"
-    assert old_form.primary_button_text == "Register"
-    assert old_form.secondary_button_text is None
-
-    print("✅ Backward compatibility test passed!")
-
-
-@pytest.mark.asyncio
 async def test_database_migration_applied(signup_service, mock_current_user):
-    """Test that database migration was applied correctly"""
+    """Test that database migration was applied correctly and backward compatibility"""
 
     test_user = mock_current_user()
 
-    # Test that we can create forms with all button configuration fields
-    test_form = SignupForm(
+    # Test 1: Create form with explicit button configuration to verify migration
+    explicit_form = SignupForm(
         user_id=test_user.user_id,
         title="Migration Test Event",
         event_date=date(2024, 11, 1),
@@ -210,13 +182,32 @@ async def test_database_migration_applied(signup_service, mock_current_user):
         secondary_button_text="Sorry, Can't Make It",
     )
 
-    result = signup_service.create_signup_form(test_form, test_user)
+    result = signup_service.create_signup_form(explicit_form, test_user)
     assert result["success"] is True
-    # The service method adds the form to the database, so we can use the original object
 
     # Verify all fields are saved correctly
-    assert test_form.button_type == "rsvp_yes_no"
-    assert test_form.primary_button_text == "I'll Be There!"
-    assert test_form.secondary_button_text == "Sorry, Can't Make It"
+    assert explicit_form.button_type == "rsvp_yes_no"
+    assert explicit_form.primary_button_text == "I'll Be There!"
+    assert explicit_form.secondary_button_text == "Sorry, Can't Make It"
 
-    print("✅ Database migration test passed!")
+    # Test 2: Create form without explicit button config (backward compatibility)
+    legacy_form = SignupForm(
+        user_id=test_user.user_id,
+        title="Legacy Event",
+        event_date=date(2024, 10, 1),
+        location="Legacy Location",
+        description="This form was created before button configuration was added",
+        url_slug="legacy-backward-compat-test",
+        is_active=True,
+        # Note: not setting button_type, primary_button_text, secondary_button_text
+    )
+
+    result = signup_service.create_signup_form(legacy_form, test_user)
+    assert result["success"] is True
+
+    # Should have default values from the model
+    assert legacy_form.button_type == "single_submit"
+    assert legacy_form.primary_button_text == "Register"
+    assert legacy_form.secondary_button_text is None
+
+    print("✅ Database migration and backward compatibility test passed!")
