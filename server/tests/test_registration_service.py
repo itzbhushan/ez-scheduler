@@ -44,13 +44,12 @@ class TestRegistrationService:
         form = self._create_test_form(signup_service)
 
         registration = registration_service.create_registration(
-            form_id=form.id, name="John Doe", email="john@example.com", phone="555-1234"
+            form_id=form.id, name="John Doe", email=None, phone="555-1234"
         )
 
         assert registration.id is not None
         assert registration.form_id == form.id
         assert registration.name == "John Doe"
-        assert registration.email == "john@example.com"
         assert registration.phone == "555-1234"
         assert registration.registered_at is not None
 
@@ -62,14 +61,14 @@ class TestRegistrationService:
 
         # Create first registration
         reg1 = registration_service.create_registration(
-            form_id=form.id, name="John Doe", email="john@example.com", phone="555-1234"
+            form_id=form.id, name="John Doe", email=None, phone="555-1234"
         )
 
         # Create duplicate registration - should succeed now
         reg2 = registration_service.create_registration(
             form_id=form.id,
             name="Jane Doe",  # Different name, same email/phone/form
-            email="john@example.com",
+            email=None,
             phone="555-1234",
         )
 
@@ -90,7 +89,7 @@ class TestRegistrationService:
         reg1 = registration_service.create_registration(
             form_id=form1.id,
             name="John Doe",
-            email="john@example.com",
+            email=None,
             phone="555-1234",
         )
 
@@ -98,7 +97,7 @@ class TestRegistrationService:
         reg2 = registration_service.create_registration(
             form_id=form2.id,
             name="John Doe",
-            email="john@example.com",
+            email=None,
             phone="555-1234",
         )
 
@@ -116,7 +115,7 @@ class TestRegistrationService:
             registration_service.create_registration(
                 form_id=form.id,
                 name="John Doe",
-                email="john@example.com",
+                email=None,
                 phone="555-1234",
             )
 
@@ -128,7 +127,7 @@ class TestRegistrationService:
             registration_service.create_registration(
                 form_id=fake_form_id,
                 name="John Doe",
-                email="john@example.com",
+                email=None,
                 phone="555-1234",
             )
 
@@ -138,13 +137,13 @@ class TestRegistrationService:
 
         # Create multiple registrations
         reg1 = registration_service.create_registration(
-            form_id=form.id, name="John Doe", email="john@example.com", phone="555-1234"
+            form_id=form.id, name="John Doe", email=None, phone="555-1234"
         )
 
         reg2 = registration_service.create_registration(
             form_id=form.id,
             name="Jane Smith",
-            email="jane@example.com",
+            email=None,
             phone="555-5678",
         )
 
@@ -166,13 +165,13 @@ class TestRegistrationService:
 
         # Create registrations
         registration_service.create_registration(
-            form_id=form.id, name="John Doe", email="john@example.com", phone="555-1234"
+            form_id=form.id, name="John Doe", email=None, phone="555-1234"
         )
 
         registration_service.create_registration(
             form_id=form.id,
             name="Jane Smith",
-            email="jane@example.com",
+            email=None,
             phone="555-5678",
         )
 
@@ -183,7 +182,7 @@ class TestRegistrationService:
         form = self._create_test_form(signup_service)
 
         registration = registration_service.create_registration(
-            form_id=form.id, name="John Doe", email="john@example.com", phone="555-1234"
+            form_id=form.id, name="John Doe", email=None, phone="555-1234"
         )
 
         found_registration = registration_service.get_registration_by_id(

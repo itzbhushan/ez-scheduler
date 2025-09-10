@@ -21,7 +21,7 @@ async def test_end_to_end_rsvp_via_mcp(
             "create_form",
             {
                 "user_id": test_user.user_id,
-                "initial_request": "Create a form for Sarah's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown. This is an intimate celebration with dinner and dancing. I need RSVP yes/no buttons and want to collect guest count and meal preferences (Chicken, Beef, Vegetarian). No additional information is needed.",
+                "initial_request": "Create a form for Sarah and Michael's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown. This is an intimate celebration with dinner and dancing. I need RSVP yes/no buttons and want to collect guest count and meal preferences (Chicken, Beef, Vegetarian). No additional information is needed.",
             },
         )
 
@@ -36,7 +36,7 @@ async def test_end_to_end_rsvp_via_mcp(
                 "create_form",
                 {
                     "user_id": test_user.user_id,
-                    "initial_request": "Create a form for Sarah's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown. Yes, include guest count and meal preferences with options: Chicken, Beef, Vegetarian, Vegan.",
+                    "initial_request": "Create a form for Sarah and Michael's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown. Yes, include guest count and meal preferences with options: Chicken, Beef, Vegetarian, Vegan.",
                 },
             )
 
@@ -206,7 +206,7 @@ async def test_rsvp_analytics_query(
     registration_service.create_registration(
         form_id=form.id,
         name="Yes Person 1",
-        email="yes1@example.com",
+        email=None,
         phone="555-0001",
         additional_data={"rsvp_response": "yes"},
     )
@@ -214,7 +214,7 @@ async def test_rsvp_analytics_query(
     registration_service.create_registration(
         form_id=form.id,
         name="Yes Person 2",
-        email="yes2@example.com",
+        email=None,
         phone="555-0002",
         additional_data={"rsvp_response": "yes"},
     )
@@ -223,8 +223,8 @@ async def test_rsvp_analytics_query(
     registration_service.create_registration(
         form_id=form.id,
         name="No Person 1",
+        email=None,
         phone="555-0003",
-        email="no1@example.com",
         additional_data={"rsvp_response": "no"},
     )
 

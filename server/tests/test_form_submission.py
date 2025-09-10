@@ -70,7 +70,6 @@ class TestFormSubmission:
 
         form_data = {
             "name": "John Doe",
-            "email": "john.doe@example.com",
             "phone": "555-1234",
         }
 
