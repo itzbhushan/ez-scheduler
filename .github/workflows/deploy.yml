@@ -84,7 +84,7 @@ jobs:
       run: npm install -g @railway/cli@4.6.3
 
     - name: Deploy to Railway Production
-      run: railway up --detach --service ez-scheduler-production
+      run: railway up --detach --service ez-scheduler
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
       working-directory: ./server
@@ -93,7 +93,7 @@ jobs:
       run: |
         echo "Waiting for production deployment to be ready..."
         # Note: Replace with actual production URL when available
-        PROD_URL="https://ez-scheduler-prod.up.railway.app'
+        PROD_URL="https://ez-scheduler-production.up.railway.app"
         for i in {1..10}; do
           echo "Attempt $i/10: Checking health endpoint..."
           if curl -f -s "$PROD_URL/health"; then
