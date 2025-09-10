@@ -37,6 +37,16 @@ class CustomFieldSchema(BaseModel):
     field_order: Optional[int] = Field(None, description="Display order")
 
 
+class ButtonConfiguration(BaseModel):
+    """Schema for button configuration"""
+
+    button_type: str = Field(..., description="Either 'rsvp_yes_no' or 'single_submit'")
+    primary_button_text: str = Field(..., description="Text for primary/single button")
+    secondary_button_text: Optional[str] = Field(
+        None, description="Text for secondary button (RSVP No)"
+    )
+
+
 class FormExtractionSchema(BaseModel):
     """Schema for form extraction from user instructions"""
 
@@ -50,6 +60,9 @@ class FormExtractionSchema(BaseModel):
     description: Optional[str] = Field(None, description="Event description")
     custom_fields: List[CustomFieldSchema] = Field(
         default_factory=list, description="Custom form fields beyond name/email/phone"
+    )
+    button_config: Optional[ButtonConfiguration] = Field(
+        None, description="Button configuration for the form"
     )
     is_complete: bool = Field(False, description="Whether all required info is present")
     next_question: Optional[str] = Field(
@@ -371,7 +384,8 @@ async def _create_form(
     unique_id = str(uuid.uuid4())[:8]  # First 8 chars of UUID
     url_slug = f"{base_form_id}-{unique_id}"
 
-    # Create form object
+    # Create form object with button configuration
+    button_config = form_data.button_config
     signup_form = SignupForm(
         user_id=user.user_id,
         title=title,
@@ -382,6 +396,13 @@ async def _create_form(
         description=description,
         url_slug=url_slug,
         is_active=True,
+        button_type=button_config.button_type if button_config else "single_submit",
+        primary_button_text=(
+            button_config.primary_button_text if button_config else "Register"
+        ),
+        secondary_button_text=(
+            button_config.secondary_button_text if button_config else None
+        ),
     )
 
     # Create form and custom fields in a single transaction

@@ -110,6 +110,7 @@ async def submit_registration_form(
     name = form_data.get("name", "").strip()
     email = form_data.get("email", "").strip().lower()
     phone = form_data.get("phone", "").strip()
+    rsvp_response = form_data.get("rsvp_response")  # "yes", "no", or None
 
     # Validate required standard fields
     if not name:
@@ -170,6 +171,10 @@ async def submit_registration_form(
             field.field_type == FieldType.CHECKBOX or field_value != ""
         ):
             additional_data[field.field_name] = field_value
+
+    # Store RSVP response if provided (for RSVP yes/no forms)
+    if rsvp_response:
+        additional_data["rsvp_response"] = rsvp_response
 
     try:
         logger.info(
