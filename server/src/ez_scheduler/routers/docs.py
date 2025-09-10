@@ -7,6 +7,8 @@ from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
+from ez_scheduler.config import config
+
 docs_router = APIRouter(include_in_schema=False)
 
 # Store app reference for use in endpoints
@@ -69,16 +71,16 @@ For API support, contact support@ez-scheduler.com
         """,
         routes=_app_instance.routes,
         contact={
-            "name": "EZ Scheduler API Support",
-            "email": "support@ez-scheduler.com",
+            "name": "Signup Pro Support",
+            "email": "vb@signuppro.ai",
         },
         license_info={
             "name": "MIT",
         },
         servers=[
             {
-                "url": "https://ez-scheduler-staging.up.railway.app",
-                "description": "Staging server",
+                "url": config["app_base_url"],
+                "description": "API Server",
             },
         ],
     )
