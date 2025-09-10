@@ -10,7 +10,7 @@ from sqlmodel import Session
 from ez_scheduler.backends.email_client import EmailClient
 from ez_scheduler.config import config
 from ez_scheduler.models.database import get_db
-from ez_scheduler.models.enums import FieldType
+from ez_scheduler.models.field_type import FieldType
 from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.registration_service import RegistrationService

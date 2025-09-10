@@ -6,6 +6,7 @@ from typing import List
 
 from sqlmodel import Session, select
 
+from ez_scheduler.models.field_type import FieldType
 from ez_scheduler.models.form_field import FormField
 
 logger = logging.getLogger(__name__)
@@ -35,10 +36,14 @@ class FormFieldService:
 
         for i, field_data in enumerate(custom_fields):
             try:
+                # Convert string field_type to enum
+                field_type_str = field_data.get("field_type", "text")
+                field_type_enum = FieldType(field_type_str)
+
                 form_field = FormField(
                     form_id=form_id,
                     field_name=field_data.get("field_name"),
-                    field_type=field_data.get("field_type", "text"),
+                    field_type=field_type_enum,
                     label=field_data.get("label"),
                     placeholder=field_data.get("placeholder"),
                     is_required=field_data.get("is_required", False),

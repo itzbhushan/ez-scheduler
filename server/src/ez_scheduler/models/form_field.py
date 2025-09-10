@@ -4,7 +4,10 @@ import uuid
 from typing import List, Optional
 
 from sqlalchemy import JSON, Column
+from sqlalchemy import Enum as SQLEnum
 from sqlmodel import Field, SQLModel
+
+from ez_scheduler.models.field_type import FieldType
 
 
 class FormField(SQLModel, table=True):
@@ -17,7 +20,11 @@ class FormField(SQLModel, table=True):
         foreign_key="signup_forms.id", ondelete="CASCADE", index=True
     )
     field_name: str = Field(index=True)  # Internal field name (e.g., 'guest_count')
-    field_type: str  # 'text', 'number', 'select', 'checkbox'
+    field_type: FieldType = Field(
+        sa_column=Column(
+            SQLEnum(FieldType, values_callable=lambda x: [e.value for e in x])
+        )
+    )
     label: str  # Display label (e.g., 'Number of guests')
     placeholder: Optional[str] = None  # Input placeholder text
     is_required: bool = Field(default=False)
