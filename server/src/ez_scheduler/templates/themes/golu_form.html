@@ -41,8 +41,8 @@
     .input{border:2px solid #8d7f63; border-radius:12px; padding:.7rem .9rem; background:#fff;}
     .btn-gold{background:var(--gold); color:#0f1e2e; border-radius:12px; padding:.9rem 1.25rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase;}
     .btn-gold:hover{filter:brightness(1.05);}
-    .peacock{position:absolute; right:26px; top:26px; width:96px; height:96px; opacity:.95;}
-    @media (min-width:640px){.peacock{right:42px; top:40px; width:120px; height:120px;}}
+    .peacock{position:absolute; right:22px; top:26px; width:110px; height:auto; opacity:.95;}
+    @media (min-width:640px){.peacock{right:40px; top:34px; width:150px; height:auto;}}
     .about-card{background:rgba(239,225,191,0.08); border:1px solid rgba(201,162,39,.35); color:#f2e6c9; border-radius:14px;}
     .about-title{font-family:'Cormorant Garamond', serif; color:var(--gold); letter-spacing:.08em; text-transform:uppercase;}
   </style>
@@ -50,17 +50,16 @@
 <body>
   <div class="max-w-3xl mx-auto py-8 px-4">
     <div class="frame rounded-2xl">
-      <!-- Decorative peacock feather (inline SVG keeps us asset-free) -->
-      <svg class="peacock" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M15 100 C 40 60, 80 40, 105 20" stroke="var(--gold)" stroke-width="3" fill="none" stroke-linecap="round"/>
-        <path d="M90 28 c8 -6 18 -3 20 6 c2 9 -7 17 -16 16 c-8 -1 -13 -11 -4 -22z" stroke="var(--gold)" stroke-width="3" fill="none"/>
-        <circle cx="97" cy="36" r="6" fill="var(--gold)"/>
-      </svg>
+      <!-- Decorative peacock feather: use provided image URL if available, else SVG fallback -->
+      <img
+        class="peacock"
+        src="/static/src/ez_scheduler/templates/themes/assets/peacock-feather.png"
+        alt="Peacock feather"
+      />
 
       <!-- Heading area -->
       <div class="text-center pt-8 pb-4">
-        <div class="hero-title text-sm sm:text-base">{{ form.title | upper }}</div>
-        <div class="hero-big text-4xl sm:text-6xl mt-3">RSVP</div>
+        <div class="hero-big text-4xl sm:text-6xl">{{ form.title | upper }}</div>
         <div class="hero-sub text-sm sm:text-base mt-2">
           {{ formatted_date }}
           {% if formatted_start_time or formatted_end_time %}
