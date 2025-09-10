@@ -152,7 +152,7 @@ async def submit_registration_form(
                     raise HTTPException(
                         status_code=400, detail=f"Invalid option for {field.label}"
                     )
-            elif field.field_type == FieldType.TEXT:
+            elif field.field_type == FieldType.TEXT and field_value:
                 # Enforce fewer than 250 characters for text fields
                 if len(str(field_value)) > 250:
                     raise HTTPException(
