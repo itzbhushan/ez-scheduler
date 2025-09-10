@@ -36,7 +36,8 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://ez_user:ez_password@postgres:5432/ez_scheduler
-      READ_ONLY_DATABASE_URL: postgresql://analytics_user:analytics_password@postgres:5432/ez_scheduler
+      READ_ONLY_DATABASE_URL: postgresql://ez_analytics_readonly:${ANALYTICS_DB_PASSWORD}@postgres:5432/ez_scheduler
+      ANALYTICS_DB_PASSWORD: ez_analytics_password
       REDIS_URL: redis://redis:6379
       MCP_PORT: 8080
       ENVIRONMENT: local

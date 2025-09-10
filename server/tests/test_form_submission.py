@@ -87,7 +87,7 @@ class TestFormSubmission:
     async def test_form_submission_missing_fields(
         self, signup_service, authenticated_client
     ):
-        """Test form submission with missing required fields returns 422"""
+        """Test form submission with missing required fields returns 400"""
         client, test_user = authenticated_client
 
         test_form = SignupForm(
@@ -115,4 +115,4 @@ class TestFormSubmission:
             data=form_data,
         )
 
-        assert response.status_code == 422  # Unprocessable Entity for validation error
+        assert response.status_code == 400  # Unprocessable Entity for validation error

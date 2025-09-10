@@ -3,13 +3,15 @@
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session
 
 from ez_scheduler.backends.email_client import EmailClient
 from ez_scheduler.config import config
 from ez_scheduler.models.database import get_db
+from ez_scheduler.models.field_type import FieldType
+from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.registration_service import RegistrationService
 from ez_scheduler.services.signup_form_service import SignupFormService
@@ -38,6 +40,10 @@ async def serve_registration_form(
     if not form:
         raise HTTPException(status_code=404, detail="Form not found or inactive")
 
+    # Get custom fields for this form
+    form_field_service = FormFieldService(db)
+    custom_fields = form_field_service.get_fields_by_form_id(form.id)
+
     # Format date and times for display
     formatted_date = form.event_date.strftime("%B %d, %Y")
     formatted_start_time = (
@@ -54,6 +60,7 @@ async def serve_registration_form(
         {
             "form": form,
             "url_slug": url_slug,
+            "custom_fields": custom_fields,
             "formatted_date": formatted_date,
             "formatted_start_time": formatted_start_time,
             "formatted_end_time": formatted_end_time,
@@ -66,9 +73,6 @@ async def serve_registration_form(
 async def submit_registration_form(
     request: Request,
     url_slug: str,
-    name: str = Form(...),
-    email: str = Form(...),
-    phone: str = Form(...),
     db: Session = Depends(get_db),
     llm_client=Depends(get_llm_client),
 ):
@@ -77,6 +81,7 @@ async def submit_registration_form(
     # Create services with injected database session
     signup_form_service = SignupFormService(db)
     registration_service = RegistrationService(db, llm_client)
+    form_field_service = FormFieldService(db)
     email_client = EmailClient(config)
 
     # Get the form by URL slug
@@ -87,17 +92,83 @@ async def submit_registration_form(
     if not form:
         raise HTTPException(status_code=404, detail="Form not found or inactive")
 
+    # Parse form data
+    form_data = await request.form()
+
+    # Extract standard fields
+    name = form_data.get("name", "").strip()
+    email = form_data.get("email", "").strip().lower()
+    phone = form_data.get("phone", "").strip()
+
+    # Validate required standard fields
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    if not phone:
+        raise HTTPException(status_code=400, detail="Phone is required")
+
+    # Get custom fields for validation and processing
+    custom_fields = form_field_service.get_fields_by_form_id(form.id)
+
+    # Extract and validate custom field data
+    additional_data = {}
+    for field in custom_fields:
+        field_value = form_data.get(field.field_name)
+
+        # Handle different field types
+        if field.field_type == FieldType.CHECKBOX:
+            # Checkbox fields send 'true' when checked, None when unchecked
+            field_value = field_value == "true" if field_value is not None else False
+        elif field_value is not None:
+            field_value = str(field_value).strip()
+
+        # Validate field type-specific constraints
+        if field_value is not None and field_value != "":
+            if field.field_type == FieldType.NUMBER:
+                try:
+                    float(field_value)
+                except ValueError:
+                    raise HTTPException(
+                        status_code=400, detail=f"{field.label} must be a valid number"
+                    )
+            elif field.field_type == FieldType.SELECT and field.options:
+                if field_value not in field.options:
+                    raise HTTPException(
+                        status_code=400, detail=f"Invalid option for {field.label}"
+                    )
+
+        # Validate required fields
+        if field.is_required:
+            if field.field_type == FieldType.CHECKBOX and not field_value:
+                raise HTTPException(
+                    status_code=400, detail=f"{field.label} is required"
+                )
+            elif field.field_type != FieldType.CHECKBOX and (
+                not field_value or field_value == ""
+            ):
+                raise HTTPException(
+                    status_code=400, detail=f"{field.label} is required"
+                )
+
+        # Store field data if provided
+        if field_value is not None and (
+            field.field_type == FieldType.CHECKBOX or field_value != ""
+        ):
+            additional_data[field.field_name] = field_value
+
     try:
         logger.info(
-            f"Creating registration with form_id={form.id}, name='{name}', email='{email}', phone='{phone}'"
+            f"Creating registration with form_id={form.id}, name='{name}', email='{email}', phone='{phone}', additional_data={additional_data}"
         )
 
         # Create the registration
         registration = registration_service.create_registration(
             form_id=form.id,
-            name=name.strip(),
-            email=email.strip().lower(),
-            phone=phone.strip(),
+            name=name,
+            email=email,
+            phone=phone,
+            additional_data=additional_data if additional_data else None,
         )
 
         logger.info(f"Created registration {registration.id} for form {form.id}")
