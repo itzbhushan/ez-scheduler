@@ -17,8 +17,8 @@ class Registration(SQLModel, table=True):
     form_id: uuid.UUID = Field(foreign_key="signup_forms.id")
     user_id: Optional[str] = Field(default=None, index=True)  # Auth0 user ID as string
     name: str
-    email: str
-    phone: str
+    email: Optional[str] = Field(default="")
+    phone: Optional[str] = Field(default="")
     additional_data: Optional[dict] = Field(default=None, sa_column=Column(JSON))
     registered_at: Optional[datetime] = Field(
         default_factory=lambda: datetime.now(timezone.utc)
