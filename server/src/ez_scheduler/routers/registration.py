@@ -153,12 +153,11 @@ async def submit_registration_form(
                         status_code=400, detail=f"Invalid option for {field.label}"
                     )
             elif field.field_type == FieldType.TEXT:
-                # Enforce fewer than 250 words for text fields
-                word_count = len(str(field_value).split())
-                if word_count >= 250:
+                # Enforce fewer than 250 characters for text fields
+                if len(str(field_value)) > 250:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"{field.label} must be fewer than 250 words",
+                        detail=f"{field.label} must be fewer than 250 characters",
                     )
 
         # Validate required fields
