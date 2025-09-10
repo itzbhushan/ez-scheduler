@@ -6,16 +6,13 @@ from datetime import date, time
 
 import pytest
 from fastmcp.client import Client
-from sqlmodel import Session, select
-
-from ez_scheduler.models.signup_form import SignupForm
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 @pytest.mark.asyncio
-async def test_create_form_simple_meeting(mcp_client, test_db_session: Session):
+async def test_create_form_simple_meeting(mcp_client, signup_service):
     """Test form creation for simple meeting that doesn't trigger custom field questions"""
     # Use Auth0 user ID directly
     test_user_id = "auth0|meeting_organizer_456"
@@ -46,9 +43,7 @@ async def test_create_form_simple_meeting(mcp_client, test_db_session: Session):
             if url_match:
                 url_slug = url_match.group(1)
                 # If form was created directly, verify it
-                statement = select(SignupForm).where(SignupForm.url_slug == url_slug)
-                db_result = test_db_session.exec(statement)
-                created_form = db_result.first()
+                created_form = signup_service.get_form_by_url_slug(url_slug)
 
                 # Verify form was created with correct details
                 assert created_form is not None, f"Form should exist in database"
@@ -89,9 +84,7 @@ async def test_create_form_simple_meeting(mcp_client, test_db_session: Session):
 
 
 @pytest.mark.asyncio
-async def test_create_form_with_start_and_end_time(
-    mcp_client, test_db_session: Session
-):
+async def test_create_form_with_start_and_end_time(mcp_client, signup_service):
     """Test form creation with both start and end time specified"""
     # Use Auth0 user ID directly
     test_user_id = "auth0|workshop_organizer_789"
@@ -124,10 +117,8 @@ async def test_create_form_with_start_and_end_time(
             else:
                 pytest.fail(f"Could not find form URL pattern in response")
 
-            # Query database using the extracted URL slug
-            statement = select(SignupForm).where(SignupForm.url_slug == url_slug)
-            db_result = test_db_session.exec(statement)
-            created_form = db_result.first()
+            # Query database using the extracted URL slug via service
+            created_form = signup_service.get_form_by_url_slug(url_slug)
 
             # Verify form was created with correct details
             assert created_form is not None, f"Form should exist in database"

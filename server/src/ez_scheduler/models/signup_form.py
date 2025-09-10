@@ -25,8 +25,8 @@ class SignupForm(SQLModel, table=True):
     button_type: str = Field(
         default="single_submit"
     )  # "rsvp_yes_no" or "single_submit"
-    primary_button_text: str = Field(default="Register")
-    secondary_button_text: Optional[str] = Field(default=None)
+    primary_button_text: str = Field(default="Register", max_length=20)
+    secondary_button_text: Optional[str] = Field(default=None, max_length=20)
     created_at: Optional[datetime] = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )

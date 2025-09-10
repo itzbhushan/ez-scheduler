@@ -4,16 +4,11 @@ import logging
 import re
 from datetime import date
 
-import pytest
-from sqlmodel import Session, select
-
-from ez_scheduler.models.signup_form import SignupForm
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def test_gpt_create_form_success(test_db_session: Session, authenticated_client):
+def test_gpt_create_form_success(authenticated_client, signup_service):
     """Test GPT create form endpoint with complete information"""
     client, user = authenticated_client
 
@@ -50,10 +45,8 @@ def test_gpt_create_form_success(test_db_session: Session, authenticated_client)
         assert url_match, f"Could not find form URL pattern in response: {result_str}"
         url_slug = url_match.group(1)
 
-        # Query database to verify form was created
-        statement = select(SignupForm).where(SignupForm.url_slug == url_slug)
-        db_result = test_db_session.exec(statement)
-        created_form = db_result.first()
+        # Query database via service to verify form was created
+        created_form = signup_service.get_form_by_url_slug(url_slug)
 
         # Verify form was created in database with correct details
         assert (
