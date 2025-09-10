@@ -30,7 +30,10 @@ logger = logging.getLogger(__name__)
 
 @router.get("/form/{url_slug}")
 async def serve_registration_form(
-    request: Request, url_slug: str, db: Session = Depends(get_db)
+    request: Request,
+    url_slug: str,
+    db: Session = Depends(get_db),
+    theme: str | None = None,
 ):
     """Serve registration form HTML for a given URL slug"""
 
@@ -54,9 +57,17 @@ async def serve_registration_form(
     # Generate Google Maps URL for the location
     google_maps_url = generate_google_maps_url(form.location)
 
+    # Resolve theme: query param overrides env default
+    resolved_theme = theme or config.get("default_form_theme")
+    template_name = (
+        "themes/golu_form.html"
+        if resolved_theme and resolved_theme.lower() == "golu"
+        else "form.html"
+    )
+
     return templates.TemplateResponse(
         request,
-        "form.html",
+        template_name,
         {
             "form": form,
             "url_slug": url_slug,

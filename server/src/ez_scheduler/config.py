@@ -24,4 +24,6 @@ config = {
     "mailgun_api_key": os.getenv("MAILGUN_API_KEY"),
     "mailgun_domain": os.getenv("MAILGUN_DOMAIN"),
     "sender_email": os.getenv("SENDER_EMAIL"),
+    # Optional UI theme selection for public forms. Example: "golu"
+    "default_form_theme": os.getenv("DEFAULT_FORM_THEME"),
 }
