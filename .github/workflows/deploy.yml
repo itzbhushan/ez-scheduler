@@ -74,8 +74,8 @@ jobs:
   deploy-production:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Only deploy to production when code is pushed to main branch. TODO: fix this later.
-    if: github.event_name == 'pull_request'
+    # Only deploy to production when code is pushed to main branch
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
     - uses: actions/checkout@v4
