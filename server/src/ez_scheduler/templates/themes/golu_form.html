@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ form.title }} - RSVP</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Cormorant+Garamond:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --navy:#0f1e2e;        /* deep background */
+      --gold:#c9a227;        /* metallic gold */
+      --cream:#efe1bf;       /* card background */
+      --ink:#1a1a1a;         /* text on cream */
+    }
+    body{background:var(--navy); min-height:100vh;}
+    .frame{
+      position:relative; border-radius:18px; padding:24px; color:#f6e9c9;
+      /* dotted star field */
+      background:
+        radial-gradient(circle at 20% 10%, rgba(201,162,39,0.25) 0 2px, transparent 3px) 0 0/120px 120px,
+        radial-gradient(circle at 80% 40%, rgba(201,162,39,0.2) 0 2px, transparent 3px) 0 0/160px 160px,
+        var(--navy);
+    }
+    .frame:before, .frame:after{
+      content:""; position:absolute; inset:10px; border-radius:12px; pointer-events:none;
+    }
+    .frame:before{ /* thick border */
+      border:2px solid var(--gold);
+    }
+    .frame:after{ /* lattice border using gradient masks */
+      padding:10px; inset:22px; border-radius:10px; border:2px solid var(--gold);
+      box-shadow:0 0 0 9999px rgba(0,0,0,0) inset;
+    }
+    .hero-title{font-family:'Cinzel', serif; letter-spacing:.04em; text-transform:uppercase; color:var(--gold);}
+    .hero-big{font-family:'Cinzel', serif; font-weight:800; color:#f2e6c9;}
+    .hero-sub{font-family:'Cormorant Garamond', serif; color:var(--gold); letter-spacing:.08em; text-transform:uppercase;}
+    .card{background:var(--cream); color:var(--ink); border-radius:18px; box-shadow:0 8px 24px rgba(0,0,0,.35);}
+    .input{border:2px solid #8d7f63; border-radius:12px; padding:.7rem .9rem; background:#fff;}
+    .btn-gold{background:var(--gold); color:#0f1e2e; border-radius:12px; padding:.9rem 1.25rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase;}
+    .btn-gold:hover{filter:brightness(1.05);}
+    .peacock{position:absolute; right:26px; top:26px; width:96px; height:96px; opacity:.95;}
+    @media (min-width:640px){.peacock{right:42px; top:40px; width:120px; height:120px;}}
+    .about-card{background:rgba(239,225,191,0.08); border:1px solid rgba(201,162,39,.35); color:#f2e6c9; border-radius:14px;}
+    .about-title{font-family:'Cormorant Garamond', serif; color:var(--gold); letter-spacing:.08em; text-transform:uppercase;}
+  </style>
+</head>
+<body>
+  <div class="max-w-3xl mx-auto py-8 px-4">
+    <div class="frame rounded-2xl">
+      <!-- Decorative peacock feather (inline SVG keeps us asset-free) -->
+      <svg class="peacock" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M15 100 C 40 60, 80 40, 105 20" stroke="var(--gold)" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <path d="M90 28 c8 -6 18 -3 20 6 c2 9 -7 17 -16 16 c-8 -1 -13 -11 -4 -22z" stroke="var(--gold)" stroke-width="3" fill="none"/>
+        <circle cx="97" cy="36" r="6" fill="var(--gold)"/>
+      </svg>
+
+      <!-- Heading area -->
+      <div class="text-center pt-8 pb-4">
+        <div class="hero-title text-sm sm:text-base">{{ form.title | upper }}</div>
+        <div class="hero-big text-4xl sm:text-6xl mt-3">RSVP</div>
+        <div class="hero-sub text-sm sm:text-base mt-2">
+          {{ formatted_date }}
+          {% if formatted_start_time or formatted_end_time %}
+            • {% if formatted_start_time and formatted_end_time %}{{ formatted_start_time }}–{{ formatted_end_time }}{% elif formatted_start_time %}{{ formatted_start_time }}{% else %}{{ formatted_end_time }}{% endif %}
+          {% endif %}
+          {% if google_maps_url %}
+            • <a class="underline" target="_blank" rel="noopener" href="{{ google_maps_url|safe }}">{{ form.location }}</a>
+          {% else %}
+            • {{ form.location }}
+          {% endif %}
+        </div>
+      </div>
+
+      {% if form.description %}
+      <!-- About This Event -->
+      <div class="about-card mx-2 sm:mx-8 mt-2 sm:mt-4 p-5 sm:p-6">
+        <div class="about-title text-sm mb-2">About This Event</div>
+        <p class="leading-relaxed text-sm sm:text-base opacity-95">{{ form.description }}</p>
+      </div>
+      {% endif %}
+
+      <!-- Form card -->
+      <div class="card p-6 sm:p-8 mx-2 sm:mx-8 my-6" x-data="submitForm()">
+        <h2 class="text-xl font-semibold mb-4">RSVP For Golu</h2>
+
+        <form @submit.prevent="submitForm" x-show="!submitted" class="space-y-6">
+          <!-- Name -->
+          <div>
+            <label for="name" class="block text-sm font-medium mb-2">Full Name *</label>
+            <input type="text" id="name" name="name" required class="input w-full" placeholder="Enter your full name">
+          </div>
+
+          <!-- Contact group -->
+          <div>
+            <p class="block text-sm font-medium mb-2">Contact Information * <span class="text-neutral-600 font-normal">(email or phone)</span></p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label for="email" class="block text-sm mb-2">Email</label>
+                <input type="email" id="email" name="email" class="input w-full" placeholder="you@example.com">
+              </div>
+              <div>
+                <label for="phone" class="block text-sm mb-2">Phone</label>
+                <input type="tel" id="phone" name="phone" class="input w-full" placeholder="(555) 555-5555">
+              </div>
+            </div>
+          </div>
+
+          <!-- Custom fields (reusing existing logic) -->
+          {% if custom_fields and custom_fields|length > 0 %}
+            {% for field in custom_fields %}
+              <div>
+                {% if field.field_type != 'checkbox' %}
+                  <label for="{{ field.field_name }}" class="block text-sm font-medium mb-2">
+                    {{ field.label }}{% if field.is_required %} *{% endif %}
+                  </label>
+                {% endif %}
+
+                {% if field.field_type == 'text' %}
+                  <input type="text" id="{{ field.field_name }}" name="{{ field.field_name }}" {% if field.is_required %}required{% endif %} class="input w-full" {% if field.placeholder %}placeholder="{{ field.placeholder|e }}"{% endif %}>
+                {% elif field.field_type == 'number' %}
+                  <input type="number" id="{{ field.field_name }}" name="{{ field.field_name }}" {% if field.is_required %}required{% endif %} class="input w-full" {% if field.placeholder %}placeholder="{{ field.placeholder|e }}"{% endif %} min="0">
+                {% elif field.field_type == 'select' %}
+                  <select id="{{ field.field_name }}" name="{{ field.field_name }}" {% if field.is_required %}required{% endif %} class="input w-full">
+                    <option value="">Select an option</option>
+                    {% for option in field.options %}
+                      <option value="{{ option|e }}">{{ option }}</option>
+                    {% endfor %}
+                  </select>
+                {% elif field.field_type == 'checkbox' %}
+                  <div class="flex items-center">
+                    <input type="checkbox" id="{{ field.field_name }}" name="{{ field.field_name }}" value="true" class="w-4 h-4 mr-2 border-2 border-[#8d7f63] rounded">
+                    <label for="{{ field.field_name }}" class="text-sm">{{ field.label }}{% if field.is_required %} *{% endif %}</label>
+                  </div>
+                {% endif %}
+              </div>
+            {% endfor %}
+          {% endif %}
+
+          <!-- Error -->
+          <div x-show="error" class="bg-red-50 border border-red-200 rounded-md p-3 text-sm" x-text="error"></div>
+
+          <!-- Submit -->
+          <div class="pt-2">
+            <button type="submit" :disabled="submitting" class="btn-gold w-full">
+              <span x-show="!submitting">RSVP For Golu</span>
+              <span x-show="submitting">Submitting...</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- Success -->
+        <div x-show="submitted" class="text-center">
+          <div class="bg-green-50 border border-green-200 rounded-md p-6">
+            <h3 class="text-lg font-semibold text-green-800 mb-2" x-text="confirmationMessage || 'Registration Successful!'"></h3>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-center text-[#d6c79e] text-xs pb-6">Powered by EZ Scheduler</div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script>
+    function submitForm() {
+      return {
+        submitting: false,
+        submitted: false,
+        error: null,
+        confirmationMessage: null,
+        async submitForm(){
+          this.submitting = true; this.error = null;
+          const formData = new FormData(this.$el);
+          const email = formData.get('email');
+          const phone = formData.get('phone');
+          if (!email && !phone){
+            this.error = 'Please provide either an email address or phone number.';
+            this.submitting = false; return;
+          }
+          try{
+            const response = await fetch(`/form/{{ url_slug }}`, { method:'POST', body: formData });
+            const result = await response.json();
+            if (response.ok && result.success){ this.confirmationMessage = result.message; this.submitted = true; }
+            else { this.error = result.detail || 'An error occurred while submitting the form.'; }
+          }catch(e){ this.error = 'Network error. Please try again.'; }
+          finally{ this.submitting = false; }
+        }
+      }
+    }
+  </script>
+</body>
+</html>
