@@ -10,6 +10,7 @@ from sqlmodel import Session
 from ez_scheduler.backends.email_client import EmailClient
 from ez_scheduler.config import config
 from ez_scheduler.models.database import get_db
+from ez_scheduler.models.enums import FieldType
 from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.registration_service import RegistrationService
@@ -116,19 +117,34 @@ async def submit_registration_form(
         field_value = form_data.get(field.field_name)
 
         # Handle different field types
-        if field.field_type == "checkbox":
+        if field.field_type == FieldType.CHECKBOX:
             # Checkbox fields send 'true' when checked, None when unchecked
             field_value = field_value == "true" if field_value is not None else False
         elif field_value is not None:
             field_value = str(field_value).strip()
 
+        # Validate field type-specific constraints
+        if field_value is not None and field_value != "":
+            if field.field_type == FieldType.NUMBER:
+                try:
+                    float(field_value)
+                except ValueError:
+                    raise HTTPException(
+                        status_code=400, detail=f"{field.label} must be a valid number"
+                    )
+            elif field.field_type == FieldType.SELECT and field.options:
+                if field_value not in field.options:
+                    raise HTTPException(
+                        status_code=400, detail=f"Invalid option for {field.label}"
+                    )
+
         # Validate required fields
         if field.is_required:
-            if field.field_type == "checkbox" and not field_value:
+            if field.field_type == FieldType.CHECKBOX and not field_value:
                 raise HTTPException(
                     status_code=400, detail=f"{field.label} is required"
                 )
-            elif field.field_type != "checkbox" and (
+            elif field.field_type != FieldType.CHECKBOX and (
                 not field_value or field_value == ""
             ):
                 raise HTTPException(
@@ -137,7 +153,7 @@ async def submit_registration_form(
 
         # Store field data if provided
         if field_value is not None and (
-            field.field_type == "checkbox" or field_value != ""
+            field.field_type == FieldType.CHECKBOX or field_value != ""
         ):
             additional_data[field.field_name] = field_value
 

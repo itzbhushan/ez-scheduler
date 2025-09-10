@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from ez_scheduler.auth.dependencies import User
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.config import config
+from ez_scheduler.models.enums import FieldType
 from ez_scheduler.models.signup_form import SignupForm
 from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.signup_form_service import SignupFormService
@@ -26,8 +27,8 @@ class CustomFieldSchema(BaseModel):
     field_name: str = Field(
         ..., description="Internal field name (e.g., 'guest_count')"
     )
-    field_type: str = Field(
-        ..., description="Field type: 'text', 'number', 'select', 'checkbox'"
+    field_type: FieldType = Field(
+        ..., description="Field type: text, number, select, or checkbox"
     )
     label: str = Field(..., description="Display label for the field")
     placeholder: Optional[str] = Field(None, description="Placeholder text for input")
