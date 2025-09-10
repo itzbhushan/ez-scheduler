@@ -257,8 +257,7 @@ All generated forms must include:
 - Event date (required)
 - Event location (required)
 - User name field (required)
-- User email field (required)
-- User phone number field (required)
+- Atleast user email or user phone number field
 
 ## Analytics Capabilities
 
