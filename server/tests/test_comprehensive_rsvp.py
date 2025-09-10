@@ -81,7 +81,6 @@ async def test_comprehensive_rsvp_workflow(
         f"/form/{wedding_form.url_slug}",
         data={
             "name": "John Attending",
-            "email": "john@example.com",
             "phone": "555-1111",
             "rsvp_response": "yes",
         },
@@ -94,7 +93,6 @@ async def test_comprehensive_rsvp_workflow(
         f"/form/{wedding_form.url_slug}",
         data={
             "name": "Jane NotComing",
-            "email": "jane@example.com",
             "phone": "555-2222",
             "rsvp_response": "no",
         },
@@ -105,7 +103,7 @@ async def test_comprehensive_rsvp_workflow(
     # Regular registration to conference
     register_response = client_instance.post(
         f"/form/{conference_form.url_slug}",
-        data={"name": "Bob Techie", "email": "bob@example.com", "phone": "555-3333"},
+        data={"name": "Bob Techie", "phone": "555-3333"},
     )
     assert register_response.status_code == 200
     assert register_response.json()["success"] is True

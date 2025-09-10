@@ -27,7 +27,7 @@ async def test_custom_fields_wedding_workflow(
             "create_form",
             {
                 "user_id": test_user_id,
-                "initial_request": "Create a signup form for Sarah's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown.",
+                "initial_request": "Create a signup form for Sarah and Michael's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown.",
             },
         )
 
@@ -53,7 +53,7 @@ async def test_custom_fields_wedding_workflow(
             "create_form",
             {
                 "user_id": test_user_id,
-                "initial_request": "Create a signup form for Sarah's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown. Yes, I need to know how many guests they're bringing and their meal preferences. Meal options are Chicken, Beef, Vegetarian, and Vegan. No other information is needed.",
+                "initial_request": "Create a signup form for Sarah and Michael's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown. Yes, I need to know how many guests they're bringing and their meal preferences. Meal options are Chicken, Beef, Vegetarian, and Vegan. No other information is needed.",
             },
         )
 
