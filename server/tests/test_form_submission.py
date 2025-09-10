@@ -84,30 +84,30 @@ class TestFormSubmission:
         assert "Form not found or inactive" in result["detail"]
 
     @pytest.mark.asyncio
-    async def test_form_submission_missing_fields(
+    async def test_form_submission_email_only(
         self, signup_service, authenticated_client
     ):
-        """Test form submission with missing required fields returns 400"""
+        """Test form submission with email only (no phone) succeeds"""
         client, test_user = authenticated_client
 
         test_form = SignupForm(
             id=uuid.uuid4(),
             user_id=test_user.user_id,
-            title="Test Event Missing Fields",
+            title="Test Event Email Only",
             event_date=date(2024, 12, 25),
             location="Test Location",
-            description="A test event for testing missing fields",
-            url_slug="test-missing-fields-456",
+            description="A test event for testing email-only submission",
+            url_slug="test-email-only-456",
             is_active=True,
         )
 
         signup_service.create_signup_form(test_form)
 
-        # Test form submission with missing email field
+        # Test form submission with email only
         form_data = {
             "name": "John Doe",
-            "phone": "555-1234",
-            # Missing email field
+            "email": "john.doe@example.com",
+            # No phone field
         }
 
         response = client.post(
@@ -115,4 +115,77 @@ class TestFormSubmission:
             data=form_data,
         )
 
-        assert response.status_code == 400  # Unprocessable Entity for validation error
+        assert response.status_code == 200
+        result = response.json()
+        assert result["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_form_submission_phone_only(
+        self, signup_service, authenticated_client
+    ):
+        """Test form submission with phone only (no email) succeeds"""
+        client, test_user = authenticated_client
+
+        test_form = SignupForm(
+            id=uuid.uuid4(),
+            user_id=test_user.user_id,
+            title="Test Event Phone Only",
+            event_date=date(2024, 12, 25),
+            location="Test Location",
+            description="A test event for testing phone-only submission",
+            url_slug="test-phone-only-789",
+            is_active=True,
+        )
+
+        signup_service.create_signup_form(test_form)
+
+        # Test form submission with phone only
+        form_data = {
+            "name": "Jane Smith",
+            "phone": "555-9876",
+            # No email field
+        }
+
+        response = client.post(
+            f"/form/{test_form.url_slug}",
+            data=form_data,
+        )
+
+        assert response.status_code == 200
+        result = response.json()
+        assert result["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_form_submission_missing_both_contact_fields(
+        self, signup_service, authenticated_client
+    ):
+        """Test form submission with missing both email and phone returns 400"""
+        client, test_user = authenticated_client
+
+        test_form = SignupForm(
+            id=uuid.uuid4(),
+            user_id=test_user.user_id,
+            title="Test Event Missing Contact",
+            event_date=date(2024, 12, 25),
+            location="Test Location",
+            description="A test event for testing missing contact fields",
+            url_slug="test-missing-contact-999",
+            is_active=True,
+        )
+
+        signup_service.create_signup_form(test_form)
+
+        # Test form submission with missing both email and phone
+        form_data = {
+            "name": "John Doe",
+            # Missing both email and phone
+        }
+
+        response = client.post(
+            f"/form/{test_form.url_slug}",
+            data=form_data,
+        )
+
+        assert response.status_code == 400
+        result = response.json()
+        assert "email address or phone number" in result["detail"]

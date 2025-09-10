@@ -103,10 +103,13 @@ async def submit_registration_form(
     # Validate required standard fields
     if not name:
         raise HTTPException(status_code=400, detail="Name is required")
-    if not email:
-        raise HTTPException(status_code=400, detail="Email is required")
-    if not phone:
-        raise HTTPException(status_code=400, detail="Phone is required")
+
+    # Validate that at least one contact method is provided
+    if not email and not phone:
+        raise HTTPException(
+            status_code=400,
+            detail="Please provide either an email address or phone number.",
+        )
 
     # Get custom fields for validation and processing
     custom_fields = form_field_service.get_fields_by_form_id(form.id)
@@ -179,22 +182,27 @@ async def submit_registration_form(
         )
 
         email_sent = False
-        # Send confirmation email
-        try:
-            rsp = await email_client.send_email(
-                to=registration.email, text=confirmation_message
-            )
-            logger.info(f"Email sent successfully: {rsp}")
-            email_sent = True
-        except RuntimeError as email_error:
-            # Log email failure but don't fail registration
-            logger.error(
-                f"Failed to send confirmation email to {registration.email}: {email_error}"
-            )
-            # Registration was successful, just email failed
-        except ValueError as email_error:
-            # Email validation failed
-            logger.error(f"Invalid email address {registration.email}: {email_error}")
+        # Send confirmation email only if email was provided
+        if email:
+            try:
+                rsp = await email_client.send_email(
+                    to=registration.email, text=confirmation_message
+                )
+                logger.info(f"Email sent successfully: {rsp}")
+                email_sent = True
+            except RuntimeError as email_error:
+                # Log email failure but don't fail registration
+                logger.error(
+                    f"Failed to send confirmation email to {registration.email}: {email_error}"
+                )
+                # Registration was successful, just email failed
+            except ValueError as email_error:
+                # Email validation failed
+                logger.error(
+                    f"Invalid email address {registration.email}: {email_error}"
+                )
+        else:
+            logger.info("No email provided, skipping email confirmation")
 
         # Return JSON success response
         return {
