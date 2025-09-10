@@ -89,7 +89,9 @@ class RegistrationService:
         stmt = select(Registration).where(Registration.form_id == form_id)
         return len(list(self.db.exec(stmt).all()))
 
-    async def generate_confirmation_message(self, form, registrant_name: str) -> str:
+    async def generate_confirmation_message(
+        self, form, registrant_name: str, rsvp_response: str = None
+    ) -> str:
         """Generate a personalized confirmation message using LLM"""
         try:
 
@@ -103,6 +105,7 @@ Location: {form.location}
 Description: {form.description if form.description else 'No description provided'}
 
 Registrant: {registrant_name}
+RSVP Response: {rsvp_response if rsvp_response else 'attending'}
 
 Generate just the confirmation message, nothing else."""
 

@@ -201,7 +201,7 @@ async def submit_registration_form(
 
         # Generate personalized confirmation message using LLM
         confirmation_message = await registration_service.generate_confirmation_message(
-            form, name.strip()
+            form, name.strip(), rsvp_response
         )
 
         email_sent = False
