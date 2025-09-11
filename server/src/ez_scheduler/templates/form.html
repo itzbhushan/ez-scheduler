@@ -64,7 +64,7 @@
             <h2 class="text-xl font-semibold text-gray-900 mb-6">Sign Up</h2>
 
             <form
-                @submit.prevent="submitForm"
+                @submit.prevent="submitForm($event)"
                 x-show="!submitted"
                 class="space-y-6"
             >
@@ -271,12 +271,18 @@
                 error: null,
                 confirmationMessage: null,
 
-                async submitForm() {
+                async submitForm(event) {
                     this.submitting = true;
                     this.error = null;
 
                     // Validate that at least one contact method is provided
                     const formData = new FormData(this.$el);
+                    
+                    // Add the button value that was clicked (for RSVP forms)
+                    if (event.submitter && event.submitter.name === 'rsvp_response') {
+                        formData.set('rsvp_response', event.submitter.value);
+                    }
+                    
                     const email = formData.get('email');
                     const phone = formData.get('phone');
 

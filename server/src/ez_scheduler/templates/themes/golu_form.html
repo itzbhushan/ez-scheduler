@@ -79,7 +79,7 @@
       <div class="card p-6 sm:p-8 mx-2 sm:mx-8 my-6" x-data="submitForm()">
         <h2 class="text-xl font-semibold mb-4">RSVP For Golu</h2>
 
-        <form @submit.prevent="submitForm" x-show="!submitted" class="space-y-6">
+        <form @submit.prevent="submitForm($event)" x-show="!submitted" class="space-y-6">
           <!-- Name -->
           <div>
             <label for="name" class="block text-sm font-medium mb-2">Full Name *</label>
@@ -179,9 +179,15 @@
         submitted: false,
         error: null,
         confirmationMessage: null,
-        async submitForm(){
+        async submitForm(event){
           this.submitting = true; this.error = null;
           const formData = new FormData(this.$el);
+          
+          // Add the button value that was clicked (for RSVP forms)
+          if (event.submitter && event.submitter.name === 'rsvp_response') {
+            formData.set('rsvp_response', event.submitter.value);
+          }
+          
           const email = formData.get('email');
           const phone = formData.get('phone');
           if (!email && !phone){
