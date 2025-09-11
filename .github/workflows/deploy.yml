@@ -93,7 +93,7 @@ jobs:
       run: |
         echo "Waiting for production deployment to be ready..."
         # Note: Replace with actual production URL when available
-        PROD_URL="https://ez-scheduler-production.up.railway.app"
+        PROD_URL="https://signuppro.ai"
         for i in {1..10}; do
           echo "Attempt $i/10: Checking health endpoint..."
           if curl -f -s "$PROD_URL/health"; then
