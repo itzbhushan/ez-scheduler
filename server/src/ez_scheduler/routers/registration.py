@@ -187,6 +187,10 @@ async def submit_registration_form(
         if rsvp_response == "no":
             additional_data["guest_count"] = "0"
 
+        if rsvp_response == "yes":
+            if "guest_count" not in additional_data:
+                additional_data["guest_count"] = "1"
+
     try:
         logger.info(
             f"Creating registration with form_id={form.id}, name='{name}', email='{email}', phone='{phone}', additional_data={additional_data}"

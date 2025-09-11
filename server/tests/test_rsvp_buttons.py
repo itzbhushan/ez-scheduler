@@ -249,3 +249,20 @@ async def test_rsvp_analytics_query(
     assert (
         "5" in analytics_text or "five" in analytics_text
     ), f"Expected '5' (total people attending) in analytics text: {analytics_text}"
+
+    # Test 2: Query how many people responded to the invitation (should include all responses)
+    async with Client(mcp_client) as mcp:
+        response_query = await mcp.call_tool(
+            "get_form_analytics",
+            {
+                "user_id": test_user.user_id,
+                "analytics_query": "How many people responded to my Analytics Test Wedding invitation?",
+            },
+        )
+
+    response_text = response_query.content[0].text.lower()
+
+    # Should count all 3 registrations (2 yes + 1 no = 3 total responses)
+    assert (
+        "3" in response_text or "three" in response_text
+    ), f"Expected '3' (total responses) in analytics text: {response_text}"
