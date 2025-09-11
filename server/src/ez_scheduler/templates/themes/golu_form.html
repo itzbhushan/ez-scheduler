@@ -141,19 +141,19 @@
               <!-- RSVP Yes/No Buttons -->
               <div class="grid grid-cols-2 gap-4">
                 <button type="submit" name="rsvp_response" value="yes" :disabled="submitting" class="btn-gold">
-                  <span x-show="!submitting">{{ form.primary_button_text }}</span>
-                  <span x-show="submitting">Submitting...</span>
+                  <span x-show="submittingButton !== 'yes'">{{ form.primary_button_text }}</span>
+                  <span x-show="submittingButton === 'yes'">Submitting...</span>
                 </button>
                 <button type="submit" name="rsvp_response" value="no" :disabled="submitting" class="bg-gray-600 text-white border-0 rounded-xl py-4 px-5 font-bold tracking-wider uppercase hover:bg-gray-700">
-                  <span x-show="!submitting">{{ form.secondary_button_text }}</span>
-                  <span x-show="submitting">Submitting...</span>
+                  <span x-show="submittingButton !== 'no'">{{ form.secondary_button_text }}</span>
+                  <span x-show="submittingButton === 'no'">Submitting...</span>
                 </button>
               </div>
             {% else %}
               <!-- Single Submit Button -->
               <button type="submit" :disabled="submitting" class="btn-gold w-full">
-                <span x-show="!submitting">{{ form.primary_button_text }}</span>
-                <span x-show="submitting">Submitting...</span>
+                <span x-show="submittingButton !== 'single'">{{ form.primary_button_text }}</span>
+                <span x-show="submittingButton === 'single'">Submitting...</span>
               </button>
             {% endif %}
           </div>
@@ -179,15 +179,24 @@
         submitted: false,
         error: null,
         confirmationMessage: null,
+        submittingButton: null, // Track which button is submitting
         async submitForm(event){
           this.submitting = true; this.error = null;
+
+          // Track which button is submitting
+          if (event.submitter && event.submitter.name === 'rsvp_response') {
+            this.submittingButton = event.submitter.value;
+          } else {
+            this.submittingButton = 'single';
+          }
+
           const formData = new FormData(this.$el);
-          
+
           // Add the button value that was clicked (for RSVP forms)
           if (event.submitter && event.submitter.name === 'rsvp_response') {
             formData.set('rsvp_response', event.submitter.value);
           }
-          
+
           const email = formData.get('email');
           const phone = formData.get('phone');
           if (!email && !phone){
@@ -200,7 +209,7 @@
             if (response.ok && result.success){ this.confirmationMessage = result.message; this.submitted = true; }
             else { this.error = result.detail || 'An error occurred while submitting the form.'; }
           }catch(e){ this.error = 'Network error. Please try again.'; }
-          finally{ this.submitting = false; }
+          finally{ this.submitting = false; this.submittingButton = null; }
         }
       }
     }
