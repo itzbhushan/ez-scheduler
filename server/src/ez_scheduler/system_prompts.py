@@ -105,7 +105,9 @@ HOST INFORMATION COLLECTION:
 - For professional events: Focus on the event purpose and organization rather than individual hosts
 
 PROACTIVE CUSTOM FIELD SUGGESTIONS:
-- For events that commonly need custom fields (weddings, conferences, parties), ASK about additional fields before creating the form
+- FIRST check if user has explicitly stated they don't want additional fields (phrases like "no other fields", "no additional fields", "keep it simple", "just basic info", "only name/email/phone")
+- If user explicitly states no additional fields are needed, RESPECT this instruction and proceed with form creation
+- For events that commonly need custom fields (weddings, conferences, parties), ASK about additional fields ONLY if user hasn't already specified their preference
 - Ask: "Since this is a [event type], would you like to collect [relevant suggestions]?"
 - NEVER automatically add custom fields without user confirmation
 - Only create the form after user confirms what custom fields they want (or explicitly says they don't want any)
@@ -445,9 +447,9 @@ Response: {{
 
 Request: "How many total guests are coming to my wedding?"
 Response: {{
-    "sql_query": "SELECT sf.title, COUNT(r.id) as registration_count, COALESCE(SUM((r.additional_data->>'guest_count')::integer), 0) + COUNT(r.id) as total_guests FROM signup_forms sf LEFT JOIN registrations r ON sf.id = r.form_id WHERE sf.user_id = :user_id AND sf.title ILIKE '%wedding%' GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
+    "sql_query": "SELECT sf.title, COUNT(r.id) as registration_count, COALESCE(SUM((r.additional_data->>'guest_count')::integer), COUNT(r.id)) as total_guests FROM signup_forms sf LEFT JOIN registrations r ON sf.id = r.form_id WHERE sf.user_id = :user_id AND sf.title ILIKE '%wedding%' GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
     "parameters": {{"user_id": "current_user"}},
-    "explanation": "Counts total guests (registrations plus additional guests) for wedding events"
+    "explanation": "Counts total guests for wedding using guest_count as total people (including registrant)"
 }}
 
 Request: "Show meal preferences for my wedding reception"
@@ -469,6 +471,41 @@ Response: {{
     "sql_query": "SELECT sf.title, COUNT(CASE WHEN r.additional_data->>'rsvp_response' = 'yes' THEN 1 END) as yes_count, COUNT(CASE WHEN r.additional_data->>'rsvp_response' = 'no' THEN 1 END) as no_count FROM signup_forms sf LEFT JOIN registrations r ON sf.id = r.form_id WHERE sf.user_id = :user_id AND sf.title ILIKE '%wedding%' GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
     "parameters": {{"user_id": "current_user"}},
     "explanation": "Shows RSVP yes/no breakdown for wedding events"
+}}
+
+ATTENDANCE QUERIES - CRITICAL PATTERN:
+When users ask about TOTAL ATTENDANCE, PEOPLE COMING, or ATTENDEES (not just registrations), ALWAYS use guest_count as total people using this pattern:
+COALESCE(SUM((r.additional_data->>'guest_count')::integer), COUNT(r.id)) as total_attendance
+
+IMPORTANT: guest_count represents TOTAL people (including the registrant), NOT additional guests.
+If no guest_count is provided, fallback to counting registrations.
+
+ATTENDANCE KEYWORDS that require guest count inclusion:
+- "how many people are coming/attending/will be there"
+- "total attendance/attendees/people"
+- "how many are coming/attending"
+- "what's the attendance"
+- "total guests/people attending"
+
+Request: "How many people are coming to my birthday party?"
+Response: {{
+    "sql_query": "SELECT sf.title, COUNT(r.id) as registration_count, COALESCE(SUM((r.additional_data->>'guest_count')::integer), COUNT(r.id)) as total_attendance FROM signup_forms sf LEFT JOIN registrations r ON sf.id = r.form_id WHERE sf.user_id = :user_id AND sf.title ILIKE '%birthday%' AND sf.title ILIKE '%party%' AND (r.additional_data->>'rsvp_response' = 'yes' OR r.additional_data->>'rsvp_response' IS NULL) GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
+    "parameters": {{"user_id": "current_user"}},
+    "explanation": "Counts total people attending for birthday party using guest_count as total people (including registrant), only including yes RSVPs or non-RSVP forms"
+}}
+
+Request: "What's the total attendance for my conference?"
+Response: {{
+    "sql_query": "SELECT sf.title, COUNT(r.id) as registration_count, COALESCE(SUM((r.additional_data->>'guest_count')::integer), COUNT(r.id)) as total_attendance FROM signup_forms sf LEFT JOIN registrations r ON sf.id = r.form_id WHERE sf.user_id = :user_id AND sf.title ILIKE '%conference%' AND (r.additional_data->>'rsvp_response' = 'yes' OR r.additional_data->>'rsvp_response' IS NULL) GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
+    "parameters": {{"user_id": "current_user"}},
+    "explanation": "Counts total attendees for conference using guest_count as total people (including registrant), only including yes RSVPs or non-RSVP forms"
+}}
+
+Request: "How many attendees do I have for the workshop?"
+Response: {{
+    "sql_query": "SELECT sf.title, COUNT(r.id) as registration_count, COALESCE(SUM((r.additional_data->>'guest_count')::integer), COUNT(r.id)) as total_attendance FROM signup_forms sf LEFT JOIN registrations r ON sf.id = r.form_id WHERE sf.user_id = :user_id AND sf.title ILIKE '%workshop%' AND (r.additional_data->>'rsvp_response' = 'yes' OR r.additional_data->>'rsvp_response' IS NULL) GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
+    "parameters": {{"user_id": "current_user"}},
+    "explanation": "Counts total people attending workshop using guest_count as total people (including registrant), only including yes RSVPs or non-RSVP forms"
 }}"""
 
 # Analytics response formatting system prompt
