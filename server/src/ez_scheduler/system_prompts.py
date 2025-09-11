@@ -7,8 +7,10 @@ RESPONSE FORMAT:
 You must respond with a valid JSON object containing exactly two keys:
 {
   "subject": "email subject line",
-  "body": "email body content"
+  "body": "email body content with \\n for line breaks"
 }
+
+CRITICAL: In the JSON, use \\n for line breaks instead of actual newlines to ensure valid JSON format.
 
 EMAIL SCENARIOS:
 

@@ -79,10 +79,18 @@ Generate appropriate email subject and body for this scenario."""
                 messages=messages, system=EMAIL_GENERATION_PROMPT, max_tokens=300
             )
 
+            # Debug: Log response length for monitoring
+            logger.debug(f"LLM response length: {len(response)}")
+
             # Parse the LLM response as JSON
             email_content = self._parse_json_response(response)
 
-            logger.info(f"Generated {email_type} email for {registration.name}")
+            # If parsing failed completely, use fallback
+            if email_content is None:
+                email_content = self._generate_fallback_email(form, registration)
+                logger.info(f"Using fallback email for {registration.name}")
+            else:
+                logger.info(f"Generated {email_type} email for {registration.name}")
 
             # Send the email
             return await self._send_email(registration.email, email_content)
@@ -107,16 +115,14 @@ Generate appropriate email subject and body for this scenario."""
 
         details.append(f"Location: {form.location}")
 
-        if form.description:
-            details.append(f"Description: {form.description}")
-
         return "\n".join(details)
 
     def _parse_json_response(self, response: str) -> Dict[str, str]:
         """Parse LLM JSON response to extract subject and body"""
         try:
-            # Try to parse as JSON
-            email_data = json.loads(response.strip())
+            # Try to parse as JSON - first clean up potential newline issues
+            cleaned_response = response.strip()
+            email_data = json.loads(cleaned_response)
 
             # Validate required keys
             if "subject" not in email_data or "body" not in email_data:
@@ -128,18 +134,8 @@ Generate appropriate email subject and body for this scenario."""
             }
 
         except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Failed to parse LLM JSON response: {e}")
-            # Fallback parsing for malformed responses
-            lines = response.strip().split("\n")
-            if len(lines) >= 2:
-                return {
-                    "subject": lines[0].strip(),
-                    "body": "\n".join(lines[1:]).strip(),
-                }
-            return {
-                "subject": "Registration Confirmation",
-                "body": "Thank you for your registration!",
-            }
+            logger.warning(f"JSON parse failed: {e}. Using fallback email generation.")
+            return None  # This will trigger the fallback email generation
 
     def _generate_fallback_email(
         self, form: SignupForm, registration: Registration
@@ -177,9 +173,6 @@ Event Details:
                 body += f"\n🕐 Time: {time_str}"
 
             body += f"\n📍 Location: {form.location}"
-
-            if form.description:
-                body += f"\n\n{form.description}"
 
             body += "\n\nLooking forward to seeing you there!"
 
