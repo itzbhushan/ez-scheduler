@@ -35,7 +35,7 @@ class EmailClient:
         data = {
             "from": self.sender_email,
             "to": to,
-            "subject": subject or "[SignupPro] Your registration is confirmed!",
+            "subject": subject or "[SignupPro] Thanks for your RSVP!",
             "text": text,
             "o:tag": "registration-confirmation",
         }

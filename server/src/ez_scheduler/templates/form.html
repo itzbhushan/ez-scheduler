@@ -64,7 +64,7 @@
             <h2 class="text-xl font-semibold text-gray-900 mb-6">Sign Up</h2>
 
             <form
-                @submit.prevent="submitForm"
+                @submit.prevent="submitForm($event)"
                 x-show="!submitted"
                 class="space-y-6"
             >
@@ -198,8 +198,8 @@
                                 :disabled="submitting"
                                 class="flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                <span x-show="!submitting">{{ form.primary_button_text }}</span>
-                                <span x-show="submitting" class="flex items-center">
+                                <span x-show="submittingButton !== 'yes'">{{ form.primary_button_text }}</span>
+                                <span x-show="submittingButton === 'yes'" class="flex items-center">
                                     <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -214,8 +214,8 @@
                                 :disabled="submitting"
                                 class="flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                <span x-show="!submitting">{{ form.secondary_button_text }}</span>
-                                <span x-show="submitting" class="flex items-center">
+                                <span x-show="submittingButton !== 'no'">{{ form.secondary_button_text }}</span>
+                                <span x-show="submittingButton === 'no'" class="flex items-center">
                                     <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -231,8 +231,8 @@
                             :disabled="submitting"
                             class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            <span x-show="!submitting">{{ form.primary_button_text }}</span>
-                            <span x-show="submitting" class="flex items-center">
+                            <span x-show="submittingButton !== 'single'">{{ form.primary_button_text }}</span>
+                            <span x-show="submittingButton === 'single'" class="flex items-center">
                                 <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -259,7 +259,7 @@
 
         <!-- Footer -->
         <div class="text-center text-gray-500 text-sm mt-8">
-            <p>Powered by EZ Scheduler</p>
+            <p>Powered by Signup Pro, Built by VB</p>
         </div>
     </div>
 
@@ -270,13 +270,27 @@
                 submitted: false,
                 error: null,
                 confirmationMessage: null,
+                submittingButton: null, // Track which button is submitting
 
-                async submitForm() {
+                async submitForm(event) {
                     this.submitting = true;
                     this.error = null;
 
+                    // Track which button is submitting
+                    if (event.submitter && event.submitter.name === 'rsvp_response') {
+                        this.submittingButton = event.submitter.value;
+                    } else {
+                        this.submittingButton = 'single';
+                    }
+
                     // Validate that at least one contact method is provided
                     const formData = new FormData(this.$el);
+
+                    // Add the button value that was clicked (for RSVP forms)
+                    if (event.submitter && event.submitter.name === 'rsvp_response') {
+                        formData.set('rsvp_response', event.submitter.value);
+                    }
+
                     const email = formData.get('email');
                     const phone = formData.get('phone');
 
@@ -304,6 +318,7 @@
                         this.error = 'Network error. Please try again.';
                     } finally {
                         this.submitting = false;
+                        this.submittingButton = null;
                     }
                 }
             }

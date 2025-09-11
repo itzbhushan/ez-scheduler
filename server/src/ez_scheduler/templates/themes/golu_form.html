@@ -79,7 +79,7 @@
       <div class="card p-6 sm:p-8 mx-2 sm:mx-8 my-6" x-data="submitForm()">
         <h2 class="text-xl font-semibold mb-4">RSVP For Golu</h2>
 
-        <form @submit.prevent="submitForm" x-show="!submitted" class="space-y-6">
+        <form @submit.prevent="submitForm($event)" x-show="!submitted" class="space-y-6">
           <!-- Name -->
           <div>
             <label for="name" class="block text-sm font-medium mb-2">Full Name *</label>
@@ -141,19 +141,19 @@
               <!-- RSVP Yes/No Buttons -->
               <div class="grid grid-cols-2 gap-4">
                 <button type="submit" name="rsvp_response" value="yes" :disabled="submitting" class="btn-gold">
-                  <span x-show="!submitting">{{ form.primary_button_text }}</span>
-                  <span x-show="submitting">Submitting...</span>
+                  <span x-show="submittingButton !== 'yes'">{{ form.primary_button_text }}</span>
+                  <span x-show="submittingButton === 'yes'">Submitting...</span>
                 </button>
                 <button type="submit" name="rsvp_response" value="no" :disabled="submitting" class="bg-gray-600 text-white border-0 rounded-xl py-4 px-5 font-bold tracking-wider uppercase hover:bg-gray-700">
-                  <span x-show="!submitting">{{ form.secondary_button_text }}</span>
-                  <span x-show="submitting">Submitting...</span>
+                  <span x-show="submittingButton !== 'no'">{{ form.secondary_button_text }}</span>
+                  <span x-show="submittingButton === 'no'">Submitting...</span>
                 </button>
               </div>
             {% else %}
               <!-- Single Submit Button -->
               <button type="submit" :disabled="submitting" class="btn-gold w-full">
-                <span x-show="!submitting">{{ form.primary_button_text }}</span>
-                <span x-show="submitting">Submitting...</span>
+                <span x-show="submittingButton !== 'single'">{{ form.primary_button_text }}</span>
+                <span x-show="submittingButton === 'single'">Submitting...</span>
               </button>
             {% endif %}
           </div>
@@ -167,7 +167,7 @@
         </div>
       </div>
 
-      <div class="text-center text-[#d6c79e] text-xs pb-6">Powered by EZ Scheduler</div>
+      <div class="text-center text-[#d6c79e] text-xs pb-6">Powered by Signup Pro, Built by VB</div>
     </div>
   </div>
 
@@ -179,9 +179,24 @@
         submitted: false,
         error: null,
         confirmationMessage: null,
-        async submitForm(){
+        submittingButton: null, // Track which button is submitting
+        async submitForm(event){
           this.submitting = true; this.error = null;
+
+          // Track which button is submitting
+          if (event.submitter && event.submitter.name === 'rsvp_response') {
+            this.submittingButton = event.submitter.value;
+          } else {
+            this.submittingButton = 'single';
+          }
+
           const formData = new FormData(this.$el);
+
+          // Add the button value that was clicked (for RSVP forms)
+          if (event.submitter && event.submitter.name === 'rsvp_response') {
+            formData.set('rsvp_response', event.submitter.value);
+          }
+
           const email = formData.get('email');
           const phone = formData.get('phone');
           if (!email && !phone){
@@ -194,7 +209,7 @@
             if (response.ok && result.success){ this.confirmationMessage = result.message; this.submitted = true; }
             else { this.error = result.detail || 'An error occurred while submitting the form.'; }
           }catch(e){ this.error = 'Network error. Please try again.'; }
-          finally{ this.submitting = false; }
+          finally{ this.submitting = false; this.submittingButton = null; }
         }
       }
     }

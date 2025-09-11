@@ -73,8 +73,9 @@ jobs:
 
   deploy-production:
     runs-on: ubuntu-latest
-    # Only deploy to production when code is merged to main branch
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    timeout-minutes: 10
+    # Only deploy to production when code is pushed to main branch
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
     - uses: actions/checkout@v4
@@ -82,10 +83,27 @@ jobs:
     - name: Install Railway CLI
       run: npm install -g @railway/cli@4.6.3
 
-    - name: Deploy to Railway Production (TEMPORARILY DISABLED)
-      run: echo "Production deployment temporarily disabled. Staging deployment completed successfully."
-      # Uncomment the lines below when ready to enable production deployment:
-      # run: railway up --detach --service ez-scheduler-production
-      # env:
-      #   RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
-      # working-directory: ./server
+    - name: Deploy to Railway Production
+      run: railway up --detach --service ez-scheduler
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
+      working-directory: ./server
+
+    - name: Verify Production Deployment
+      run: |
+        echo "Waiting for production deployment to be ready..."
+        # Note: Replace with actual production URL when available
+        PROD_URL="https://ez-scheduler-production.up.railway.app"
+        for i in {1..10}; do
+          echo "Attempt $i/10: Checking health endpoint..."
+          if curl -f -s "$PROD_URL/health"; then
+            echo "✅ Production deployment is healthy!"
+            exit 0
+          fi
+          if [ $i -lt 10 ]; then
+            echo "⏳ Service not ready yet, waiting 30 seconds..."
+            sleep 30
+          fi
+        done
+        echo "❌ Production deployment failed to become healthy within 300 seconds"
+        exit 1
