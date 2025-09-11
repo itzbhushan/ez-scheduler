@@ -91,7 +91,7 @@ async def test_end_to_end_rsvp_via_mcp(
         "name": "John Doe",
         "phone": "555-1234",
         "rsvp_response": "yes",
-        "guest_count": "2",
+        "guest_count": "5",
         "meal_preference": "Chicken",
     }
 
@@ -104,7 +104,7 @@ async def test_end_to_end_rsvp_via_mcp(
         "name": "Jane Smith",
         "phone": "555-5678",
         "rsvp_response": "no",
-        "guest_count": "1",
+        "guest_count": "0",
         "meal_preference": "Vegetarian",
     }
 
@@ -201,14 +201,14 @@ async def test_rsvp_analytics_query(
     result = signup_service.create_signup_form(form, test_user)
     assert result["success"] is True
 
-    # Create registrations with different RSVP responses
-    # RSVP Yes responses
+    # Create registrations with different RSVP responses and guest counts
+    # RSVP Yes responses with guests
     registration_service.create_registration(
         form_id=form.id,
         name="Yes Person 1",
         email=None,
         phone="555-0001",
-        additional_data={"rsvp_response": "yes"},
+        additional_data={"rsvp_response": "yes", "guest_count": "3"},
     )
 
     registration_service.create_registration(
@@ -216,35 +216,36 @@ async def test_rsvp_analytics_query(
         name="Yes Person 2",
         email=None,
         phone="555-0002",
-        additional_data={"rsvp_response": "yes"},
+        additional_data={"rsvp_response": "yes", "guest_count": "2"},
     )
 
-    # RSVP No response
+    # RSVP No response with guest count (should be reset to 0)
     registration_service.create_registration(
         form_id=form.id,
         name="No Person 1",
         email=None,
         phone="555-0003",
-        additional_data={"rsvp_response": "no"},
+        additional_data={"rsvp_response": "no", "guest_count": "0"},
     )
 
-    # Query RSVP responses via analytics
+    # Query total attendance via analytics
     async with Client(mcp_client) as mcp:
         analytics_response = await mcp.call_tool(
             "get_form_analytics",
             {
                 "user_id": test_user.user_id,
-                "analytics_query": "How many people RSVPed yes vs no for my Analytics Test Wedding?",
+                "analytics_query": "How many people are attending my Analytics Test Wedding?",
             },
         )
 
     analytics_text = analytics_response.content[0].text.lower()
+    print(f"Analytics response: {analytics_text}")
 
-    # Should contain information about RSVP responses with correct counts
-    # Check for 2 yes responses and 1 no response
+    # Should contain total attendance calculation using guest_count as total people
+    # Yes Person 1: guest_count = 3 total people
+    # Yes Person 2: guest_count = 2 total people
+    # No Person 1: 0 (RSVP no, shouldn't count)
+    # Total: 3 + 2 = 5 people attending
     assert (
-        "2" in analytics_text
-    ), f"Expected '2' (for yes responses) in analytics text: {analytics_text}"
-    assert (
-        "1" in analytics_text
-    ), f"Expected '1' (for no responses) in analytics text: {analytics_text}"
+        "5" in analytics_text or "five" in analytics_text
+    ), f"Expected '5' (total people attending) in analytics text: {analytics_text}"
