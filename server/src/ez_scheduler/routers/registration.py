@@ -98,8 +98,6 @@ async def submit_registration_form(
     # Get the form by URL slug
     form = signup_form_service.get_form_by_url_slug(url_slug)
 
-    logger.info(f"Submitting registration for form: {url_slug}")
-
     if not form:
         raise HTTPException(status_code=404, detail="Form not found or inactive")
 
@@ -111,6 +109,8 @@ async def submit_registration_form(
     email = form_data.get("email", "").strip().lower()
     phone = form_data.get("phone", "").strip()
     rsvp_response = form_data.get("rsvp_response")  # "yes", "no", or None
+
+    logger.info(f"Submitting registration for form: {url_slug} with data: {form_data}")
 
     # Validate required standard fields
     if not name:
