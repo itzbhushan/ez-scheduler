@@ -7,10 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session
 
-from ez_scheduler.backends.email_client import EmailClient
 from ez_scheduler.config import config
 from ez_scheduler.models.database import get_db
 from ez_scheduler.models.field_type import FieldType
+from ez_scheduler.services.email_service import EmailService
 from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.registration_service import RegistrationService
@@ -93,7 +93,7 @@ async def submit_registration_form(
     signup_form_service = SignupFormService(db)
     registration_service = RegistrationService(db, llm_client)
     form_field_service = FormFieldService(db)
-    email_client = EmailClient(config)
+    email_service = EmailService(llm_client, config)
 
     # Get the form by URL slug
     form = signup_form_service.get_form_by_url_slug(url_slug)
@@ -207,33 +207,16 @@ async def submit_registration_form(
 
         logger.info(f"Created registration {registration.id} for form {form.id}")
 
-        # Generate personalized confirmation message using LLM
+        # Generate fallback confirmation message for response
         confirmation_message = await registration_service.generate_confirmation_message(
             form, name.strip(), rsvp_response
         )
 
-        email_sent = False
-        # Send confirmation email only if email was provided
-        if email:
-            try:
-                rsp = await email_client.send_email(
-                    to=registration.email, text=confirmation_message
-                )
-                logger.info(f"Email sent successfully: {rsp}")
-                email_sent = True
-            except RuntimeError as email_error:
-                # Log email failure but don't fail registration
-                logger.error(
-                    f"Failed to send confirmation email to {registration.email}: {email_error}"
-                )
-                # Registration was successful, just email failed
-            except ValueError as email_error:
-                # Email validation failed
-                logger.error(
-                    f"Invalid email address {registration.email}: {email_error}"
-                )
-        else:
-            logger.info("No email provided, skipping email confirmation")
+        # Send confirmation email using EmailService
+        form_url = f"{request.base_url}form/{url_slug}"
+        email_sent = await email_service.send_registration_email(
+            form=form, registration=registration, form_url=str(form_url)
+        )
 
         # Return JSON success response
         return {
