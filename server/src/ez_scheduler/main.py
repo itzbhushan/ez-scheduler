@@ -12,6 +12,7 @@ from ez_scheduler.config import config
 from ez_scheduler.routers.docs import docs_router, set_app_instance
 from ez_scheduler.routers.gpt_actions import router as gpt_router
 from ez_scheduler.routers.health import health
+from ez_scheduler.routers.legal import router as legal_router
 from ez_scheduler.routers.mcp_server import mcp_app
 from ez_scheduler.routers.oauth import router as oauth_router
 from ez_scheduler.routers.registration import router as registration_router
@@ -43,6 +44,7 @@ app.include_router(registration_router)
 app.include_router(docs_router)
 app.include_router(gpt_router)
 app.include_router(oauth_router)
+app.include_router(legal_router)
 
 # Mount static files for assets (logo, etc.)
 app.mount("/static", StaticFiles(directory="."), name="static")
