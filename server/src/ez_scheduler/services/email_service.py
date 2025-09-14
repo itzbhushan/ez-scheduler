@@ -8,6 +8,7 @@ from ez_scheduler.backends.email_client import EmailClient
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.models.registration import Registration
 from ez_scheduler.models.signup_form import SignupForm
+from ez_scheduler.services.auth0_service import auth0_service
 from ez_scheduler.system_prompts import EMAIL_GENERATION_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ class EmailService:
         self.llm_client = llm_client
         self.email_client = EmailClient(email_config)
 
-    async def send_registration_email(
+    async def _notify_registration_user(
         self,
         form: SignupForm,
         registration: Registration,
@@ -177,6 +178,93 @@ Event Details:
             body += "\n\nLooking forward to seeing you there!"
 
         return {"subject": subject, "body": body}
+
+    async def _notify_creator(
+        self,
+        form: SignupForm,
+        registration: Registration,
+    ) -> bool:
+        """
+        Send notification email to form creator about new registration.
+
+        Args:
+            form: The signup form
+            registration: The new registration data
+
+        Returns:
+            bool: True if email was sent successfully, False otherwise
+        """
+        try:
+            # Get creator email from Auth0
+            creator_email = await auth0_service.get_user_email(form.user_id)
+
+            if not creator_email:
+                logger.warning(f"No email found for form creator {form.user_id}")
+                return False
+
+            # Build registration details
+            details = []
+            details.append(f"Name: {registration.name}")
+
+            if registration.email:
+                details.append(f"Email: {registration.email}")
+
+            if registration.phone:
+                details.append(f"Phone: {registration.phone}")
+
+            # Add additional form data
+            if registration.additional_data:
+                for key, value in registration.additional_data.items():
+                    if key not in ["rsvp_response", "guest_count"]:
+                        details.append(f"{key.replace('_', ' ').title()}: {value}")
+
+                # Special handling for RSVP response
+                if "rsvp_response" in registration.additional_data:
+                    rsvp = registration.additional_data["rsvp_response"]
+                    details.append(f"RSVP: {rsvp.upper()}")
+
+                if "guest_count" in registration.additional_data:
+                    count = registration.additional_data["guest_count"]
+                    details.append(f"Number of guests: {count}")
+
+            registration_details = "\n".join(details)
+
+            # Format event details
+            event_details = []
+            event_details.append(f"Event: {form.title}")
+            event_details.append(f"Date: {form.event_date.strftime('%B %d, %Y')}")
+
+            if form.start_time:
+                time_str = form.start_time.strftime("%I:%M %p")
+                if form.end_time:
+                    time_str += f" - {form.end_time.strftime('%I:%M %p')}"
+                event_details.append(f"Time: {time_str}")
+
+            event_details.append(f"Location: {form.location}")
+            event_info = "\n".join(event_details)
+
+            # Create email content
+            subject = f"New registration for {form.title}"
+            body = f"""You have a new registration for your event!
+
+{event_info}
+
+Registration Details:
+{registration_details}
+
+This registration was submitted at {registration.registered_at.strftime('%B %d, %Y at %I:%M %p UTC')}.
+
+Best regards,
+SignupPro"""
+
+            # Send the email
+            return await self._send_email(
+                creator_email, {"subject": subject, "body": body}
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to send creator notification: {e}")
+            return False
 
     async def _send_email(self, to_email: str, email_content: Dict[str, str]) -> bool:
         """Send email using the email client"""

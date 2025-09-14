@@ -21,6 +21,8 @@ config = {
     "log_level": os.getenv("LOG_LEVEL", "INFO"),
     "app_base_url": os.getenv("APP_BASE_URL"),
     "auth0_domain": os.getenv("AUTH0_DOMAIN"),
+    "auth0_management_client_id": os.getenv("AUTH0_MANAGEMENT_CLIENT_ID"),
+    "auth0_management_client_secret": os.getenv("AUTH0_MANAGEMENT_CLIENT_SECRET"),
     "mailgun_api_key": os.getenv("MAILGUN_API_KEY"),
     "mailgun_domain": os.getenv("MAILGUN_DOMAIN"),
     "sender_email": os.getenv("SENDER_EMAIL"),
