@@ -214,12 +214,12 @@ async def submit_registration_form(
 
         # Send confirmation email using EmailService
         form_url = f"{request.base_url}form/{url_slug}"
-        email_sent = await email_service._notify_registration_user(
+        email_sent = await email_service.notify_registration_user(
             form=form, registration=registration, form_url=str(form_url)
         )
 
         # Send creator notification email
-        creator_notification_sent = await email_service._notify_creator(
+        creator_notification_sent = await email_service.notify_creator(
             form=form, registration=registration
         )
 

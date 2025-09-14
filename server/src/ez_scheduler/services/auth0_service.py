@@ -36,7 +36,7 @@ class Auth0Service:
     @cached(ttl=43200, cache=Cache.MEMORY)
     async def _get_management_token(self) -> str:
         """
-        Get Auth0 Management API token (cached for 1 hour)
+        Get Auth0 Management API token (cached for half a day)
 
         Returns:
             Management API access token

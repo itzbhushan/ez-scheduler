@@ -21,7 +21,7 @@ class EmailService:
         self.llm_client = llm_client
         self.email_client = EmailClient(email_config)
 
-    async def _notify_registration_user(
+    async def notify_registration_user(
         self,
         form: SignupForm,
         registration: Registration,
@@ -179,7 +179,7 @@ Event Details:
 
         return {"subject": subject, "body": body}
 
-    async def _notify_creator(
+    async def notify_creator(
         self,
         form: SignupForm,
         registration: Registration,
