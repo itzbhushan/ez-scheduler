@@ -52,8 +52,8 @@ app.mount("/static", StaticFiles(directory="."), name="static")
 # Set app instance for docs router
 set_app_instance(app)
 
-# Mount this at the end...
-app.mount("/", mcp_app)
+# Mount MCP app at /mcp path
+app.mount("/mcp", mcp_app)
 
 
 if __name__ == "__main__":
