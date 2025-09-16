@@ -3,8 +3,6 @@
 import pytest
 from fastmcp.client import Client
 
-from ez_scheduler.models.signup_form import SignupForm
-
 
 @pytest.mark.asyncio
 async def test_end_to_end_rsvp_via_mcp(
@@ -20,7 +18,6 @@ async def test_end_to_end_rsvp_via_mcp(
         form_response = await mcp.call_tool(
             "create_form",
             {
-                "user_id": test_user.user_id,
                 "initial_request": "Create a form for Sarah and Michael's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown. This is an intimate celebration with dinner and dancing. I need RSVP yes/no buttons and want to collect guest count and meal preferences (Chicken, Beef, Vegetarian). No additional information is needed.",
             },
         )
@@ -35,7 +32,6 @@ async def test_end_to_end_rsvp_via_mcp(
             form_response = await mcp.call_tool(
                 "create_form",
                 {
-                    "user_id": test_user.user_id,
                     "initial_request": "Create a form for Sarah and Michael's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown. Yes, include guest count and meal preferences with options: Chicken, Beef, Vegetarian, Vegan.",
                 },
             )
@@ -128,12 +124,20 @@ async def test_end_to_end_rsvp_via_mcp(
     assert no_registration.additional_data is not None
     assert no_registration.additional_data.get("rsvp_response") == "no"
 
-    # Test 7: Test single submit form creation via MCP
+
+@pytest.mark.asyncio
+async def test_single_submit_form_creation_via_mcp(
+    mcp_client, authenticated_client, signup_service
+):
+    """Test single submit form creation and template rendering via MCP"""
+
+    client_instance, _ = authenticated_client
+
+    # Create a conference form (should use single submit, not RSVP)
     async with Client(mcp_client) as mcp:
         conference_response = await mcp.call_tool(
             "create_form",
             {
-                "user_id": test_user.user_id,
                 "initial_request": "Create a form for Tech Conference 2024 on September 20th at Convention Center. Keep it simple - just basic registration info, no custom fields needed.",
             },
         )
@@ -146,6 +150,8 @@ async def test_end_to_end_rsvp_via_mcp(
     ), f"Expected conference form to be created, got: {conference_text[:200]}..."
 
     # Extract conference form URL slug and get form
+    import re
+
     conference_match = re.search(
         r"form/([a-zA-Z0-9\-]+)", conference_response.content[0].text
     )
@@ -177,68 +183,78 @@ async def test_end_to_end_rsvp_via_mcp(
 
 
 @pytest.mark.asyncio
-async def test_rsvp_analytics_query(
-    mcp_client, authenticated_client, signup_service, registration_service
-):
+async def test_rsvp_analytics_query(authenticated_client, signup_service):
     """Test that RSVP responses can be queried through analytics"""
 
-    _, test_user = authenticated_client
+    client_instance, _ = authenticated_client
 
-    # Create form with RSVP responses using service method
-    form = SignupForm(
-        user_id=test_user.user_id,
-        title="Analytics Test Wedding",
-        event_date="2024-12-31",
-        location="Test Venue",
-        description="Test wedding for analytics",
-        url_slug="analytics-test-wedding-999",
-        is_active=True,
-        button_type="rsvp_yes_no",
-        primary_button_text="Coming!",
-        secondary_button_text="Sorry, can't make it",
+    # Step 1: Create an RSVP form using /gpt/create-form endpoint (same user context as analytics)
+    create_form_response = client_instance.post(
+        "/gpt/create-form",
+        json={
+            "description": "Create a form for Analytics Test Wedding on December 31st, 2024 at Test Venue. I need RSVP yes/no buttons and want to collect guest count. No additional information needed."
+        },
     )
+    assert create_form_response.status_code == 200
 
-    result = signup_service.create_signup_form(form, test_user)
-    assert result["success"] is True
+    # Extract form URL from response
+    form_text = create_form_response.json()["response"]
+    import re
 
-    # Create registrations with different RSVP responses and guest counts
+    url_match = re.search(r"form/([a-zA-Z0-9\-]+)", form_text)
+    assert url_match, f"Could not find form URL in response: {form_text[:200]}..."
+    url_slug = url_match.group(1)
+
+    # Get the created form to submit test registrations
+    form = signup_service.get_form_by_url_slug(url_slug)
+    assert form is not None, f"Form should exist with URL slug: {url_slug}"
+
+    # Step 2: Submit RSVP responses using the authenticated client (simulating form submissions)
     # RSVP Yes responses with guests
-    registration_service.create_registration(
-        form_id=form.id,
-        name="Yes Person 1",
-        email=None,
-        phone="555-0001",
-        additional_data={"rsvp_response": "yes", "guest_count": "3"},
+    yes_response_1 = client_instance.post(
+        f"/form/{form.url_slug}",
+        data={
+            "name": "Yes Person 1",
+            "phone": "555-0001",
+            "rsvp_response": "yes",
+            "guest_count": "3",
+        },
     )
+    assert yes_response_1.status_code == 200
+    assert yes_response_1.json()["success"] is True
 
-    registration_service.create_registration(
-        form_id=form.id,
-        name="Yes Person 2",
-        email=None,
-        phone="555-0002",
-        additional_data={"rsvp_response": "yes", "guest_count": "2"},
+    yes_response_2 = client_instance.post(
+        f"/form/{form.url_slug}",
+        data={
+            "name": "Yes Person 2",
+            "phone": "555-0002",
+            "rsvp_response": "yes",
+            "guest_count": "2",
+        },
     )
+    assert yes_response_2.status_code == 200
+    assert yes_response_2.json()["success"] is True
 
-    # RSVP No response with guest count (should be reset to 0)
-    registration_service.create_registration(
-        form_id=form.id,
-        name="No Person 1",
-        email=None,
-        phone="555-0003",
-        additional_data={"rsvp_response": "no", "guest_count": "0"},
+    # RSVP No response
+    no_response = client_instance.post(
+        f"/form/{form.url_slug}",
+        data={
+            "name": "No Person 1",
+            "phone": "555-0003",
+            "rsvp_response": "no",
+            "guest_count": "0",
+        },
     )
+    assert no_response.status_code == 200
+    assert no_response.json()["success"] is True
 
-    # Query total attendance via analytics
-    async with Client(mcp_client) as mcp:
-        analytics_response = await mcp.call_tool(
-            "get_form_analytics",
-            {
-                "user_id": test_user.user_id,
-                "analytics_query": "How many people are attending my Analytics Test Wedding?",
-            },
-        )
-
-    analytics_text = analytics_response.content[0].text.lower()
+    # Step 3: Query analytics via /analytics endpoint (using authenticated client context)
+    analytics_response = client_instance.post(
+        "/gpt/analytics",
+        json={"query": "How many people are attending my Analytics Test Wedding?"},
+    )
+    assert analytics_response.status_code == 200
+    analytics_text = analytics_response.json()["response"].lower()
     print(f"Analytics response: {analytics_text}")
 
     # Should contain total attendance calculation using guest_count as total people
@@ -251,16 +267,14 @@ async def test_rsvp_analytics_query(
     ), f"Expected '5' (total people attending) in analytics text: {analytics_text}"
 
     # Test 2: Query how many people responded to the invitation (should include all responses)
-    async with Client(mcp_client) as mcp:
-        response_query = await mcp.call_tool(
-            "get_form_analytics",
-            {
-                "user_id": test_user.user_id,
-                "analytics_query": "How many people responded to my Analytics Test Wedding invitation?",
-            },
-        )
-
-    response_text = response_query.content[0].text.lower()
+    response_query = client_instance.post(
+        "/gpt/analytics",
+        json={
+            "query": "How many people responded to my Analytics Test Wedding invitation?"
+        },
+    )
+    assert response_query.status_code == 200
+    response_text = response_query.json()["response"].lower()
 
     # Should count all 3 registrations (2 yes + 1 no = 3 total responses)
     assert (

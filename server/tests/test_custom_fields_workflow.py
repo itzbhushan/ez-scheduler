@@ -26,7 +26,6 @@ async def test_custom_fields_wedding_workflow(
         result1 = await client.call_tool(
             "create_form",
             {
-                "user_id": test_user_id,
                 "initial_request": "Create a signup form for Sarah and Michael's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown.",
             },
         )
@@ -52,7 +51,6 @@ async def test_custom_fields_wedding_workflow(
         result2 = await client.call_tool(
             "create_form",
             {
-                "user_id": test_user_id,
                 "initial_request": "Create a signup form for Sarah and Michael's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown. Yes, I need to know how many guests they're bringing and their meal preferences. Meal options are Chicken, Beef, Vegetarian, and Vegan. No other information is needed.",
             },
         )
@@ -75,7 +73,7 @@ async def test_custom_fields_wedding_workflow(
         assert created_form.title and "sarah" in created_form.title.lower()
         assert created_form.event_date == date(2024, 6, 15)
         assert "grand ballroom" in created_form.location.lower()
-        assert created_form.user_id == test_user_id
+        assert created_form.user_id is not None, "Form should have a user_id"
 
         # Step 4: Verify custom fields were created using service
         custom_fields = form_field_service.get_fields_by_form_id(created_form.id)
@@ -231,7 +229,6 @@ async def test_custom_fields_analytics_queries(mcp_client, mock_current_user):
         result = await client.call_tool(
             "get_form_analytics",
             {
-                "user_id": test_user_id,
                 "analytics_query": "How many people registered with vegetarian meal preferences?",
             },
         )
@@ -255,7 +252,6 @@ async def test_form_creation_without_custom_fields(mcp_client, mock_current_user
         result = await client.call_tool(
             "create_form",
             {
-                "user_id": test_user_id,
                 "initial_request": "Create a simple signup form for Team Meeting on July 10th, 2024 at Conference Room A. Just need basic contact info.",
             },
         )

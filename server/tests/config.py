@@ -11,4 +11,5 @@ test_config = {
     "mailgun_api_key": os.getenv("MAILGUN_API_KEY"),
     "mailgun_domain": os.getenv("MAILGUN_DOMAIN"),
     "sender_email": os.getenv("SENDER_EMAIL"),
+    "environment": "test",
 }

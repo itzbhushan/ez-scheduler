@@ -14,8 +14,7 @@ logger = logging.getLogger(__name__)
 @pytest.mark.asyncio
 async def test_create_form_simple_meeting(mcp_client, signup_service):
     """Test form creation for simple meeting that doesn't trigger custom field questions"""
-    # Use Auth0 user ID directly
-    test_user_id = "auth0|meeting_organizer_456"
+    # Note: user_id is now extracted from authentication context
 
     try:
         async with Client(mcp_client) as client:
@@ -23,7 +22,6 @@ async def test_create_form_simple_meeting(mcp_client, signup_service):
             result = await client.call_tool(
                 "create_form",
                 {
-                    "user_id": test_user_id,
                     "initial_request": "Create a signup form for Team Stand-up Meeting on September 20th, 2024 at Conference Room A. The meeting ends at 10:00 AM. Quick daily standup meeting.",
                 },
             )
@@ -68,9 +66,7 @@ async def test_create_form_simple_meeting(mcp_client, signup_service):
                     10, 0, 0
                 ), f"End time should be 10:00 AM, but was {created_form.end_time}"
                 assert created_form.is_active is True, "Form should be active"
-                assert (
-                    created_form.user_id == test_user_id
-                ), f"User ID should be {test_user_id}"
+                assert created_form.user_id is not None, "Form should have a user_id"
             else:
                 # If no form URL found, it means LLM is asking for clarification
                 # This is acceptable behavior - just verify we got a reasonable response
@@ -86,8 +82,7 @@ async def test_create_form_simple_meeting(mcp_client, signup_service):
 @pytest.mark.asyncio
 async def test_create_form_with_start_and_end_time(mcp_client, signup_service):
     """Test form creation with both start and end time specified"""
-    # Use Auth0 user ID directly
-    test_user_id = "auth0|workshop_organizer_789"
+    # Note: user_id is now extracted from authentication context
 
     try:
         async with Client(mcp_client) as client:
@@ -95,7 +90,6 @@ async def test_create_form_with_start_and_end_time(mcp_client, signup_service):
             result = await client.call_tool(
                 "create_form",
                 {
-                    "user_id": test_user_id,
                     "initial_request": "Create a signup form for Python Workshop on October 10th, 2024 at Tech Hub from 9:00 AM to 4:30 PM. We're teaching Python programming fundamentals with hands-on coding exercises. Do not ask for any additional details from registering users.",
                 },
             )
@@ -141,9 +135,7 @@ async def test_create_form_with_start_and_end_time(mcp_client, signup_service):
                 16, 30, 0
             ), f"End time should be 16:30 (4:30 PM), but was {created_form.end_time}"
             assert created_form.is_active is True, "Form should be active"
-            assert (
-                created_form.user_id == test_user_id
-            ), f"User ID should be {test_user_id}"
+            assert created_form.user_id is not None, "Form should have a user_id"
 
     except Exception as e:
         pytest.fail(f"Failed to create form with start and end time: {e}")

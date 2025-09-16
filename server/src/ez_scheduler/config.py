@@ -28,4 +28,5 @@ config = {
     "sender_email": os.getenv("SENDER_EMAIL"),
     # Optional UI theme selection for public forms. Example: "golu"
     "default_form_theme": os.getenv("DEFAULT_FORM_THEME"),
+    "environment": os.getenv("ENVIRONMENT"),
 }

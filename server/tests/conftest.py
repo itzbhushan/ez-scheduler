@@ -7,10 +7,12 @@ import subprocess
 import time
 import uuid
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 from fastmcp.client import Client, StreamableHttpTransport
+from fastmcp.server.dependencies import AccessToken
 from sqlmodel import Session, create_engine
 from testcontainers.postgres import PostgresContainer
 
@@ -39,15 +41,19 @@ def verify_test_requirements():
 
 @pytest.fixture(scope="session", autouse=True)
 async def mcp_server_process(postgres_container):
-    """Start the HTTP MCP server once for the entire test session"""
+    """Start the main MCP server with authentication bypassed for local testing"""
+
     env = os.environ.copy()
     env["MCP_PORT"] = str(test_config["mcp_port"])  # Use test config port
+    env["ENVIRONMENT"] = (
+        "test"  # Set environment to test mode - this will bypass authentication
+    )
 
     # Ensure the MCP server uses the same database as the test
     database_url = postgres_container.get_connection_url()
     env["DATABASE_URL"] = database_url
 
-    # Start the HTTP server process
+    # Start the main HTTP server process
     process = subprocess.Popen(
         [
             "uv",

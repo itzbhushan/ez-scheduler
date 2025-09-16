@@ -70,9 +70,7 @@ class TestMCPServerConnection:
                     and create_form_tool.inputSchema
                 ):
                     schema = create_form_tool.inputSchema
-                    assert "user_id" in str(
-                        schema
-                    ), "Schema should include user_id parameter"
+                    # Updated: tools now extract user_id from authenticated context
                     assert "initial_request" in str(
                         schema
                     ), "Schema should include initial_request parameter"
@@ -92,3 +90,43 @@ class TestMCPServerConnection:
         except Exception:
             # This is expected for the non-existent tool call
             pass
+
+    @pytest.mark.asyncio
+    async def test_mcp_tools_with_mock_authentication(self, mcp_client):
+        """Test MCP tools work with mocked authentication"""
+        try:
+            async with Client(mcp_client) as client:
+                # List available tools
+                tools = await client.list_tools()
+                print(f"Available tools: {[tool.name for tool in tools]}")
+
+                # Verify we got tools back
+                assert tools is not None, "Should receive tools list"
+                assert len(tools) > 0, "Should have at least one tool"
+
+                # Test get_form_analytics tool with mock user
+                analytics_result = await client.call_tool(
+                    "get_form_analytics", {"analytics_query": "List all my forms"}
+                )
+
+                print(f"Analytics result: {analytics_result}")
+                assert analytics_result is not None, "Should receive analytics result"
+
+                # Test create_form tool with mock user
+                create_result = await client.call_tool(
+                    "create_form",
+                    {"initial_request": "Create a test coding workshop signup form"},
+                )
+
+                print(f"Create form result: {create_result}")
+                assert create_result is not None, "Should receive create form result"
+
+                # Both tools should work without authentication errors
+                print("✅ All MCP tools work correctly with mock authentication")
+
+        except Exception as e:
+            print(f"MCP tool test failed: {e}")
+            import traceback
+
+            traceback.print_exc()
+            pytest.fail(f"Failed to test MCP tools with mock authentication: {e}")
