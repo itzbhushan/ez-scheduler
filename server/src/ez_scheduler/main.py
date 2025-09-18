@@ -15,6 +15,7 @@ from ez_scheduler.routers.health import health
 from ez_scheduler.routers.legal import router as legal_router
 from ez_scheduler.routers.mcp_server import mcp_app
 from ez_scheduler.routers.oauth import router as oauth_router
+from ez_scheduler.routers.oauth_discovery import router as oauth_discovery_router
 from ez_scheduler.routers.registration import router as registration_router
 
 # Configure logging
@@ -44,6 +45,7 @@ app.include_router(registration_router)
 app.include_router(docs_router)
 app.include_router(gpt_router)
 app.include_router(oauth_router)
+app.include_router(oauth_discovery_router)
 app.include_router(legal_router)
 
 # Mount static files for assets (logo, etc.)
