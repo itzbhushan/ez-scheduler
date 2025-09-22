@@ -1,8 +1,5 @@
 # Signup Form Preview & Publish Plan
 
-Status: Revised plan — no backward compatibility required
-
-Owner: TBD
 
 Last updated: 2025-09-22
 
