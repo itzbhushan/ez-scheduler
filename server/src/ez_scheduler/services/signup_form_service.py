@@ -98,14 +98,21 @@ class SignupFormService:
             if "url_slug" in updated_data:
                 signup_form.url_slug = updated_data["url_slug"]
             if "status" in updated_data:
-                # Enforce only valid status strings/enums
+                # Enforce only valid status strings/enums and legal transitions
                 new_status = updated_data["status"]
                 if isinstance(new_status, str):
                     try:
                         new_status = FormStatus(new_status)
                     except ValueError:
                         return {"success": False, "error": "Invalid status"}
-                signup_form.status = new_status
+
+                if new_status != signup_form.status:
+                    if not self._can_transition(signup_form.status, new_status):
+                        return {
+                            "success": False,
+                            "error": f"Illegal status transition: {signup_form.status.value} -> {new_status.value}",
+                        }
+                    signup_form.status = new_status
 
             signup_form.updated_at = datetime.now(timezone.utc)
 
@@ -128,6 +135,20 @@ class SignupFormService:
                 "success": False,
                 "error": f"Failed to update signup form: {str(e)}",
             }
+
+    def _can_transition(self, old: FormStatus, new: FormStatus) -> bool:
+        """Validate legal status transitions.
+
+        Allowed: draft->published, draft->archived, published->archived
+        Forbidden: published->draft, archived->(draft|published)
+        """
+        if old == new:
+            return True
+        if old == FormStatus.DRAFT and new in (FormStatus.PUBLISHED, FormStatus.ARCHIVED):
+            return True
+        if old == FormStatus.PUBLISHED and new == FormStatus.ARCHIVED:
+            return True
+        return False
 
     def get_form_by_url_slug(self, url_slug: str) -> Optional[SignupForm]:
         """
