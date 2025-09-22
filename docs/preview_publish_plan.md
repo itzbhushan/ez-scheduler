@@ -75,12 +75,20 @@ Each item below is intended as a separate MR. Acceptance criteria and code touch
     - Create enum type `signup_form_status` with values `('draft','published','archived')`.
     - Add `status` column of that enum with `server_default='draft'`, `nullable=False`.
     - Backfill: set `status='published'` for all existing rows.
+    - Indexes:
+      - Drop legacy index on `is_active` (e.g., `ix_signup_forms_is_active`).
+      - Add single-column index on `status` (e.g., `ix_signup_forms_status`).
+      - Add composite index to optimize slug lookups with status filter (e.g., `idx_signup_forms_url_slug_status` on `(url_slug, status)`).
+      - Ensure existing `url_slug` unique/index remains intact.
     - Drop `is_active` column.
   - Services/Queries:
     - `SignupFormService.get_form_by_url_slug`: return form where `status IN ('draft','published')`.
     - `RegistrationService.create_registration`: require `status='published'`; raise clear error otherwise.
     - Soft delete → set `status='archived'` in delete method.
-    - Enforce transitions: block `published` → `draft` and any transition out of `archived` (including `archived` → `published`) with a validation error; provide helpers `publish(form)` and `archive(form)` only.
+    - Transition validation helpers:
+      - Implement `FormStatus.can_transition_to(new_status)` & a centralized validator in the service.
+      - Enforce transitions: block `published` → `draft` and any transition out of `archived` (including `archived` → `published`) with a validation error.
+      - Provide only `publish(form)` and `archive(form)` helpers.
   - Creation default:
     - `tools/create_form.py`: set `status='draft'` on create.
   - Prompts/Docs:
@@ -119,6 +127,8 @@ Each item below is intended as a separate MR. Acceptance criteria and code touch
     - Update `FORM_RESPONSE_PROMPT` to clearly state preview state and ask: “Should I publish it now?”.
     - Ensure agent calls `publish-form` when user confirms.
     - Do not offer “unpublish to draft”; instead offer to archive if needed.
+  - Auditability:
+    - Emit audit logs for status changes initiated via agent.
 - Acceptance:
   - Agent-created form reply mentions preview and asks to publish.
   - GPT endpoints toggle status with proper auth; tests cover ownership checks.
