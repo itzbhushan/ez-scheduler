@@ -5,13 +5,13 @@ from datetime import date, time
 
 import pytest
 
-from ez_scheduler.models.signup_form import SignupForm
+from ez_scheduler.models.signup_form import FormStatus, SignupForm
 
 
 class TestRegistrationService:
     """Test registration service functionality"""
 
-    def _create_test_form(self, signup_service, title="Test Event", is_active=True):
+    def _create_test_form(self, signup_service, title="Test Event", status=FormStatus.PUBLISHED):
         """Helper method to create a test signup form"""
         # Use Auth0 user ID directly
         test_user_id = f"auth0|test_user_{uuid.uuid4()}"
@@ -26,7 +26,7 @@ class TestRegistrationService:
             location="Test Location",
             description="A test event for testing purposes",
             url_slug=f"test-event-{uuid.uuid4()}",
-            is_active=is_active,
+            status=status,
         )
 
         result = signup_service.create_signup_form(form)
@@ -109,9 +109,9 @@ class TestRegistrationService:
         self, registration_service, signup_service
     ):
         """Test that registration fails for inactive form"""
-        form = self._create_test_form(signup_service, is_active=False)
+        form = self._create_test_form(signup_service, status=FormStatus.DRAFT)
 
-        with pytest.raises(ValueError, match="Form not found or inactive"):
+        with pytest.raises(ValueError, match="Form not found or not published"):
             registration_service.create_registration(
                 form_id=form.id,
                 name="John Doe",
@@ -123,7 +123,7 @@ class TestRegistrationService:
         """Test that registration fails for non-existent form"""
         fake_form_id = str(uuid.uuid4())
 
-        with pytest.raises(ValueError, match="Form not found or inactive"):
+        with pytest.raises(ValueError, match="Form not found or not published"):
             registration_service.create_registration(
                 form_id=fake_form_id,
                 name="John Doe",

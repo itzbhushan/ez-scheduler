@@ -6,7 +6,7 @@ from datetime import date, time
 
 import pytest
 
-from ez_scheduler.models.signup_form import SignupForm
+from ez_scheduler.models.signup_form import FormStatus, SignupForm
 from ez_scheduler.utils.address_utils import generate_google_maps_url
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ class TestFormSubmission:
             location="Golden Gate Bridge, San Francisco, CA",
             description="A test event for testing form submission",
             url_slug="test-submission-123",
-            is_active=True,
+            status=FormStatus.PUBLISHED,
         )
 
         signup_service.create_signup_form(test_form)
@@ -80,7 +80,7 @@ class TestFormSubmission:
 
         assert response.status_code == 404
         result = response.json()
-        assert "Form not found or inactive" in result["detail"]
+        assert "Form not found" in result["detail"]
 
     @pytest.mark.asyncio
     async def test_form_submission_email_only(
@@ -97,7 +97,7 @@ class TestFormSubmission:
             location="Test Location",
             description="A test event for testing email-only submission",
             url_slug="test-email-only-456",
-            is_active=True,
+            status=FormStatus.PUBLISHED,
         )
 
         signup_service.create_signup_form(test_form)
@@ -133,7 +133,7 @@ class TestFormSubmission:
             location="Test Location",
             description="A test event for testing phone-only submission",
             url_slug="test-phone-only-789",
-            is_active=True,
+            status=FormStatus.PUBLISHED,
         )
 
         signup_service.create_signup_form(test_form)
@@ -169,7 +169,7 @@ class TestFormSubmission:
             location="Test Location",
             description="A test event for testing missing contact fields",
             url_slug="test-missing-contact-999",
-            is_active=True,
+            status=FormStatus.PUBLISHED,
         )
 
         signup_service.create_signup_form(test_form)

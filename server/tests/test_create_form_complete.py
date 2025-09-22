@@ -6,6 +6,7 @@ from datetime import date, time
 
 import pytest
 from fastmcp.client import Client
+from ez_scheduler.models.signup_form import FormStatus
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -67,7 +68,7 @@ async def test_create_form_simple_meeting(mcp_client, signup_service):
                 assert created_form.end_time == time(
                     10, 0, 0
                 ), f"End time should be 10:00 AM, but was {created_form.end_time}"
-                assert created_form.is_active is True, "Form should be active"
+                assert created_form.status == FormStatus.DRAFT, "Form should be created in draft status"
                 assert (
                     created_form.user_id == test_user_id
                 ), f"User ID should be {test_user_id}"
@@ -140,7 +141,7 @@ async def test_create_form_with_start_and_end_time(mcp_client, signup_service):
             assert created_form.end_time == time(
                 16, 30, 0
             ), f"End time should be 16:30 (4:30 PM), but was {created_form.end_time}"
-            assert created_form.is_active is True, "Form should be active"
+            assert created_form.status == FormStatus.DRAFT, "Form should be created in draft status"
             assert (
                 created_form.user_id == test_user_id
             ), f"User ID should be {test_user_id}"

@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 from sqlmodel import Session, select
 
 from ez_scheduler.auth.models import User
-from ez_scheduler.models.signup_form import SignupForm
+from ez_scheduler.models.signup_form import FormStatus, SignupForm
 
 logger = logging.getLogger(__name__)
 
@@ -97,8 +97,15 @@ class SignupFormService:
                 signup_form.description = updated_data["description"]
             if "url_slug" in updated_data:
                 signup_form.url_slug = updated_data["url_slug"]
-            if "is_active" in updated_data:
-                signup_form.is_active = updated_data["is_active"]
+            if "status" in updated_data:
+                # Enforce only valid status strings/enums
+                new_status = updated_data["status"]
+                if isinstance(new_status, str):
+                    try:
+                        new_status = FormStatus(new_status)
+                    except ValueError:
+                        return {"success": False, "error": "Invalid status"}
+                signup_form.status = new_status
 
             signup_form.updated_at = datetime.now(timezone.utc)
 
@@ -135,7 +142,8 @@ class SignupFormService:
         try:
             logger.info(f"Retrieving signup form by URL slug: {url_slug}")
             statement = select(SignupForm).where(
-                SignupForm.url_slug == url_slug, SignupForm.is_active == True
+                SignupForm.url_slug == url_slug,
+                SignupForm.status.in_([FormStatus.DRAFT, FormStatus.PUBLISHED]),
             )
             form = self.db.execute(statement).scalar_one_or_none()
             return form
@@ -159,8 +167,8 @@ class SignupFormService:
             if not signup_form:
                 return {"success": False, "error": "Signup form not found"}
 
-            # Soft delete by setting is_active to False
-            signup_form.is_active = False
+            # Soft delete by setting status to ARCHIVED
+            signup_form.status = FormStatus.ARCHIVED
             signup_form.updated_at = datetime.now(timezone.utc)
 
             self.db.add(signup_form)

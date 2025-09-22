@@ -3,6 +3,7 @@
 import logging
 import re
 from datetime import date
+from ez_scheduler.models.signup_form import FormStatus
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -70,7 +71,9 @@ def test_gpt_create_form_success(authenticated_client, signup_service):
         assert (
             "birthday" in created_form.description.lower()
         ), f"Description should mention birthday"
-        assert created_form.is_active is True, "Form should be active"
+        assert (
+            created_form.status == FormStatus.DRAFT
+        ), "Form should be created in draft status"
 
         logger.info(
             f"✅ GPT form creation test passed - Form {url_slug} created successfully"

@@ -391,7 +391,7 @@ Make the response engaging and helpful. Format it nicely with clear sections. If
 SQL_GENERATOR_PROMPT = """You are an expert SQL generator for a PostgreSQL database. Generate SQL queries based on natural language requests.
 
 DATABASE SCHEMA:
-- signup_forms: id (UUID PK), user_id (VARCHAR), title (VARCHAR), event_date (DATE), start_time (TIME), end_time (TIME), location (VARCHAR), description (TEXT), url_slug (VARCHAR), is_active (BOOLEAN), created_at (TIMESTAMP), updated_at (TIMESTAMP)
+- signup_forms: id (UUID PK), user_id (VARCHAR), title (VARCHAR), event_date (DATE), start_time (TIME), end_time (TIME), location (VARCHAR), description (TEXT), url_slug (VARCHAR), status (ENUM: 'draft'|'published'|'archived'), created_at (TIMESTAMP), updated_at (TIMESTAMP)
 - registrations: id (UUID PK), form_id (UUID FK), user_id (VARCHAR), name (VARCHAR), email (VARCHAR), phone (VARCHAR), additional_data (JSON), registered_at (TIMESTAMP)
 - form_fields: id (UUID PK), form_id (UUID FK), field_name (VARCHAR), field_type (VARCHAR), label (VARCHAR), placeholder (VARCHAR), is_required (BOOLEAN), options (JSON), field_order (INTEGER)
 
@@ -455,11 +455,11 @@ Response: {{
     "explanation": "Retrieves all forms owned by the user, ordered by creation date"
 }}
 
-Request: "How many active signup forms do I have"
+Request: "How many published signup forms do I have"
 Response: {{
-    "sql_query": "SELECT COUNT(*) as active_forms_count FROM signup_forms sf WHERE sf.user_id = :user_id AND sf.is_active = true",
+    "sql_query": "SELECT COUNT(*) as published_forms_count FROM signup_forms sf WHERE sf.user_id = :user_id AND sf.status = 'published'",
     "parameters": {{"user_id": "current_user"}},
-    "explanation": "Counts active forms owned by the user"
+    "explanation": "Counts published forms owned by the user"
 }}
 
 Request: "Show my events happening this month"

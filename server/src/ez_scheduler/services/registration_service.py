@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.models.registration import Registration
-from ez_scheduler.models.signup_form import SignupForm
+from ez_scheduler.models.signup_form import FormStatus, SignupForm
 from ez_scheduler.system_prompts import CONFIRMATION_MESSAGE_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -47,14 +47,15 @@ class RegistrationService:
         Raises:
             ValueError: If the form doesn't exist or is inactive
         """
-        # Verify form exists and is active
+        # Verify form exists and is published
         form_stmt = select(SignupForm).where(
-            SignupForm.id == form_id, SignupForm.is_active == True
+            SignupForm.id == form_id,
+            SignupForm.status == FormStatus.PUBLISHED,
         )
         form = self.db.exec(form_stmt).first()
 
         if not form:
-            raise ValueError("Form not found or inactive")
+            raise ValueError("Form not found or not published")
 
         registration = Registration(
             form_id=form_id,

@@ -3,7 +3,7 @@
 import pytest
 from fastmcp.client import Client
 
-from ez_scheduler.models.signup_form import SignupForm
+from ez_scheduler.models.signup_form import FormStatus, SignupForm
 
 
 @pytest.mark.asyncio
@@ -57,6 +57,10 @@ async def test_end_to_end_rsvp_via_mcp(
     # Get the created form using service method
     form = signup_service.get_form_by_url_slug(url_slug)
     assert form is not None, f"Form should exist with URL slug: {url_slug}"
+
+    # Since forms created via MCP default to draft, publish it for submissions
+    signup_service.update_signup_form(form.id, {"status": FormStatus.PUBLISHED})
+    form = signup_service.get_form_by_url_slug(url_slug)
 
     # Verify this is an RSVP form with proper button configuration
     assert (
@@ -192,7 +196,7 @@ async def test_rsvp_analytics_query(
         location="Test Venue",
         description="Test wedding for analytics",
         url_slug="analytics-test-wedding-999",
-        is_active=True,
+        status=FormStatus.PUBLISHED,
         button_type="rsvp_yes_no",
         primary_button_text="Coming!",
         secondary_button_text="Sorry, can't make it",

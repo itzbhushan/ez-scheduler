@@ -6,7 +6,7 @@ from datetime import date, time
 
 import pytest
 
-from ez_scheduler.models.signup_form import SignupForm
+from ez_scheduler.models.signup_form import FormStatus, SignupForm
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class TestRegistrationForm:
             location="Test Location",
             description="A test event for testing purposes",
             url_slug="test-event-123",
-            is_active=True,
+            status=FormStatus.PUBLISHED,
         )
 
         signup_service.create_signup_form(test_form)
@@ -71,14 +71,14 @@ class TestRegistrationForm:
 
         assert response.status_code == 404
         data = response.json()
-        assert "Form not found or inactive" in data["detail"]
+        assert "Form not found" in data["detail"]
 
     @pytest.mark.asyncio
     async def test_serve_inactive_form(self, signup_service, authenticated_client):
         """Test that requesting an inactive form returns 404"""
         client, test_user = authenticated_client
 
-        # Create an inactive test signup form
+        # Create an archived test signup form
         test_form = SignupForm(
             id=uuid.uuid4(),
             user_id=test_user.user_id,
@@ -87,7 +87,7 @@ class TestRegistrationForm:
             location="Test Location",
             description="An inactive test event",
             url_slug="inactive-event-456",
-            is_active=False,  # Form is inactive
+            status=FormStatus.ARCHIVED,  # Form is archived
         )
 
         signup_service.create_signup_form(test_form)
@@ -97,4 +97,4 @@ class TestRegistrationForm:
 
         assert response.status_code == 404
         data = response.json()
-        assert "Form not found or inactive" in data["detail"]
+        assert "Form not found" in data["detail"]
