@@ -11,7 +11,24 @@
     <div class="max-w-2xl mx-auto py-8 px-4">
         <!-- Header -->
         <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <h1 class="text-3xl font-bold text-gray-900 mb-2">{{ form.title }}</h1>
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h1 class="text-3xl font-bold text-gray-900 mb-2">{{ form.title }}</h1>
+                {% if form.status == 'published' %}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800" aria-label="Form status: Published">Published</span>
+                {% elif form.status == 'draft' %}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800" aria-label="Form status: Preview">Preview</span>
+                {% endif %}
+              </div>
+              {% if form.status == 'published' %}
+              <div class="shrink-0">
+                <button type="button" aria-label="Copy share link" title="Copy share link" onclick="copyShareLink()" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                  <svg class="w-4 h-4 mr-2" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 015.657 5.657l-3 3a4 4 0 01-5.657-5.657m-3.656-3.656a4 4 0 015.656-5.657l3 3a4 4 0 01-5.656 5.657"/></svg>
+                  Share
+                </button>
+              </div>
+              {% endif %}
+            </div>
             {% if form.status == 'draft' %}
             <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4" role="alert">
                 <p class="text-sm text-yellow-800">
@@ -342,6 +359,23 @@
                 }
             }
         }
+
+        // Share link copy helper
+        function copyShareLink(){
+          const url = `${window.location.origin}/form/{{ url_slug }}`;
+          const announcer = document.getElementById('sr-announcer');
+          if (navigator.clipboard && navigator.clipboard.writeText){
+            navigator.clipboard.writeText(url).then(()=>{
+              if(announcer){ announcer.textContent = 'Link copied to clipboard.'; }
+            }).catch(()=>{
+              if(announcer){ announcer.textContent = 'Unable to copy link. You can copy from the address bar.'; }
+            });
+          } else {
+            if(announcer){ announcer.textContent = 'Clipboard not supported. You can copy from the address bar.'; }
+          }
+        }
     </script>
+    <!-- Accessible live region for copy announcements -->
+    <div id="sr-announcer" class="sr-only" aria-live="polite" role="status"></div>
 </body>
 </html>
