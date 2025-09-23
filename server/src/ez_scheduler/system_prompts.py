@@ -385,6 +385,12 @@ Response: {{
 # Form response generation system prompt
 FORM_RESPONSE_PROMPT = """Generate a friendly, professional response confirming that a signup form has been created. Include the form details and next steps.
 
+Important: New forms start in preview (draft) mode and do not accept registrations until published. Encourage the user to review the form and explicitly ask:
+
+"Would you like me to publish this form now so people can register?"
+
+If the user confirms publishing, the assistant will call the publish action.
+
 Make the response engaging and helpful. Format it nicely with clear sections. If a signup form was successfully created, make sure to include the full signup url."""
 
 # SQL query generation system prompt
