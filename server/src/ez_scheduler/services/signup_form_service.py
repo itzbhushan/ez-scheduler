@@ -212,3 +212,44 @@ class SignupFormService:
                 "success": False,
                 "error": f"Failed to delete signup form: {str(e)}",
             }
+
+    def get_form_by_id(self, form_id: uuid.UUID) -> Optional[SignupForm]:
+        """Public helper to fetch a form by UUID."""
+        try:
+            return self.db.get(SignupForm, form_id)
+        except Exception:
+            return None
+
+    def get_latest_draft_form_for_user(self, user_id: str) -> Optional[SignupForm]:
+        """Return the most recently created draft form for a given user."""
+        try:
+            stmt = (
+                select(SignupForm)
+                .where(
+                    SignupForm.user_id == user_id,
+                    SignupForm.status == FormStatus.DRAFT,
+                )
+                .order_by(SignupForm.created_at.desc())
+            )
+            return self.db.exec(stmt).first()
+        except Exception:
+            return None
+
+    def search_draft_forms_by_title(
+        self, user_id: str, title_contains: str
+    ) -> list[SignupForm]:
+        """Find draft forms for a user where title ILIKE %query%."""
+        try:
+            like = f"%{title_contains}%"
+            stmt = (
+                select(SignupForm)
+                .where(
+                    SignupForm.user_id == user_id,
+                    SignupForm.status == FormStatus.DRAFT,
+                    SignupForm.title.ilike(like),
+                )
+                .order_by(SignupForm.created_at.desc())
+            )
+            return list(self.db.exec(stmt).all())
+        except Exception:
+            return []

@@ -1,5 +1,7 @@
 """GPT Actions router - REST API wrapper for MCP tools"""
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
@@ -48,6 +50,10 @@ class FormMutateRequest(BaseModel):
     url_slug: str | None = Field(
         default=None, description="URL slug of the form (optional if form_id provided)"
     )
+    title_contains: str | None = Field(
+        default=None,
+        description="Publish a draft whose title contains this text (fallback)",
+    )
 
 
 @router.post(
@@ -79,25 +85,46 @@ async def gpt_create_form(
     return GPTResponse(response=response_text)
 
 
-def _get_form_by_identifier(
-    signup_form_service: SignupFormService, req: FormMutateRequest
+def _resolve_form_or_ask(
+    signup_form_service: SignupFormService, user: User, req: FormMutateRequest
 ):
-    form = None
+    """Resolve a target form by id/slug/title or fallback to latest draft.
+
+    Returns: tuple(form, error_message)
+      - If ambiguous or not found, returns (None, message).
+    """
+    # Direct lookups first
     if req.form_id:
         try:
-            import uuid as _uuid
-
-            form = signup_form_service.db.get(
-                __import__(
-                    "ez_scheduler.models.signup_form", fromlist=["SignupForm"]
-                ).SignupForm,
-                _uuid.UUID(req.form_id),
-            )
+            form = signup_form_service.get_form_by_id(UUID(req.form_id))
+            return (form, None) if form else (None, "Form not found")
         except Exception:
-            form = None
-    if not form and req.url_slug:
+            return (None, "Invalid form_id")
+
+    if req.url_slug:
         form = signup_form_service.get_form_by_url_slug(req.url_slug)
-    return form
+        return (form, None) if form else (None, "Form not found")
+
+    # Title based search among drafts
+    if req.title_contains:
+        matches = signup_form_service.search_draft_forms_by_title(
+            user.user_id, req.title_contains
+        )
+        if not matches:
+            return (None, "No draft form matching that title was found")
+        if len(matches) > 1:
+            listing = ", ".join(f"{m.title} (slug: {m.url_slug})" for m in matches[:5])
+            return (
+                None,
+                f"Multiple draft forms match that title. Please specify the form by its URL slug. Candidates: {listing}",
+            )
+        return (matches[0], None)
+
+    # Fallback: latest draft currently being designed
+    latest = signup_form_service.get_latest_draft_form_for_user(user.user_id)
+    if not latest:
+        return (None, "No draft forms found to publish")
+    return (latest, None)
 
 
 @router.post(
@@ -113,9 +140,9 @@ async def gpt_publish_form(
 ):
     signup_form_service = SignupFormService(db_session)
 
-    form = _get_form_by_identifier(signup_form_service, request)
+    form, err = _resolve_form_or_ask(signup_form_service, user, request)
     if not form:
-        raise HTTPException(status_code=404, detail="Form not found")
+        raise HTTPException(status_code=400, detail=err or "Form not found")
     if form.user_id != user.user_id:
         raise HTTPException(status_code=403, detail="You do not own this form")
     if form.status == FormStatus.ARCHIVED:
@@ -148,9 +175,9 @@ async def gpt_archive_form(
 ):
     signup_form_service = SignupFormService(db_session)
 
-    form = _get_form_by_identifier(signup_form_service, request)
+    form, err = _resolve_form_or_ask(signup_form_service, user, request)
     if not form:
-        raise HTTPException(status_code=404, detail="Form not found")
+        raise HTTPException(status_code=400, detail=err or "Form not found")
     if form.user_id != user.user_id:
         raise HTTPException(status_code=403, detail="You do not own this form")
     if form.status == FormStatus.ARCHIVED:
