@@ -161,6 +161,12 @@ async def test_end_to_end_rsvp_via_mcp(
     conference_form = signup_service.get_form_by_url_slug(conference_slug)
     assert conference_form is not None
 
+    # Publish the conference form before checking template rendering
+    signup_service.update_signup_form(
+        conference_form.id, {"status": FormStatus.PUBLISHED}
+    )
+    conference_form = signup_service.get_form_by_url_slug(conference_slug)
+
     # Verify this is a single submit form
     assert (
         conference_form.button_type == "single_submit"

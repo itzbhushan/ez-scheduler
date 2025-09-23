@@ -12,6 +12,13 @@
         <!-- Header -->
         <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
             <h1 class="text-3xl font-bold text-gray-900 mb-2">{{ form.title }}</h1>
+            {% if form.status == 'draft' %}
+            <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4" role="alert">
+                <p class="text-sm text-yellow-800">
+                    <strong>Preview Mode:</strong> This form is not published yet. Registrations are disabled until the organizer publishes it.
+                </p>
+            </div>
+            {% endif %}
             <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-4 text-gray-600">
                 <div class="flex items-center mb-2 sm:mb-0">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -63,6 +70,11 @@
         <div class="bg-white rounded-lg shadow-sm p-6" x-data="submitForm()">
             <h2 class="text-xl font-semibold text-gray-900 mb-6">Sign Up</h2>
 
+            {% if form.status == 'draft' %}
+            <div class="bg-yellow-50 border border-yellow-200 rounded-md p-4 text-sm text-yellow-800">
+                This form is in preview and not accepting registrations yet.
+            </div>
+            {% else %}
             <form
                 @submit.prevent="submitForm($event)"
                 x-show="!submitted"
@@ -255,6 +267,7 @@
                     <h3 class="text-lg font-semibold text-green-800 mb-2" x-text="confirmationMessage || 'Registration Successful!'"></h3>
                 </div>
             </div>
+            {% endif %}
         </div>
 
         <!-- Footer -->
