@@ -90,3 +90,68 @@ class FormFieldService:
         except Exception as e:
             logger.error(f"Error retrieving form fields for form {form_id}: {e}")
             return []
+
+    def upsert_form_fields(self, form_id: uuid.UUID, fields: List[dict]) -> dict:
+        """Create or update custom fields by `field_name`.
+
+        Does not commit; caller must commit/rollback.
+
+        Returns a dict with counts: {created: n, updated: n}.
+        """
+        created = 0
+        updated = 0
+
+        for i, data in enumerate(fields):
+            field_name = data.get("field_name")
+            if not field_name:
+                continue
+
+            existing = self.db.exec(
+                select(FormField).where(
+                    FormField.form_id == form_id,
+                    FormField.field_name == field_name,
+                )
+            ).first()
+
+            # Coerce field_type string to enum name used by model
+            field_type = data.get("field_type", "text")
+            try:
+                field_type_enum = FieldType(field_type)
+            except Exception:
+                field_type_enum = FieldType.TEXT
+
+            if existing:
+                existing.field_type = field_type_enum
+                existing.label = data.get("label", existing.label)
+                existing.placeholder = data.get("placeholder", existing.placeholder)
+                existing.is_required = data.get("is_required", existing.is_required)
+                existing.options = data.get("options", existing.options)
+                if data.get("field_order") is not None:
+                    existing.field_order = data.get("field_order")
+                updated += 1
+            else:
+                new_field = FormField(
+                    form_id=form_id,
+                    field_name=field_name,
+                    field_type=field_type_enum,
+                    label=data.get("label"),
+                    placeholder=data.get("placeholder"),
+                    is_required=data.get("is_required", False),
+                    options=data.get("options"),
+                    field_order=data.get("field_order", i),
+                )
+                self.db.add(new_field)
+                created += 1
+
+        return {"created": created, "updated": updated}
+
+    def delete_fields_not_in(self, form_id: uuid.UUID, keep_names: List[str]) -> int:
+        """Delete fields for form that are not in keep_names. Does not commit."""
+        current = self.get_fields_by_form_id(form_id)
+        keep = set(keep_names or [])
+        deleted = 0
+        for f in current:
+            if f.field_name not in keep:
+                self.db.delete(f)
+                deleted += 1
+        return deleted
