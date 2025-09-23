@@ -3,6 +3,7 @@
 import logging
 import re
 from datetime import date
+
 from ez_scheduler.models.signup_form import FormStatus
 
 logging.basicConfig(level=logging.INFO)

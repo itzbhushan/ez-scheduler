@@ -144,7 +144,10 @@ class SignupFormService:
         """
         if old == new:
             return True
-        if old == FormStatus.DRAFT and new in (FormStatus.PUBLISHED, FormStatus.ARCHIVED):
+        if old == FormStatus.DRAFT and new in (
+            FormStatus.PUBLISHED,
+            FormStatus.ARCHIVED,
+        ):
             return True
         if old == FormStatus.PUBLISHED and new == FormStatus.ARCHIVED:
             return True

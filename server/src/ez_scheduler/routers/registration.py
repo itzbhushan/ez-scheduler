@@ -10,12 +10,12 @@ from sqlmodel import Session
 from ez_scheduler.config import config
 from ez_scheduler.models.database import get_db
 from ez_scheduler.models.field_type import FieldType
+from ez_scheduler.models.signup_form import FormStatus
 from ez_scheduler.services.email_service import EmailService
 from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.registration_service import RegistrationService
 from ez_scheduler.services.signup_form_service import SignupFormService
-from ez_scheduler.models.signup_form import FormStatus
 from ez_scheduler.utils.address_utils import generate_google_maps_url
 
 router = APIRouter(include_in_schema=False)
@@ -103,7 +103,9 @@ async def submit_registration_form(
         raise HTTPException(status_code=404, detail="Form not found or archived")
     # Block submissions for draft forms
     if form.status != FormStatus.PUBLISHED:
-        raise HTTPException(status_code=403, detail="Form is not accepting registrations")
+        raise HTTPException(
+            status_code=403, detail="Form is not accepting registrations"
+        )
 
     # Parse form data
     form_data = await request.form()

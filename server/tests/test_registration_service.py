@@ -11,7 +11,9 @@ from ez_scheduler.models.signup_form import FormStatus, SignupForm
 class TestRegistrationService:
     """Test registration service functionality"""
 
-    def _create_test_form(self, signup_service, title="Test Event", status=FormStatus.PUBLISHED):
+    def _create_test_form(
+        self, signup_service, title="Test Event", status=FormStatus.PUBLISHED
+    ):
         """Helper method to create a test signup form"""
         # Use Auth0 user ID directly
         test_user_id = f"auth0|test_user_{uuid.uuid4()}"

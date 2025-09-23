@@ -5,13 +5,13 @@ Revises: 7f62cfa084f2
 Create Date: 2025-09-22
 """
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "8c1b0a1c1b6e"
-down_revision = "7f62cfa084f2"
+down_revision = "a1b2c3d4e5f6"
 branch_labels = None
 depends_on = None
 
@@ -49,7 +49,9 @@ def upgrade() -> None:
             pass
 
     # Add indexes on status and composite (url_slug, status)
-    op.create_index(op.f("ix_signup_forms_status"), "signup_forms", ["status"], unique=False)
+    op.create_index(
+        op.f("ix_signup_forms_status"), "signup_forms", ["status"], unique=False
+    )
     op.create_index(
         "idx_signup_forms_url_slug_status",
         "signup_forms",
@@ -87,5 +89,6 @@ def downgrade() -> None:
     status_enum.drop(op.get_bind(), checkfirst=True)
 
     # Recreate old index
-    op.create_index(op.f("ix_signup_forms_is_active"), "signup_forms", ["is_active"], unique=False)
-
+    op.create_index(
+        op.f("ix_signup_forms_is_active"), "signup_forms", ["is_active"], unique=False
+    )

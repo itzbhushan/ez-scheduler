@@ -33,11 +33,15 @@ class SignupForm(SQLModel, table=True):
     status: FormStatus = Field(
         default=FormStatus.DRAFT,
         sa_column=Column(
-            SAEnum(FormStatus, name="signup_form_status", native_enum=True),
+            SAEnum(
+                FormStatus,
+                name="signup_form_status",
+                native_enum=True,
+                values_callable=lambda enum: [e.value for e in enum],
+            ),
             nullable=False,
             server_default=FormStatus.DRAFT.value,
         ),
-        index=True,
     )
     button_type: str = Field(
         default="single_submit"
