@@ -198,7 +198,7 @@ Each item below is intended as a separate MR. Acceptance criteria and code touch
 - [x] MR-1: Unify lifecycle; status enforced; drop is_active
 - [x] MR-2: UI preview indicator
 - [x] MR-3: Agent integration
-- [ ] MR-4: Polish/UX
+- [x] MR-4: Polish/UX
 
 ---
 
