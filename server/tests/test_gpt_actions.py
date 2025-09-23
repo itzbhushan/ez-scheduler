@@ -168,3 +168,83 @@ def test_gpt_endpoints_require_authentication():
     except Exception as e:
         logger.error(f"❌ Authentication requirement test failed: {e}")
         raise
+
+
+def test_draft_form_analytics_exclusion(authenticated_client, signup_service):
+    """Test that newly created forms are in draft state and excluded from published form analytics"""
+    client, _ = authenticated_client
+
+    try:
+        # Create a new form which should be in draft state by default
+        response = client.post(
+            "/gpt/create-form",
+            json={
+                "description": "Create a signup form for Test Event on December 30th, 2025 at Test Venue. Just need basic registration."
+            },
+        )
+
+        logger.info(f"Draft form creation response status: {response.status_code}")
+        assert (
+            response.status_code == 200
+        ), f"Expected 200, got {response.status_code}: {response.text}"
+
+        # Extract form URL slug from response
+        response_json = response.json()
+        result_str = response_json["response"]
+        url_pattern = r"form/([a-zA-Z0-9-]+)"
+        url_match = re.search(url_pattern, result_str)
+        assert url_match, f"Could not find form URL pattern in response: {result_str}"
+        url_slug = url_match.group(1)
+
+        # 1. Verify form is in draft state using get_form_by_url_slug
+        created_form = signup_service.get_form_by_url_slug(url_slug)
+        assert created_form is not None, f"Form with slug '{url_slug}' should exist"
+        assert (
+            created_form.status == FormStatus.DRAFT
+        ), f"Form should be in DRAFT state, but was {created_form.status}"
+        logger.info(f"✅ Form {url_slug} is correctly in DRAFT state")
+
+        # 2. Test published forms count (should be 0)
+        published_response = client.post(
+            "/gpt/analytics", json={"query": "How many published forms do I have?"}
+        )
+        assert (
+            published_response.status_code == 200
+        ), f"Published forms query failed: {published_response.text}"
+        published_result = published_response.json()["response"]
+
+        # Check that response indicates 0 published forms
+        assert (
+            "0" in published_result
+            or "no" in published_result.lower()
+            or "zero" in published_result.lower()
+        ), f"Published forms count should be 0, but response was: {published_result}"
+        logger.info(
+            f"✅ Published forms count correctly excludes draft form: {published_result}"
+        )
+
+        # 3. Test all forms count (should be 1)
+        all_forms_response = client.post(
+            "/gpt/analytics",
+            json={"query": "How many total forms do I have including drafts?"},
+        )
+        assert (
+            all_forms_response.status_code == 200
+        ), f"All forms query failed: {all_forms_response.text}"
+        all_forms_result = all_forms_response.json()["response"]
+
+        # Check that response indicates 1 total form
+        assert (
+            "1" in all_forms_result
+        ), f"Total forms count should be 1, but response was: {all_forms_result}"
+        logger.info(
+            f"✅ Total forms count correctly includes draft form: {all_forms_result}"
+        )
+
+        logger.info(
+            "✅ Draft form analytics exclusion test passed - All verifications successful"
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Draft form analytics exclusion test failed: {e}")
+        raise
