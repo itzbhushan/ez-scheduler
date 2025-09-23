@@ -83,7 +83,7 @@
       {% endif %}
 
       <!-- Form card -->
-      <div class="card p-6 sm:p-8 mx-2 sm:mx-8 my-6" x-data="submitForm()">
+      <div class="card p-6 sm:p-8 mx-2 sm:mx-8 my-6" x-data="submitForm()" data-draft-mode="{{ 'true' if form.status == 'draft' else 'false' }}">
         <h2 class="text-xl font-semibold mb-4">RSVP For Golu</h2>
 
         {% if form.status == 'draft' %}
@@ -175,9 +175,8 @@
         <div x-show="submitted" class="text-center">
           <div class="bg-green-50 border border-green-200 rounded-md p-6">
             <h3 class="text-lg font-semibold text-green-800 mb-2" x-text="confirmationMessage || 'Registration Successful!'"></h3>
+          </div>
         </div>
-      </div>
-        {% endif %}
       </div>
 
       <div class="text-center text-[#d6c79e] text-xs pb-6">Powered by Signup Pro, Built by VB</div>
@@ -188,7 +187,7 @@
   <script>
     function submitForm() {
       return {
-        draftMode: {{ 'true' if form.status == 'draft' else 'false' }},
+        draftMode: this.$el.dataset.draftMode === 'true',
         submitting: false,
         submitted: false,
         error: null,
