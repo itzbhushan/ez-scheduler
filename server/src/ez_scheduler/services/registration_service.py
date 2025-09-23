@@ -4,11 +4,12 @@ import logging
 import uuid
 from typing import Optional
 
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.models.registration import Registration
-from ez_scheduler.models.signup_form import SignupForm
+from ez_scheduler.models.signup_form import FormStatus, SignupForm
 from ez_scheduler.system_prompts import CONFIRMATION_MESSAGE_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -47,14 +48,15 @@ class RegistrationService:
         Raises:
             ValueError: If the form doesn't exist or is inactive
         """
-        # Verify form exists and is active
+        # Verify form exists and is published
         form_stmt = select(SignupForm).where(
-            SignupForm.id == form_id, SignupForm.is_active == True
+            SignupForm.id == form_id,
+            SignupForm.status == FormStatus.PUBLISHED,
         )
         form = self.db.exec(form_stmt).first()
 
         if not form:
-            raise ValueError("Form not found or inactive")
+            raise ValueError("Form not found or not published")
 
         registration = Registration(
             form_id=form_id,
@@ -86,8 +88,12 @@ class RegistrationService:
 
     def get_registration_count_for_form(self, form_id: uuid.UUID) -> int:
         """Get the total number of registrations for a form"""
-        stmt = select(Registration).where(Registration.form_id == form_id)
-        return len(list(self.db.exec(stmt).all()))
+        stmt = select(func.count(Registration.id)).where(
+            Registration.form_id == form_id
+        )
+        # For SQLModel Session.exec + COUNT, use one() to get the scalar value
+        result = self.db.exec(stmt).one()
+        return int((result[0] if isinstance(result, tuple) else result) or 0)
 
     async def generate_confirmation_message(
         self, form, registrant_name: str, rsvp_response: str = None

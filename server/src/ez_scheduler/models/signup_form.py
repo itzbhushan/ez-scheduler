@@ -1,10 +1,19 @@
 """SQLModel SignupForm model"""
 
+import enum
 import uuid
 from datetime import date, datetime, time, timezone
 from typing import Optional
 
+from sqlalchemy import Column
+from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
+
+
+class FormStatus(str, enum.Enum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
 
 
 class SignupForm(SQLModel, table=True):
@@ -21,7 +30,19 @@ class SignupForm(SQLModel, table=True):
     location: str
     description: str
     url_slug: str = Field(unique=True, index=True)
-    is_active: bool = Field(default=True, index=True)
+    status: FormStatus = Field(
+        default=FormStatus.DRAFT,
+        sa_column=Column(
+            SAEnum(
+                FormStatus,
+                name="signup_form_status",
+                native_enum=True,
+                values_callable=lambda enum: [e.value for e in enum],
+            ),
+            nullable=False,
+            server_default=FormStatus.DRAFT.value,
+        ),
+    )
     button_type: str = Field(
         default="single_submit"
     )  # "rsvp_yes_no" or "single_submit"

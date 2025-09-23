@@ -13,7 +13,7 @@ from ez_scheduler.auth.dependencies import User
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.config import config
 from ez_scheduler.models.field_type import FieldType
-from ez_scheduler.models.signup_form import SignupForm
+from ez_scheduler.models.signup_form import FormStatus, SignupForm
 from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.signup_form_service import SignupFormService
 from ez_scheduler.system_prompts import FORM_BUILDER_PROMPT, FORM_RESPONSE_PROMPT
@@ -397,7 +397,7 @@ async def _create_form(
         location=location,
         description=description,
         url_slug=url_slug,
-        is_active=True,
+        status=FormStatus.DRAFT,
         button_type=button_config.button_type if button_config else "single_submit",
         primary_button_text=(
             button_config.primary_button_text if button_config else "Register"

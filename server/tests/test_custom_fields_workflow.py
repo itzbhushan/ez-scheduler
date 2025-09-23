@@ -7,7 +7,7 @@ from datetime import date, time
 import pytest
 from fastmcp.client import Client
 
-from ez_scheduler.models.signup_form import SignupForm
+from ez_scheduler.models.signup_form import FormStatus, SignupForm
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -149,7 +149,7 @@ async def test_custom_fields_registration_workflow(
         location="Tech Center",
         description="Annual tech conference",
         url_slug="test-conference-12345",
-        is_active=True,
+        status=FormStatus.PUBLISHED,
     )
 
     result = signup_service.create_signup_form(signup_form, test_user)

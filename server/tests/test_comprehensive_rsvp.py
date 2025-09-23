@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from ez_scheduler.models.signup_form import SignupForm
+from ez_scheduler.models.signup_form import FormStatus, SignupForm
 
 
 @pytest.mark.asyncio
@@ -23,7 +23,7 @@ async def test_comprehensive_rsvp_workflow(
         location="Grand Ballroom",
         description="Wedding reception with dinner and dancing",
         url_slug="comprehensive-wedding-test",
-        is_active=True,
+        status=FormStatus.PUBLISHED,
         button_type="rsvp_yes_no",
         primary_button_text="Accept Invitation",
         secondary_button_text="Decline",
@@ -41,7 +41,7 @@ async def test_comprehensive_rsvp_workflow(
         location="Convention Center",
         description="Professional tech conference",
         url_slug="comprehensive-conference-test",
-        is_active=True,
+        status=FormStatus.PUBLISHED,
         button_type="single_submit",
         primary_button_text="Register",
         secondary_button_text=None,
@@ -162,7 +162,7 @@ async def test_comprehensive_rsvp_workflow(
 
 @pytest.mark.asyncio
 async def test_database_migration_applied(signup_service, mock_current_user):
-    """Test that database migration was applied correctly and backward compatibility"""
+    """Smoke test: forms persist button configuration and defaults"""
 
     test_user = mock_current_user()
 
@@ -174,7 +174,7 @@ async def test_database_migration_applied(signup_service, mock_current_user):
         location="Migration Test Location",
         description="Testing that migration was applied",
         url_slug="migration-test-form",
-        is_active=True,
+        status=FormStatus.PUBLISHED,
         button_type="rsvp_yes_no",
         primary_button_text="I'll Be There!",
         secondary_button_text="Sorry, Can't Make It",
@@ -196,7 +196,7 @@ async def test_database_migration_applied(signup_service, mock_current_user):
         location="Legacy Location",
         description="This form was created before button configuration was added",
         url_slug="legacy-backward-compat-test",
-        is_active=True,
+        status=FormStatus.PUBLISHED,
         # Note: not setting button_type, primary_button_text, secondary_button_text
     )
 

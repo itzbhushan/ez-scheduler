@@ -10,6 +10,7 @@ from sqlmodel import Session
 from ez_scheduler.config import config
 from ez_scheduler.models.database import get_db
 from ez_scheduler.models.field_type import FieldType
+from ez_scheduler.models.signup_form import FormStatus
 from ez_scheduler.services.email_service import EmailService
 from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.llm_service import get_llm_client
@@ -41,7 +42,7 @@ async def serve_registration_form(
     form = signup_form_service.get_form_by_url_slug(url_slug)
 
     if not form:
-        raise HTTPException(status_code=404, detail="Form not found or inactive")
+        raise HTTPException(status_code=404, detail="Form not found or archived")
 
     # Get custom fields for this form
     form_field_service = FormFieldService(db)
@@ -99,7 +100,12 @@ async def submit_registration_form(
     form = signup_form_service.get_form_by_url_slug(url_slug)
 
     if not form:
-        raise HTTPException(status_code=404, detail="Form not found or inactive")
+        raise HTTPException(status_code=404, detail="Form not found or archived")
+    # Block submissions for draft forms
+    if form.status != FormStatus.PUBLISHED:
+        raise HTTPException(
+            status_code=403, detail="Form is not accepting registrations"
+        )
 
     # Parse form data
     form_data = await request.form()

@@ -6,7 +6,7 @@ from datetime import date, time
 
 import pytest
 
-from ez_scheduler.models.signup_form import SignupForm
+from ez_scheduler.models.signup_form import FormStatus, SignupForm
 from ez_scheduler.utils.address_utils import generate_google_maps_url
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ class TestFormGetEndpoint:
             location="Golden Gate Bridge, San Francisco, CA",
             description="A test event for GET testing",
             url_slug="test-get-123",
-            is_active=True,
+            status=FormStatus.PUBLISHED,
         )
 
         signup_service.create_signup_form(test_form)
