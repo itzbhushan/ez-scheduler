@@ -340,15 +340,15 @@ Custom Fields:
         if not result.get("success"):
             return f"I couldn't update the form: {result.get('error', 'unknown error')}"
 
-    # 6) Upsert custom fields if provided
+    # 6) Upsert custom fields and remove any not present (authoritative list)
     if getattr(extracted, "custom_fields", None) is not None:
-        form_field_service.upsert_form_fields(
-            form.id,
-            [
-                cf.dict() if hasattr(cf, "dict") else dict(cf)
-                for cf in extracted.custom_fields
-            ],
-        )
+        cf_list = [
+            cf.dict() if hasattr(cf, "dict") else dict(cf)
+            for cf in extracted.custom_fields
+        ]
+        form_field_service.upsert_form_fields(form.id, cf_list)
+        keep_names = [cf.get("field_name") for cf in cf_list if cf.get("field_name")]
+        form_field_service.delete_fields_not_in(form.id, keep_names)
         form_field_service.db.commit()
 
     # 7) Final response
