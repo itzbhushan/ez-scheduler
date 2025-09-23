@@ -67,7 +67,7 @@
         {% endif %}
 
         <!-- Registration Form -->
-        <div class="bg-white rounded-lg shadow-sm p-6" x-data="submitForm()">
+        <div class="bg-white rounded-lg shadow-sm p-6" x-data="submitForm()" data-draft-mode="{{ 'true' if form.status == 'draft' else 'false' }}">
             <h2 class="text-xl font-semibold text-gray-900 mb-6">Sign Up</h2>
 
             <!-- Preview notice under heading -->
@@ -280,7 +280,7 @@
     <script>
         function submitForm() {
             return {
-                draftMode: {{ 'true' if form.status == 'draft' else 'false' }},
+                draftMode: this.$el.dataset.draftMode === 'true',
                 submitting: false,
                 submitted: false,
                 error: null,
