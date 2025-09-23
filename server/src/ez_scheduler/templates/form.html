@@ -280,7 +280,10 @@
     <script>
         function submitForm() {
             return {
-                draftMode: this.$el.dataset.draftMode === 'true',
+                init() {
+                    this.draftMode = this.$el.dataset.draftMode === 'true';
+                },
+                draftMode: false,
                 submitting: false,
                 submitted: false,
                 error: null,
