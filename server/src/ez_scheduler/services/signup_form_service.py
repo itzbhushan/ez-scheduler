@@ -158,13 +158,13 @@ class SignupFormService:
 
     def get_form_by_url_slug(self, url_slug: str) -> Optional[SignupForm]:
         """
-        Retrieve an active signup form by its URL slug
+        Retrieve a publicly viewable signup form (draft or published) by URL slug.
 
         Args:
             url_slug: URL slug of the signup form to retrieve
 
         Returns:
-            SignupForm object if found and active, None otherwise
+            SignupForm object if found and viewable (draft/published), None otherwise
         """
         try:
             logger.info(f"Retrieving signup form by URL slug: {url_slug}")
@@ -180,7 +180,7 @@ class SignupFormService:
 
     def delete_signup_form(self, form_id: uuid.UUID) -> Dict[str, Any]:
         """
-        Delete a signup form (soft delete by setting is_active to False)
+        Archive a signup form (soft delete by setting status to ARCHIVED)
 
         Args:
             form_id: UUID of the signup form to delete
@@ -201,7 +201,7 @@ class SignupFormService:
             self.db.add(signup_form)
             self.db.commit()
 
-            logger.info(f"Signup form deleted (deactivated) successfully: {form_id}")
+            logger.info(f"Signup form archived successfully: {form_id}")
 
             return {"success": True, "message": "Signup form deleted successfully"}
 

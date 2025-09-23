@@ -46,7 +46,7 @@ class RegistrationService:
             Registration: The created registration
 
         Raises:
-            ValueError: If the form doesn't exist or is inactive
+            ValueError: If the form doesn't exist or is not published
         """
         # Verify form exists and is published
         form_stmt = select(SignupForm).where(

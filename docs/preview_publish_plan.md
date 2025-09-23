@@ -1,7 +1,7 @@
 # Signup Form Preview & Publish Plan
 
 
-Last updated: 2025-09-22
+Last updated: 2025-09-23
 
 ---
 
@@ -138,14 +138,7 @@ Each item below is intended as a separate MR. Acceptance criteria and code touch
 - Ideas:
   - “Published”/“Preview” chips on pages.
   - Share CTA only when published.
-  - Analytics default to exclude `draft`.
-
-### MR-5: Polish and UX Enhancements (optional)
-- Goal: Improve clarity for creators and visitors.
-- Ideas:
-  - “Published”/“Preview” chips on pages.
-  - Share CTA only when published.
-  - Analytics default to exclude `draft`.
+  - Exclude `draft` from default analytics views.
 
 ---
 
@@ -202,15 +195,15 @@ Each item below is intended as a separate MR. Acceptance criteria and code touch
 ## Progress Checklist
 
 - [x] MR-0: Plan documented (this file)
-- [ ] MR-1: Unify lifecycle; status enforced; drop is_active
-- [ ] MR-2: UI preview indicator
-- [ ] MR-3: Agent integration
+- [x] MR-1: Unify lifecycle; status enforced; drop is_active
+- [x] MR-2: UI preview indicator
+- [x] MR-3: Agent integration
 - [ ] MR-4: Polish/UX
 
 ---
 
 ## Next Session Starting Points
 
-- Implement MR-1: Add `status` to model; add migration to create `status`, migrate rows to `published`, drop `is_active`; update services and queries to use `status`; enforce POST only on `published`; update tests.
-- Update `system_prompts.py` schema notes from `is_active` → `status`.
-- Ensure create flow sets `status='draft'` by default.
+- Add UX polish: status chips, share CTA (published only), and consider noindex for draft pages.
+- Add targeted tests: illegal transitions (published→draft, archived→any), draft UI banner and disabled submit, archived publish attempts (409) and ownership checks.
+- Add minimal audit logs for GPT-triggered status changes (who/what/from→to).

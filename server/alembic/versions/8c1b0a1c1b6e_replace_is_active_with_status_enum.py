@@ -1,7 +1,7 @@
 """Replace is_active with status enum on signup_forms
 
 Revision ID: 8c1b0a1c1b6e
-Revises: 7f62cfa084f2
+Revises: a1b2c3d4e5f6
 Create Date: 2025-09-22
 """
 
