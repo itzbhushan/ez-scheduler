@@ -104,7 +104,11 @@ class SignupFormService:
                     try:
                         new_status = FormStatus(new_status)
                     except ValueError:
-                        return {"success": False, "error": "Invalid status"}
+                        valid = ", ".join(s.value for s in FormStatus)
+                        return {
+                            "success": False,
+                            "error": f"Invalid status '{updated_data['status']}'. Valid options: {valid}",
+                        }
 
                 if new_status != signup_form.status:
                     if not self._can_transition(signup_form.status, new_status):

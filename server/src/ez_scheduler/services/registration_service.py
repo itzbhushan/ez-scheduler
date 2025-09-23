@@ -4,6 +4,7 @@ import logging
 import uuid
 from typing import Optional
 
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from ez_scheduler.backends.llm_client import LLMClient
@@ -87,8 +88,12 @@ class RegistrationService:
 
     def get_registration_count_for_form(self, form_id: uuid.UUID) -> int:
         """Get the total number of registrations for a form"""
-        stmt = select(Registration).where(Registration.form_id == form_id)
-        return len(list(self.db.exec(stmt).all()))
+        stmt = select(func.count(Registration.id)).where(
+            Registration.form_id == form_id
+        )
+        # For SQLModel Session.exec + COUNT, use one() to get the scalar value
+        result = self.db.exec(stmt).one()
+        return int((result[0] if isinstance(result, tuple) else result) or 0)
 
     async def generate_confirmation_message(
         self, form, registrant_name: str, rsvp_response: str = None
