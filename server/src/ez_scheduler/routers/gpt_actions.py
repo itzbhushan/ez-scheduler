@@ -1,16 +1,22 @@
 """GPT Actions router - REST API wrapper for MCP tools"""
 
-from fastapi import APIRouter, Depends
+from datetime import date, time
+from typing import List, Optional
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ez_scheduler.auth.dependencies import User, get_current_user
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.backends.postgres_client import PostgresClient
 from ez_scheduler.models.database import get_db
+from ez_scheduler.models.signup_form import FormStatus
+from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.postgres_service import get_postgres_client
 from ez_scheduler.services.signup_form_service import SignupFormService
-from ez_scheduler.tools.create_form import create_form_handler
+from ez_scheduler.tools.create_form import create_form_handler, update_form_handler
 from ez_scheduler.tools.get_form_analytics import get_form_analytics_handler
 
 router = APIRouter(prefix="/gpt", tags=["GPT Actions"])
@@ -40,6 +46,35 @@ class GPTResponse(BaseModel):
     response: str = Field(..., description="Response message for the user")
 
 
+class FormMutateRequest(BaseModel):
+    form_id: str | None = Field(
+        default=None, description="UUID of the form (optional if url_slug provided)"
+    )
+    url_slug: str | None = Field(
+        default=None, description="URL slug of the form (optional if form_id provided)"
+    )
+    title_contains: str | None = Field(
+        default=None,
+        description="Publish a draft whose title contains this text (fallback)",
+    )
+
+
+class CustomFieldUpdate(BaseModel):
+    field_name: str
+    field_type: str
+    label: str
+    placeholder: Optional[str] = None
+    is_required: Optional[bool] = False
+    options: Optional[List[str]] = None
+    field_order: Optional[int] = None
+
+
+class UpdateFormRequest(FormMutateRequest):
+    update_description: str = Field(
+        ..., description="Natural language description of what to change"
+    )
+
+
 @router.post(
     "/create-form",
     summary="Create Signup Form",
@@ -65,6 +100,143 @@ async def gpt_create_form(
         initial_request=request.description,
         llm_client=llm_client,
         signup_form_service=signup_form_service,
+    )
+    return GPTResponse(response=response_text)
+
+
+def _resolve_form_or_ask(
+    signup_form_service: SignupFormService, user: User, req: FormMutateRequest
+):
+    """Resolve a target form by id/slug/title or fallback to latest draft.
+
+    Returns: tuple(form, error_message)
+      - If ambiguous or not found, returns (None, message).
+    """
+    # Direct lookups first
+    if req.form_id:
+        try:
+            form = signup_form_service.get_form_by_id(UUID(req.form_id))
+            return (form, None) if form else (None, "Form not found")
+        except Exception:
+            return (None, "Invalid form_id")
+
+    if req.url_slug:
+        form = signup_form_service.get_form_by_url_slug(req.url_slug)
+        return (form, None) if form else (None, "Form not found")
+
+    # Title based search among drafts
+    if req.title_contains:
+        matches = signup_form_service.search_draft_forms_by_title(
+            user.user_id, req.title_contains
+        )
+        if not matches:
+            return (None, "No draft form matching that title was found")
+        if len(matches) > 1:
+            listing = ", ".join(f"{m.title} (slug: {m.url_slug})" for m in matches[:5])
+            return (
+                None,
+                f"Multiple draft forms match that title. Please specify the form by its URL slug. Candidates: {listing}",
+            )
+        return (matches[0], None)
+
+    # Fallback: latest draft currently being designed
+    latest = signup_form_service.get_latest_draft_form_for_user(user.user_id)
+    if not latest:
+        return (None, "No draft forms found to publish")
+    return (latest, None)
+
+
+@router.post(
+    "/publish-form",
+    summary="Publish a draft form",
+    response_model=GPTResponse,
+    openapi_extra={"x-openai-isConsequential": True},
+)
+async def gpt_publish_form(
+    request: FormMutateRequest,
+    user: User = Depends(get_current_user),
+    db_session=Depends(get_db),
+):
+    signup_form_service = SignupFormService(db_session)
+
+    form, err = _resolve_form_or_ask(signup_form_service, user, request)
+    if not form:
+        raise HTTPException(status_code=400, detail=err or "Form not found")
+    if form.user_id != user.user_id:
+        raise HTTPException(status_code=403, detail="You do not own this form")
+    if form.status == FormStatus.ARCHIVED:
+        raise HTTPException(
+            status_code=409, detail="Archived forms cannot be published"
+        )
+    if form.status == FormStatus.PUBLISHED:
+        return GPTResponse(response="This form is already published.")
+
+    result = signup_form_service.update_signup_form(
+        form.id, {"status": FormStatus.PUBLISHED}
+    )
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=400, detail=result.get("error", "Publish failed")
+        )
+    return GPTResponse(response="Form published successfully.")
+
+
+@router.post(
+    "/archive-form",
+    summary="Archive a form (removes from public view)",
+    response_model=GPTResponse,
+    openapi_extra={"x-openai-isConsequential": True},
+)
+async def gpt_archive_form(
+    request: FormMutateRequest,
+    user: User = Depends(get_current_user),
+    db_session=Depends(get_db),
+):
+    signup_form_service = SignupFormService(db_session)
+
+    form, err = _resolve_form_or_ask(signup_form_service, user, request)
+    if not form:
+        raise HTTPException(status_code=400, detail=err or "Form not found")
+    if form.user_id != user.user_id:
+        raise HTTPException(status_code=403, detail="You do not own this form")
+    if form.status == FormStatus.ARCHIVED:
+        return GPTResponse(response="This form is already archived.")
+
+    result = signup_form_service.update_signup_form(
+        form.id, {"status": FormStatus.ARCHIVED}
+    )
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=400, detail=result.get("error", "Archive failed")
+        )
+    return GPTResponse(response="Form archived successfully.")
+
+
+@router.post(
+    "/update-form",
+    summary="Update a draft form (core fields and custom fields)",
+    response_model=GPTResponse,
+    openapi_extra={"x-openai-isConsequential": True},
+)
+async def gpt_update_form(
+    request: UpdateFormRequest,
+    user: User = Depends(get_current_user),
+    db_session=Depends(get_db),
+    llm_client: LLMClient = Depends(get_llm_client),
+):
+    """Minimal router: delegate update behavior to tool handler."""
+    signup_form_service = SignupFormService(db_session)
+    form_field_service = FormFieldService(db_session)
+
+    response_text = await update_form_handler(
+        user=user,
+        update_description=request.update_description,
+        llm_client=llm_client,
+        signup_form_service=signup_form_service,
+        form_field_service=form_field_service,
+        form_id=request.form_id,
+        url_slug=request.url_slug,
+        title_contains=request.title_contains,
     )
     return GPTResponse(response=response_text)
 
