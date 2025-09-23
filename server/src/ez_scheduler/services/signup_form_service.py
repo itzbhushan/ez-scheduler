@@ -110,13 +110,12 @@ class SignupFormService:
                             "error": f"Invalid status '{updated_data['status']}'. Valid options: {valid}",
                         }
 
-                if new_status != signup_form.status:
-                    if not self._can_transition(signup_form.status, new_status):
-                        return {
-                            "success": False,
-                            "error": f"Illegal status transition: {signup_form.status.value} -> {new_status.value}",
-                        }
-                    signup_form.status = new_status
+                if not self._can_transition(signup_form.status, new_status):
+                    return {
+                        "success": False,
+                        "error": f"Illegal status transition: {signup_form.status.value} -> {new_status.value}",
+                    }
+                signup_form.status = new_status
 
             signup_form.updated_at = datetime.now(timezone.utc)
 
