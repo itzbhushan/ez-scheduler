@@ -296,12 +296,7 @@ Custom Fields:
 {fields_desc if fields_desc else '- none'}
 """
 
-    user_message = (
-        current_summary
-        + "\nUPDATE INSTRUCTIONS:\n"
-        + update_description
-        + "\n\nTASK: Produce a complete form spec using the same JSON schema as initial creation (FORM_BUILDER_PROMPT). Include all fields (not only changes)."
-    )
+    user_message = current_summary + "\nUPDATE INSTRUCTIONS:\n" + update_description
 
     # 3) Ask LLM to produce the full extracted data
     llm_resp = await process_form_instruction(

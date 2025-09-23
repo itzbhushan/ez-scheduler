@@ -224,6 +224,18 @@ RESPONSE FORMAT (return exactly this structure):
     "action": "continue|create_form|clarify"
 }}
 
+UPDATE MODE:
+Sometimes, instead of initial creation, you will be asked to UPDATE an existing draft form. In those cases, the user message will contain two labeled sections:
+- CURRENT FORM SNAPSHOT: the current full state of the form (title, event_date, time(s), location, description, button config, and existing custom fields)
+- UPDATE INSTRUCTIONS: natural language describing what to change (including adding/removing/modifying custom fields)
+
+When you see these sections, treat the task as an update and produce a COMPLETE extracted_data spec using the SAME JSON schema as above (identical to creation). Important:
+- Carry forward all unchanged fields from the snapshot
+- Apply the requested changes to title, dates/times, location, description, and button_config
+- Update custom_fields accordingly (include any new fields, and keep any existing ones that should remain)
+- The output must be a full, self-contained spec (not a diff)
+- Keep action consistent with your normal behavior; however, do not ask questions — make reasonable assumptions from the instructions
+
 EXAMPLES:
 User: "Create a form for my birthday party on Jan 15th 2024 at Central Park from 2 PM to 6 PM"
 Response: {{
