@@ -434,15 +434,22 @@ CRITICAL SECURITY REQUIREMENT:
 ALL queries MUST filter by user_id to ensure users only see their own data:
 - Filter by user: WHERE sf.user_id = :user_id
 
+DEFAULT VISIBILITY RULE:
+- Exclude draft and archived forms by default. Unless the user explicitly asks about drafts/preview or archived forms,
+  ensure queries include a filter to exclude forms in such state, e.g. "sf.status <> 'draft' and sf.status <> 'archived'" or
+  "sf.status IN ('published')". For joins, apply the filter to the signup_forms
+  table alias (commonly "sf").
+
 INSTRUCTIONS:
 1. Generate PostgreSQL-compatible SQL queries
 2. ONLY use :user_id as a parameter - avoid all other parameters
 3. For dates, use PostgreSQL date functions like CURRENT_DATE, NOW(), date arithmetic
 4. ALWAYS include user_id filter: WHERE sf.user_id = :user_id
-5. Return only SELECT queries (no INSERT/UPDATE/DELETE)
-6. Use proper column aliases for clarity
-7. Include ORDER BY for list results
-8. NEVER create date parameters - use PostgreSQL date functions instead
+5. By default, EXCLUDE drafts: add sf.status <> 'draft' unless the request explicitly includes drafts
+6. Return only SELECT queries (no INSERT/UPDATE/DELETE)
+7. Use proper column aliases for clarity
+8. Include ORDER BY for list results
+9. NEVER create date parameters - use PostgreSQL date functions instead
 
 FUZZY MATCHING FOR EVENTS:
 Users may refer to events by partial names, nicknames, or descriptions. Handle these cases:
