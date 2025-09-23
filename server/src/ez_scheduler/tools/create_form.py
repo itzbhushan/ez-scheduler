@@ -225,6 +225,145 @@ Generate a confirmation response that includes:
         raise ValueError("Failed to generate form response. Please try again later.")
 
 
+async def update_form_handler(
+    user: User,
+    update_description: str,
+    llm_client: LLMClient,
+    signup_form_service: SignupFormService,
+    form_field_service: FormFieldService,
+    form_id: str | None = None,
+    url_slug: str | None = None,
+    title_contains: str | None = None,
+) -> str:
+    """Update a draft form using LLM to produce a complete form spec.
+
+    Resolution order: form_id → url_slug → title_contains (drafts) → latest draft.
+    The LLM output schema matches FORM_BUILDER_PROMPT extracted_data.
+    """
+    # 1) Resolve target form
+    form: SignupForm | None = None
+    try:
+        if form_id:
+            form = signup_form_service.get_form_by_id(uuid.UUID(form_id))
+    except Exception:
+        form = None
+
+    if not form and url_slug:
+        form = signup_form_service.get_form_by_url_slug(url_slug)
+
+    if not form and title_contains:
+        matches = signup_form_service.search_draft_forms_by_title(
+            user.user_id, title_contains
+        )
+        if not matches:
+            return "I couldn't find a draft form matching that title. Please specify the exact URL slug."
+        if len(matches) > 1:
+            listing = ", ".join(f"{m.title} (slug: {m.url_slug})" for m in matches[:5])
+            return (
+                "I found multiple draft forms with that title. Please specify which one by providing its URL slug. "
+                f"Candidates: {listing}"
+            )
+        form = matches[0]
+
+    if not form:
+        form = signup_form_service.get_latest_draft_form_for_user(user.user_id)
+        if not form:
+            return "You don't have any draft forms to update. Would you like me to create a new one?"
+
+    if form.user_id != user.user_id:
+        return "You don't have permission to update that form."
+    if form.status == FormStatus.ARCHIVED:
+        return "Archived forms cannot be updated. Please create a new form instead."
+
+    # 2) Build current form snapshot for LLM
+    current_fields = form_field_service.get_fields_by_form_id(form.id)
+    fields_desc = "\n".join(
+        f"- {f.field_name} [{f.field_type}] label='{f.label}' required={f.is_required}"
+        for f in current_fields
+    )
+    current_summary = f"""
+CURRENT FORM SNAPSHOT:
+Title: {form.title}
+Date: {form.event_date}
+Start Time: {form.start_time or ''}
+End Time: {form.end_time or ''}
+Location: {form.location}
+Description: {form.description or ''}
+Button Type: {form.button_type}
+Primary Button: {form.primary_button_text}
+Secondary Button: {form.secondary_button_text or ''}
+Custom Fields:
+{fields_desc if fields_desc else '- none'}
+"""
+
+    user_message = (
+        current_summary
+        + "\nUPDATE INSTRUCTIONS:\n"
+        + update_description
+        + "\n\nTASK: Produce a complete form spec using the same JSON schema as initial creation (FORM_BUILDER_PROMPT). Include all fields (not only changes)."
+    )
+
+    # 3) Ask LLM to produce the full extracted data
+    llm_resp = await process_form_instruction(
+        llm_client=llm_client, user_message=user_message
+    )
+    extracted = llm_resp.extracted_data
+
+    # 4) Map extracted data to update payload
+    updated_data: dict = {}
+    if extracted.title:
+        updated_data["title"] = extracted.title
+    if extracted.description is not None:
+        updated_data["description"] = extracted.description
+    if extracted.location is not None:
+        updated_data["location"] = extracted.location
+
+    if getattr(extracted, "button_config", None):
+        bc = extracted.button_config
+        if bc.button_type:
+            updated_data["button_type"] = bc.button_type
+        if bc.primary_button_text:
+            updated_data["primary_button_text"] = bc.primary_button_text
+        if bc.secondary_button_text is not None:
+            updated_data["secondary_button_text"] = bc.secondary_button_text
+
+    # Date/time
+    try:
+        if extracted.event_date:
+            updated_data["event_date"] = date.fromisoformat(extracted.event_date)
+        if extracted.start_time:
+            updated_data["start_time"] = time.fromisoformat(extracted.start_time)
+        if extracted.end_time:
+            updated_data["end_time"] = time.fromisoformat(extracted.end_time)
+    except Exception:
+        # Non-fatal; caller side will keep existing values if parse fails
+        pass
+
+    # 5) Apply core updates
+    if updated_data:
+        result = signup_form_service.update_signup_form(form.id, updated_data)
+        if not result.get("success"):
+            return f"I couldn't update the form: {result.get('error', 'unknown error')}"
+
+    # 6) Upsert custom fields if provided
+    if getattr(extracted, "custom_fields", None) is not None:
+        form_field_service.upsert_form_fields(
+            form.id,
+            [
+                cf.dict() if hasattr(cf, "dict") else dict(cf)
+                for cf in extracted.custom_fields
+            ],
+        )
+        form_field_service.db.commit()
+
+    # 7) Final response
+    preview_url = f"{config['app_base_url']}/form/{form.url_slug}"
+    return (
+        "Your draft has been updated. Review it in preview mode here: "
+        f"{preview_url}. When you're ready, say 'publish the form'."
+    )
+
+
 async def generate_form_id(llm_client: LLMClient, title: str, event_date: str) -> str:
     """Generate a meaningful form ID using LLM based on event details"""
     try:
