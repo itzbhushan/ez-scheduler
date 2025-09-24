@@ -40,8 +40,9 @@ class TestMCPServerConnection:
                 # Verify create_form tool exists
                 tool_names = [tool.name for tool in tools]
                 assert (
-                    "create_form" in tool_names
-                ), "create_form tool should be available"
+                    "create_form" in tool_names,
+                    "update_form" in tool_names,
+                ), "create_form and update_form tools should be available"
 
         except Exception as e:
             pytest.fail(f"Failed to connect to MCP server: {e}")

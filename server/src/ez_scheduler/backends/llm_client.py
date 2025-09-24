@@ -32,25 +32,17 @@ class LLMClient:
             Generated text response
         """
 
-        try:
-            # Build the request parameters
-            request_params = {
-                "model": "claude-3-5-sonnet-20241022",
-                "max_tokens": max_tokens,
-                "messages": messages,
-            }
+        # Build the request parameters
+        request_params = {
+            "model": "claude-3-5-sonnet-20241022",
+            "max_tokens": max_tokens,
+            "messages": messages,
+        }
 
-            # Add system prompt if provided
-            if system:
-                request_params["system"] = system
+        # Add system prompt if provided
+        if system:
+            request_params["system"] = system
 
-            response = self.client.messages.create(**request_params)
+        response = self.client.messages.create(**request_params)
 
-            return response.content[0].text
-
-        except Exception as e:
-            print(
-                f"LLM API Error in process_instruction: {e}",
-                file=__import__("sys").stderr,
-            )
-            return "I'm having trouble processing your request. Please try again."
+        return response.content[0].text
