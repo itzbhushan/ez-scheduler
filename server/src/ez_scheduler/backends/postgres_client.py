@@ -50,23 +50,22 @@ class PostgresClient:
 
             Generate a SQL query that fulfills this request. Respond with valid JSON only.
             """
-
-        response = await self.llm_client.process_instruction(
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt_context,
-                }
-            ],
-            max_tokens=500,
-            system=SQL_GENERATOR_PROMPT,
-        )
-
-        # The system prompt expects JSON response, but we need to handle both formats
-        response = response.strip()
-
-        # Parse JSON response
         try:
+            response = await self.llm_client.process_instruction(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt_context,
+                    }
+                ],
+                max_tokens=500,
+                system=SQL_GENERATOR_PROMPT,
+            )
+
+            # The system prompt expects JSON response, but we need to handle both formats
+            response = response.strip()
+
+            # Parse JSON response
             response_data = json.loads(response)
             return SQLQueryResponse(**response_data)
         except json.JSONDecodeError:
@@ -75,6 +74,13 @@ class PostgresClient:
                 sql_query="SELECT 1 as error",
                 parameters={},
                 explanation="Failed to parse SQL generation response",
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error parsing SQL generation response: {e}")
+            return SQLQueryResponse(
+                sql_query="SELECT 1 as error",
+                parameters={},
+                explanation="Unexpected error parsing SQL generation response",
             )
 
     async def _execute_readonly_query(

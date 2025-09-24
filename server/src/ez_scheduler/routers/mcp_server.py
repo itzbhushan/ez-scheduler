@@ -88,18 +88,26 @@ async def update_form(
     url_slug: str | None = None,
     title_contains: str | None = None,
 ) -> str:
-    """
-    Update a draft form using natural language instructions.
+    """Update a draft form using natural language.
+
+    - Resolution order: `form_id → url_slug → title_contains (drafts) → latest draft`.
+    - Permissions: Only the form owner may update; archived forms are not editable.
+    - Behavior: Delegates to the existing update handler to modify core fields
+      (title, date/time, location, description, button config) and custom fields.
+      Returns a message with the preview URL and publish guidance.
 
     Args:
-        user_id: Auth0 user identifier (string like 'auth0|123')
-        update_description: What to change (title, description, fields, etc.)
-        form_id: Optional UUID to target a specific form
-        url_slug: Optional slug to target a specific form
-        title_contains: Optional fuzzy match among drafts; falls back to latest draft
+        user_id: Auth0 user identifier (e.g., "auth0|123").
+        update_description: Natural language instructions describing the changes.
+        form_id: Optional UUID of the target form.
+        url_slug: Optional URL slug of the target form.
+        title_contains: Optional substring to match a single draft title.
 
     Returns:
-        A response string containing preview URL and next-step guidance
+        Text response describing the result and preview URL.
+
+    Example:
+        update_form(user_id="auth0|abc", update_description="Change title to 'Team Offsite' and add guest_count field", url_slug="team-offsite-1234")
     """
     llm_client = get_llm_client()
 

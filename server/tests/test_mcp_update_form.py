@@ -9,7 +9,7 @@ from fastmcp.client import Client
 from ez_scheduler.models.signup_form import SignupForm
 
 
-@pytest.mark.skip(reason="Not sure if this test is even necessart")
+@pytest.mark.skip(reason="Not sure if this test is even necessary")
 async def test_update_form_no_drafts_returns_guidance(mcp_client):
     """Calling update_form for a user with no drafts should return guidance.
 
