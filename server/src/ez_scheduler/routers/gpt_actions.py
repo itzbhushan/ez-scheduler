@@ -12,6 +12,10 @@ from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.backends.postgres_client import PostgresClient
 from ez_scheduler.models.database import get_db
 from ez_scheduler.models.signup_form import FormStatus
+from ez_scheduler.routers.request_validator import (
+    resolve_form_or_ask,
+    validate_publish_allowed,
+)
 from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.postgres_service import get_postgres_client
@@ -104,48 +108,6 @@ async def gpt_create_form(
     return GPTResponse(response=response_text)
 
 
-def _resolve_form_or_ask(
-    signup_form_service: SignupFormService, user: User, req: FormMutateRequest
-):
-    """Resolve a target form by id/slug/title or fallback to latest draft.
-
-    Returns: tuple(form, error_message)
-      - If ambiguous or not found, returns (None, message).
-    """
-    # Direct lookups first
-    if req.form_id:
-        try:
-            form = signup_form_service.get_form_by_id(UUID(req.form_id))
-            return (form, None) if form else (None, "Form not found")
-        except Exception:
-            return (None, "Invalid form_id")
-
-    if req.url_slug:
-        form = signup_form_service.get_form_by_url_slug(req.url_slug)
-        return (form, None) if form else (None, "Form not found")
-
-    # Title based search among drafts
-    if req.title_contains:
-        matches = signup_form_service.search_draft_forms_by_title(
-            user.user_id, req.title_contains
-        )
-        if not matches:
-            return (None, "No draft form matching that title was found")
-        if len(matches) > 1:
-            listing = ", ".join(f"{m.title} (slug: {m.url_slug})" for m in matches[:5])
-            return (
-                None,
-                f"Multiple draft forms match that title. Please specify the form by its URL slug. Candidates: {listing}",
-            )
-        return (matches[0], None)
-
-    # Fallback: latest draft currently being designed
-    latest = signup_form_service.get_latest_draft_form_for_user(user.user_id)
-    if not latest:
-        return (None, "No draft forms found to publish")
-    return (latest, None)
-
-
 @router.post(
     "/publish-form",
     summary="Publish a draft form",
@@ -159,15 +121,20 @@ async def gpt_publish_form(
 ):
     signup_form_service = SignupFormService(db_session)
 
-    form, err = _resolve_form_or_ask(signup_form_service, user, request)
+    form = resolve_form_or_ask(
+        signup_form_service,
+        user,
+        form_id=request.form_id,
+        url_slug=request.url_slug,
+        title_contains=request.title_contains,
+        fallback_latest=True,
+    )
     if not form:
-        raise HTTPException(status_code=400, detail=err or "Form not found")
-    if form.user_id != user.user_id:
-        raise HTTPException(status_code=403, detail="You do not own this form")
-    if form.status == FormStatus.ARCHIVED:
-        raise HTTPException(
-            status_code=409, detail="Archived forms cannot be published"
-        )
+        raise HTTPException(status_code=400, detail="Form not found")
+    err = validate_publish_allowed(form, user)
+    if err:
+        code = 403 if "own" in err else 409 if "Archived" in err else 400
+        raise HTTPException(status_code=code, detail=err)
     if form.status == FormStatus.PUBLISHED:
         return GPTResponse(response="This form is already published.")
 
@@ -194,9 +161,16 @@ async def gpt_archive_form(
 ):
     signup_form_service = SignupFormService(db_session)
 
-    form, err = _resolve_form_or_ask(signup_form_service, user, request)
+    form = resolve_form_or_ask(
+        signup_form_service,
+        user,
+        form_id=request.form_id,
+        url_slug=request.url_slug,
+        title_contains=request.title_contains,
+        fallback_latest=True,
+    )
     if not form:
-        raise HTTPException(status_code=400, detail=err or "Form not found")
+        raise HTTPException(status_code=400, detail="Form not found")
     if form.user_id != user.user_id:
         raise HTTPException(status_code=403, detail="You do not own this form")
     if form.status == FormStatus.ARCHIVED:

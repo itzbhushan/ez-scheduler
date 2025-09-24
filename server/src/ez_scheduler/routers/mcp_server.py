@@ -1,4 +1,5 @@
 import logging
+from uuid import UUID
 
 from fastmcp import FastMCP
 
@@ -6,6 +7,11 @@ from ez_scheduler.auth.models import User
 from ez_scheduler.backends.postgres_client import PostgresClient
 from ez_scheduler.config import config
 from ez_scheduler.models.database import get_db
+from ez_scheduler.models.signup_form import FormStatus
+from ez_scheduler.routers.request_validator import (
+    resolve_form_or_ask,
+    validate_publish_allowed,
+)
 from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.signup_form_service import SignupFormService
@@ -133,6 +139,68 @@ async def update_form(
             db_session.close()
     except Exception as e:
         return f"Error updating form: {str(e)}"
+
+
+# New MCP tool: publish_form
+@mcp.tool()
+async def publish_form(
+    user_id: str,
+    form_id: str | None = None,
+    url_slug: str | None = None,
+    title_contains: str | None = None,
+) -> str:
+    """Publish a draft form so it accepts registrations.
+
+    - Resolution order: `form_id → url_slug → title_contains (drafts) → latest draft`.
+    - Permissions: Only the form owner may publish; archived forms cannot be published.
+    - Idempotent: If already published, returns a no-op message.
+
+    Args:
+        user_id: Auth0 user identifier (e.g., "auth0|123").
+        form_id: Optional UUID of the target form.
+        url_slug: Optional URL slug of the target form.
+        title_contains: Optional substring to match a single draft title.
+
+    Returns:
+        Text message describing the result.
+    """
+    # Create User for the handler
+    user = User(user_id=user_id, claims={})
+    try:
+        db_session = next(get_db())
+        try:
+            signup_form_service = SignupFormService(db_session)
+
+            # Resolve target form using shared helper
+            form = resolve_form_or_ask(
+                signup_form_service,
+                user,
+                form_id=form_id,
+                url_slug=url_slug,
+                title_contains=title_contains,
+                fallback_latest=True,
+            )
+            if not form:
+                return "Form not found"
+
+            # Status/ownership checks
+            err = validate_publish_allowed(form, user)
+            if err:
+                return err
+            if form.status == FormStatus.PUBLISHED:
+                return "This form is already published"
+
+            # Update status to published
+            result = signup_form_service.update_signup_form(
+                form.id, {"status": FormStatus.PUBLISHED}
+            )
+            if not result.get("success"):
+                return f"Publish failed: {result.get('error', 'unknown error')}"
+            return "Form published successfully"
+        finally:
+            db_session.close()
+    except Exception as e:
+        return f"Error publishing form: {str(e)}"
 
 
 # Create the ASGI app from the MCP server
