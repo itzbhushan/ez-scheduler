@@ -1,4 +1,4 @@
-"""Tests for MCP publish_form tool"""
+"""Tests for MCP archive_form tool"""
 
 import uuid
 
@@ -9,17 +9,16 @@ from ez_scheduler.models.signup_form import FormStatus, SignupForm
 
 
 @pytest.mark.asyncio
-async def test_publish_draft_form_success(mcp_client, test_db_session):
-    """Create a draft form in DB, publish via MCP, and verify status."""
+async def test_archive_draft_form_success(mcp_client, test_db_session):
     user_id = f"auth0|{uuid.uuid4()}"
-    slug = f"draft-to-publish-{uuid.uuid4().hex[:8]}"
+    slug = f"draft-to-archive-{uuid.uuid4().hex[:8]}"
 
     form = SignupForm(
         user_id=user_id,
-        title="Publish Test",
+        title="Archive Test",
         event_date=__import__("datetime").date.today(),
-        location="Test Venue",
-        description="Desc",
+        location="Venue",
+        description="",
         url_slug=slug,
         status=FormStatus.DRAFT,
         button_type="single_submit",
@@ -30,27 +29,28 @@ async def test_publish_draft_form_success(mcp_client, test_db_session):
 
     async with Client(mcp_client) as client:
         result = await client.call_tool(
-            "publish_form",
-            {"user_id": user_id, "url_slug": slug},
+            "archive_form",
+            {"user_id": user_id, "form_id": str(form.id)},
         )
 
     message = (
         result if isinstance(result, str) else getattr(result, "data", str(result))
     )
-    assert "published" in message.lower()
+    assert "archived successfully" in message.lower()
 
+    test_db_session.expire_all()
     refreshed = test_db_session.get(SignupForm, form.id)
-    assert refreshed.status == FormStatus.PUBLISHED
+    assert refreshed.status == FormStatus.ARCHIVED
 
 
 @pytest.mark.asyncio
-async def test_publish_form_idempotent(mcp_client, test_db_session):
+async def test_archive_published_form_success(mcp_client, test_db_session):
     user_id = f"auth0|{uuid.uuid4()}"
-    slug = f"already-published-{uuid.uuid4().hex[:8]}"
+    slug = f"published-to-archive-{uuid.uuid4().hex[:8]}"
 
     form = SignupForm(
         user_id=user_id,
-        title="Already Published",
+        title="To Archive",
         event_date=__import__("datetime").date.today(),
         location="Venue",
         description="",
@@ -64,52 +64,56 @@ async def test_publish_form_idempotent(mcp_client, test_db_session):
 
     async with Client(mcp_client) as client:
         result = await client.call_tool(
-            "publish_form",
-            {"user_id": user_id, "url_slug": slug},
+            "archive_form",
+            {"user_id": user_id, "form_id": str(form.id)},
         )
 
     message = (
         result if isinstance(result, str) else getattr(result, "data", str(result))
     )
-    assert "already published" in message.lower()
+    assert "archived successfully" in message.lower()
+
+    test_db_session.expire_all()
+    refreshed = test_db_session.get(SignupForm, form.id)
+    assert refreshed.status == FormStatus.ARCHIVED
 
 
 @pytest.mark.asyncio
-async def test_publish_archived_form_blocked(mcp_client, test_db_session):
+async def test_archive_idempotent(mcp_client, test_db_session):
     user_id = f"auth0|{uuid.uuid4()}"
-    other_user = f"auth0|{uuid.uuid4()}"
+    slug = f"already-archived-{uuid.uuid4().hex[:8]}"
 
-    archived = SignupForm(
+    form = SignupForm(
         user_id=user_id,
-        title="Archived",
+        title="Already Archived",
         event_date=__import__("datetime").date.today(),
-        location="X",
+        location="V",
         description="",
-        url_slug=f"archived-{uuid.uuid4().hex[:8]}",
+        url_slug=slug,
         status=FormStatus.ARCHIVED,
         button_type="single_submit",
         primary_button_text="Register",
     )
-    test_db_session.add(archived)
+    test_db_session.add(form)
     test_db_session.commit()
 
     async with Client(mcp_client) as client:
         result = await client.call_tool(
-            "publish_form",
-            {"user_id": user_id, "form_id": str(archived.id)},
+            "archive_form",
+            {"user_id": user_id, "form_id": str(form.id)},
         )
 
     message = (
         result if isinstance(result, str) else getattr(result, "data", str(result))
     )
-    assert "cannot be published" in message.lower()
+    assert "already archived" in message.lower()
 
 
 @pytest.mark.asyncio
-async def test_publish_requires_ownership(mcp_client, test_db_session):
+async def test_archive_requires_ownership(mcp_client, test_db_session):
     owner = f"auth0|{uuid.uuid4()}"
     not_owner = f"auth0|{uuid.uuid4()}"
-    slug = f"ownership-{uuid.uuid4().hex[:8]}"
+    slug = f"ownership-archive-{uuid.uuid4().hex[:8]}"
 
     form = SignupForm(
         user_id=owner,
@@ -127,7 +131,7 @@ async def test_publish_requires_ownership(mcp_client, test_db_session):
 
     async with Client(mcp_client) as client:
         result = await client.call_tool(
-            "publish_form",
+            "archive_form",
             {"user_id": not_owner, "url_slug": slug},
         )
 

@@ -1,5 +1,7 @@
 # MR-5: MCP Tool — publish_form
 
+Status: Completed
+
 Goal: Add an MCP tool to publish draft forms, matching the behavior of `/gpt/publish-form`.
 
 Scope

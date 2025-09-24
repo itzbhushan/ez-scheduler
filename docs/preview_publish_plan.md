@@ -243,9 +243,9 @@ Each item below is intended as a separate MR. Acceptance criteria and code touch
 - [x] MR-2: UI preview indicator
 - [x] MR-3: Agent integration
  - [x] MR-4: MCP tool — update_form
- - [ ] MR-5: MCP tool — publish_form
- - [ ] MR-6: MCP tool — archive_form
- - [ ] MR-7: Optional polish
+  - [x] MR-5: MCP tool — publish_form
+  - [x] MR-6: MCP tool — archive_form
+  - [ ] MR-7: Optional polish
 - [x] MR-4: Polish/UX
 
 ---
