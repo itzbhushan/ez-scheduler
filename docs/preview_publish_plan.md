@@ -133,7 +133,47 @@ Each item below is intended as a separate MR. Acceptance criteria and code touch
   - Agent-created form reply mentions preview and asks to publish.
   - GPT endpoints toggle status with proper auth; tests cover ownership checks.
 
-### MR-4: Polish and UX Enhancements (optional)
+### MR-4: MCP Tools — Update Form
+- Goal: Expose an MCP tool to update draft forms, mirroring `/gpt/update-form` behavior and reusing existing handler logic.
+- Changes:
+  - MCP Server: `server/src/ez_scheduler/routers/mcp_server.py`
+    - Add `update_form` tool with inputs: `user_id`, `update_description`, optional `form_id`, `url_slug`, `title_contains`.
+    - Delegate to existing `update_form_handler` from `ez_scheduler.tools.create_form`.
+  - Docs: Add tool description in `docs` where appropriate.
+  - Tests:
+    - Ensure tool is listed via MCP client.
+    - Validate tool schema (required/optional args).
+    - Happy path updates a draft and returns preview URL guidance.
+- Acceptance:
+  - `update_form` tool appears in MCP `list_tools()` and executes successfully.
+  - Behavior matches `/gpt/update-form` for resolution rules and messaging.
+
+### MR-5: MCP Tools — Publish Form
+- Goal: Expose an MCP tool to publish draft forms, mirroring `/gpt/publish-form` behavior.
+- Changes:
+  - MCP Server: `server/src/ez_scheduler/routers/mcp_server.py`
+    - Add `publish_form` tool with inputs: `user_id`, optional `form_id`, `url_slug`, `title_contains`.
+    - Reuse `_resolve_form_or_ask` parity and call `SignupFormService.update_signup_form` with `status=PUBLISHED`.
+    - Enforce rules: cannot publish archived; idempotent for already published.
+  - Tests:
+    - Tool listed and schema validated.
+    - Publishing a draft succeeds; publishing archived returns conflict; publishing already published is no‑op message.
+- Acceptance:
+  - `publish_form` tool works end‑to‑end and aligns with REST endpoint behavior.
+
+### MR-6: MCP Tools — Archive Form
+- Goal: Expose an MCP tool to archive forms, mirroring `/gpt/archive-form` behavior.
+- Changes:
+  - MCP Server: `server/src/ez_scheduler/routers/mcp_server.py`
+    - Add `archive_form` tool with inputs: `user_id`, optional `form_id`, `url_slug`, `title_contains`.
+    - Update status to `ARCHIVED`; idempotent if already archived.
+  - Tests:
+    - Tool listed and schema validated.
+    - Archiving from published/draft succeeds; repeated archive returns idempotent message.
+- Acceptance:
+  - `archive_form` tool works end‑to‑end and aligns with REST endpoint behavior.
+
+### MR-7: Polish and UX Enhancements (optional)
 - Goal: Improve clarity for creators and visitors.
 - Ideas:
   - “Published”/“Preview” chips on pages.
@@ -151,7 +191,10 @@ Each item below is intended as a separate MR. Acceptance criteria and code touch
   - Fixtures/helpers: add `make_published_form(...)` and use it in tests that submit or verify registration; update existing assertions from `is_active` to `status`.
 - MR-2: GET HTML shows preview banner and client-side CTA disable for draft.
  - MR-3: GPT publish/archive endpoints with ownership tests.
- - MR-4: Optional UI polish verifications (chips/banner visibility), no API changes.
+- MR-4: MCP `update_form` parity with REST; tool list/schema tests; happy path update returns preview URL.
+- MR-5: MCP `publish_form` parity with REST; cannot publish archived; idempotent publish.
+- MR-6: MCP `archive_form` parity with REST; idempotent archive.
+- MR-7: Optional UI polish verifications (chips/banner visibility), no API changes.
   - Add negative tests: attempt to publish when `status='archived'` returns 400/409; attempting `published` → `draft` returns validation error.
 
 ---
@@ -174,6 +217,7 @@ Each item below is intended as a separate MR. Acceptance criteria and code touch
 - Routers:
   - `server/src/ez_scheduler/routers/registration.py`
   - `server/src/ez_scheduler/routers/gpt_actions.py`
+  - `server/src/ez_scheduler/routers/mcp_server.py`
 - Templates:
   - `server/src/ez_scheduler/templates/form.html`
   - `server/src/ez_scheduler/templates/themes/golu_form.html`
@@ -198,6 +242,10 @@ Each item below is intended as a separate MR. Acceptance criteria and code touch
 - [x] MR-1: Unify lifecycle; status enforced; drop is_active
 - [x] MR-2: UI preview indicator
 - [x] MR-3: Agent integration
+ - [x] MR-4: MCP tool — update_form
+ - [ ] MR-5: MCP tool — publish_form
+ - [ ] MR-6: MCP tool — archive_form
+ - [ ] MR-7: Optional polish
 - [x] MR-4: Polish/UX
 
 ---

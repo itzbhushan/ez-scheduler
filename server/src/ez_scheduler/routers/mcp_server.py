@@ -6,9 +6,10 @@ from ez_scheduler.auth.models import User
 from ez_scheduler.backends.postgres_client import PostgresClient
 from ez_scheduler.config import config
 from ez_scheduler.models.database import get_db
+from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.signup_form_service import SignupFormService
-from ez_scheduler.tools.create_form import create_form_handler
+from ez_scheduler.tools.create_form import create_form_handler, update_form_handler
 from ez_scheduler.tools.get_form_analytics import get_form_analytics_handler
 
 # Configure logging
@@ -77,6 +78,53 @@ async def get_form_analytics(user_id: str, analytics_query: str) -> str:
         return await get_form_analytics_handler(user, analytics_query, postgres_client)
     except Exception as e:
         return f"Error processing analytics query: {str(e)}"
+
+
+@mcp.tool()
+async def update_form(
+    user_id: str,
+    update_description: str,
+    form_id: str | None = None,
+    url_slug: str | None = None,
+    title_contains: str | None = None,
+) -> str:
+    """
+    Update a draft form using natural language instructions.
+
+    Args:
+        user_id: Auth0 user identifier (string like 'auth0|123')
+        update_description: What to change (title, description, fields, etc.)
+        form_id: Optional UUID to target a specific form
+        url_slug: Optional slug to target a specific form
+        title_contains: Optional fuzzy match among drafts; falls back to latest draft
+
+    Returns:
+        A response string containing preview URL and next-step guidance
+    """
+    llm_client = get_llm_client()
+
+    # Create User for the handler
+    user = User(user_id=user_id, claims={})
+
+    try:
+        db_session = next(get_db())
+        try:
+            signup_form_service = SignupFormService(db_session)
+            form_field_service = FormFieldService(db_session)
+            return await update_form_handler(
+                user=user,
+                update_description=update_description,
+                llm_client=llm_client,
+                signup_form_service=signup_form_service,
+                form_field_service=form_field_service,
+                form_id=form_id,
+                url_slug=url_slug,
+                title_contains=title_contains,
+            )
+        finally:
+            db_session.close()
+    except Exception as e:
+        return f"Error updating form: {str(e)}"
 
 
 # Create the ASGI app from the MCP server
