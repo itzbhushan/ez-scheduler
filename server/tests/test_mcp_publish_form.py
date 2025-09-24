@@ -9,7 +9,7 @@ from ez_scheduler.models.signup_form import FormStatus, SignupForm
 
 
 @pytest.mark.asyncio
-async def test_publish_draft_form_success(mcp_client, test_db_session):
+async def test_publish_draft_form_success(mcp_client, signup_service):
     """Create a draft form in DB, publish via MCP, and verify status."""
     user_id = f"auth0|{uuid.uuid4()}"
     slug = f"draft-to-publish-{uuid.uuid4().hex[:8]}"
@@ -25,8 +25,8 @@ async def test_publish_draft_form_success(mcp_client, test_db_session):
         button_type="single_submit",
         primary_button_text="Register",
     )
-    test_db_session.add(form)
-    test_db_session.commit()
+    res = signup_service.create_signup_form(form)
+    assert res["success"], res
 
     async with Client(mcp_client) as client:
         result = await client.call_tool(
@@ -39,12 +39,13 @@ async def test_publish_draft_form_success(mcp_client, test_db_session):
     )
     assert "published" in message.lower()
 
-    refreshed = test_db_session.get(SignupForm, form.id)
+    refreshed = signup_service.reload_form(form.id)
+    assert refreshed is not None
     assert refreshed.status == FormStatus.PUBLISHED
 
 
 @pytest.mark.asyncio
-async def test_publish_form_idempotent(mcp_client, test_db_session):
+async def test_publish_form_idempotent(mcp_client, signup_service):
     user_id = f"auth0|{uuid.uuid4()}"
     slug = f"already-published-{uuid.uuid4().hex[:8]}"
 
@@ -59,8 +60,8 @@ async def test_publish_form_idempotent(mcp_client, test_db_session):
         button_type="single_submit",
         primary_button_text="Register",
     )
-    test_db_session.add(form)
-    test_db_session.commit()
+    res = signup_service.create_signup_form(form)
+    assert res["success"], res
 
     async with Client(mcp_client) as client:
         result = await client.call_tool(
@@ -75,7 +76,7 @@ async def test_publish_form_idempotent(mcp_client, test_db_session):
 
 
 @pytest.mark.asyncio
-async def test_publish_archived_form_blocked(mcp_client, test_db_session):
+async def test_publish_archived_form_blocked(mcp_client, signup_service):
     user_id = f"auth0|{uuid.uuid4()}"
     other_user = f"auth0|{uuid.uuid4()}"
 
@@ -90,8 +91,8 @@ async def test_publish_archived_form_blocked(mcp_client, test_db_session):
         button_type="single_submit",
         primary_button_text="Register",
     )
-    test_db_session.add(archived)
-    test_db_session.commit()
+    res = signup_service.create_signup_form(archived)
+    assert res["success"], res
 
     async with Client(mcp_client) as client:
         result = await client.call_tool(
@@ -106,7 +107,7 @@ async def test_publish_archived_form_blocked(mcp_client, test_db_session):
 
 
 @pytest.mark.asyncio
-async def test_publish_requires_ownership(mcp_client, test_db_session):
+async def test_publish_requires_ownership(mcp_client, signup_service):
     owner = f"auth0|{uuid.uuid4()}"
     not_owner = f"auth0|{uuid.uuid4()}"
     slug = f"ownership-{uuid.uuid4().hex[:8]}"
@@ -122,8 +123,8 @@ async def test_publish_requires_ownership(mcp_client, test_db_session):
         button_type="single_submit",
         primary_button_text="Register",
     )
-    test_db_session.add(form)
-    test_db_session.commit()
+    res = signup_service.create_signup_form(form)
+    assert res["success"], res
 
     async with Client(mcp_client) as client:
         result = await client.call_tool(

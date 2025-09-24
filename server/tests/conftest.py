@@ -19,6 +19,7 @@ from ez_scheduler.auth.models import User
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.main import app
 from ez_scheduler.models.database import get_db
+from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.registration_service import RegistrationService
 from ez_scheduler.services.signup_form_service import SignupFormService
 from tests.config import test_config
@@ -153,8 +154,13 @@ def mcp_client(mcp_server_process):
 
 
 @pytest.fixture
-def test_db_session(postgres_container):
-    """Create a database session for testing using the same database as the MCP server"""
+def _db_session(postgres_container):
+    """Private DB session for fixtures only.
+
+    Do not use this fixture directly in tests. Prefer higher-level service
+    fixtures like `signup_service`, `registration_service`, or
+    `form_field_service` to avoid coupling tests to the session internals.
+    """
 
     # Get the database URL from the PostgreSQL container
     database_url = postgres_container.get_connection_url()
@@ -170,23 +176,22 @@ def test_db_session(postgres_container):
 
 
 @pytest.fixture
-def registration_service(test_db_session, llm_client):
+def registration_service(_db_session, llm_client):
     """Create a RegistrationService instance for testing"""
-    return RegistrationService(test_db_session, llm_client)
+    return RegistrationService(_db_session, llm_client)
 
 
 @pytest.fixture
-def signup_service(test_db_session):
+def signup_service(_db_session):
     """Create a SignupFormService instance for testing"""
-    return SignupFormService(test_db_session)
+    return SignupFormService(_db_session)
 
 
 @pytest.fixture
-def form_field_service(test_db_session):
+def form_field_service(_db_session):
     """Create a FormFieldService instance for testing"""
-    from ez_scheduler.services.form_field_service import FormFieldService
 
-    return FormFieldService(test_db_session)
+    return FormFieldService(_db_session)
 
 
 @pytest.fixture
@@ -208,7 +213,7 @@ def mock_current_user():
 
 
 @pytest.fixture
-def authenticated_client(mock_current_user, test_db_session):
+def authenticated_client(mock_current_user, _db_session):
     """Create a test client that bypasses authentication and uses test database"""
 
     # Store original overrides to restore them later
@@ -223,7 +228,7 @@ def authenticated_client(mock_current_user, test_db_session):
 
     # Override the database dependency to use test database
     def get_test_db():
-        return test_db_session
+        return _db_session
 
     # Clear all existing overrides and set only our test overrides
     app.dependency_overrides.clear()
