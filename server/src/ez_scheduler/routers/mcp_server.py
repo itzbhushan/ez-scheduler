@@ -203,5 +203,62 @@ async def publish_form(
         return f"Error publishing form: {str(e)}"
 
 
+@mcp.tool()
+async def archive_form(
+    user_id: str,
+    form_id: str | None = None,
+    url_slug: str | None = None,
+    title_contains: str | None = None,
+) -> str:
+    """Archive a form (removes from public view).
+
+    - Resolution order: `form_id → url_slug → title_contains (drafts) → latest draft`.
+    - Permissions: Only the form owner may archive.
+    - Idempotent: If already archived, returns a no-op message.
+
+    Args:
+        user_id: Auth0 user identifier (e.g., "auth0|123").
+        form_id: Optional UUID of the target form.
+        url_slug: Optional URL slug of the target form.
+        title_contains: Optional substring to match a single draft title.
+
+    Returns:
+        Text message describing the result.
+    """
+    user = User(user_id=user_id, claims={})
+    try:
+        db_session = next(get_db())
+        try:
+            signup_form_service = SignupFormService(db_session)
+
+            form = resolve_form_or_ask(
+                signup_form_service,
+                user,
+                form_id=form_id,
+                url_slug=url_slug,
+                title_contains=title_contains,
+                fallback_latest=True,
+            )
+            if not form:
+                return "Form not found"
+
+            if form.user_id != user.user_id:
+                return "You do not own this form"
+
+            if form.status == FormStatus.ARCHIVED:
+                return "This form is already archived"
+
+            result = signup_form_service.update_signup_form(
+                form.id, {"status": FormStatus.ARCHIVED}
+            )
+            if not result.get("success"):
+                return f"Archive failed: {result.get('error', 'unknown error')}"
+            return "Form archived successfully"
+        finally:
+            db_session.close()
+    except Exception as e:
+        return f"Error archiving form: {str(e)}"
+
+
 # Create the ASGI app from the MCP server
 mcp_app = mcp.http_app(path="/")

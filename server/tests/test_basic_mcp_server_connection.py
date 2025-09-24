@@ -42,7 +42,9 @@ class TestMCPServerConnection:
                 assert (
                     "create_form" in tool_names,
                     "update_form" in tool_names,
-                ), "create_form and update_form tools should be available"
+                    "publish_form" in tool_names,
+                    "archive_form" in tool_names,
+                ), "create, update, publish and archive tools should be available"
 
         except Exception as e:
             pytest.fail(f"Failed to connect to MCP server: {e}")

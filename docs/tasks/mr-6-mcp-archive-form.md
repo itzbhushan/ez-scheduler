@@ -1,5 +1,7 @@
 # MR-6: MCP Tool — archive_form
 
+Status: Completed
+
 Goal: Add an MCP tool to archive forms, matching the behavior of `/gpt/archive-form`.
 
 Scope
