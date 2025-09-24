@@ -220,6 +220,17 @@ class SignupFormService:
         except Exception:
             return None
 
+    def reload_form(self, form_id: uuid.UUID) -> Optional[SignupForm]:
+        """Reload a form from the database, discarding any session cache.
+
+        Useful in tests when another process (e.g., MCP server) updated the row.
+        """
+        try:
+            self.db.expire_all()
+            return self.db.get(SignupForm, form_id)
+        except Exception:
+            return None
+
     def get_latest_draft_form_for_user(self, user_id: str) -> Optional[SignupForm]:
         """Return the most recently created draft form for a given user."""
         try:

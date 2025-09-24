@@ -40,7 +40,7 @@ async def test_update_form_no_drafts_returns_guidance(mcp_client):
 @pytest.mark.skip(
     reason="Stuck here for a while. Lets revisit this test later. Will manually test in staging"
 )
-async def test_update_form_updates_title_and_location(mcp_client, test_db_session):
+async def test_update_form_updates_title_and_location(mcp_client, signup_service):
     """Create via LLM (MCP create_form), then update via LLM (MCP update_form)."""
 
     user_id = f"auth0|{uuid.uuid4()}"
@@ -68,11 +68,7 @@ async def test_update_form_updates_title_and_location(mcp_client, test_db_sessio
     assert isinstance(create_message, str) and len(create_message) > 0
 
     # Verify the form exists in DB by looking up latest draft for this user
-    from ez_scheduler.services.signup_form_service import SignupFormService
-
-    created_form = SignupFormService(test_db_session).get_latest_draft_form_for_user(
-        user_id
-    )
+    created_form = signup_service.get_latest_draft_form_for_user(user_id)
     assert created_form is not None, "Form should be created in DB"
     url_slug = created_form.url_slug
 
@@ -105,11 +101,7 @@ async def test_update_form_updates_title_and_location(mcp_client, test_db_sessio
     assert isinstance(update_message, str)
 
     # Step 3: Verify DB reflects updates
-    refreshed = (
-        test_db_session.query(SignupForm)
-        .filter(SignupForm.url_slug == url_slug)
-        .first()
-    )
+    refreshed = signup_service.get_form_by_url_slug(url_slug)
     assert refreshed is not None
     assert refreshed.title == new_title
     assert refreshed.location == new_location
