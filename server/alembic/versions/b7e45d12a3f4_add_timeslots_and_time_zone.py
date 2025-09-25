@@ -55,6 +55,18 @@ def upgrade() -> None:
     op.create_index(
         "idx_timeslots_form_start", "timeslots", ["form_id", "start_at"], unique=False
     )
+    # Partial index to speed availability queries
+    try:
+        op.create_index(
+            "idx_timeslots_availability",
+            "timeslots",
+            ["form_id", "start_at"],
+            unique=False,
+            postgresql_where=sa.text("booked_count < capacity"),
+        )
+    except Exception:
+        # Some engines may not support partial indexes (e.g., sqlite in dev)
+        pass
 
     # Create registration_timeslots join table
     op.create_table(
@@ -109,6 +121,10 @@ def downgrade() -> None:
     # Drop timeslots indexes and table
     try:
         op.drop_index("idx_timeslots_form_start", table_name="timeslots")
+    except Exception:
+        pass
+    try:
+        op.drop_index("idx_timeslots_availability", table_name="timeslots")
     except Exception:
         pass
     op.drop_table("timeslots")

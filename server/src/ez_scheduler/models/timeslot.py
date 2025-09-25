@@ -4,7 +4,14 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, Column, DateTime, Index, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    DateTime,
+    Index,
+    Integer,
+    UniqueConstraint,
+)
 from sqlmodel import Field, SQLModel
 
 
@@ -25,8 +32,14 @@ class Timeslot(SQLModel, table=True):
     )
     end_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
 
-    capacity: int = Field(default=1)
-    booked_count: int = Field(default=0)
+    capacity: int = Field(
+        default=1,
+        sa_column=Column(Integer, nullable=False, server_default="1"),
+    )
+    booked_count: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
+    )
 
     created_at: Optional[datetime] = Field(
         default_factory=lambda: datetime.now(timezone.utc)
