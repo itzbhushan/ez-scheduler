@@ -20,10 +20,11 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from ez_scheduler.models.signup_form import SignupForm
-from ez_scheduler.models.timeslot import Timeslot
+from ez_scheduler.models.timeslot import RegistrationTimeslot, Timeslot
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,14 @@ def _parse_hh_mm(value: str) -> time:
 class GenerationResult:
     created: List[Timeslot]
     skipped_existing: int
+
+
+@dataclass
+class BookingResult:
+    success: bool
+    booked_ids: List[uuid.UUID]
+    unavailable_ids: List[uuid.UUID]
+    already_booked_ids: List[uuid.UUID]
 
 
 class TimeslotService:
@@ -279,3 +288,92 @@ class TimeslotService:
 
         stmt = stmt.order_by(Timeslot.start_at.asc()).limit(limit).offset(offset)
         return list(self.db.exec(stmt).all())
+
+    # Booking with concurrency safety
+    def book_slots(
+        self, registration_id: uuid.UUID, timeslot_ids: List[uuid.UUID]
+    ) -> BookingResult:
+        """Attempt to book all given timeslot IDs for a registration.
+
+        - Locks target timeslot rows using SELECT ... FOR UPDATE
+        - Verifies each slot has remaining capacity
+        - Inserts rows into registration_timeslots; increments booked_count atomically
+        - All-or-nothing: if any slot is unavailable or duplicate, rollback and report
+
+        Returns BookingResult with success flag and details.
+        """
+
+        if not timeslot_ids:
+            return BookingResult(True, [], [], [])
+
+        distinct_ids = list(dict.fromkeys(timeslot_ids))
+
+        # Start a transaction (nested to tolerate an existing outer transaction)
+        try:
+            with self.db.begin_nested():
+                # Lock the rows to avoid race conditions
+                stmt = (
+                    select(Timeslot)
+                    .where(Timeslot.id.in_(distinct_ids))
+                    .with_for_update()
+                )
+                rows: List[Timeslot] = list(self.db.exec(stmt).all())
+
+                found_ids = {row.id for row in rows}
+                missing_ids = [tid for tid in distinct_ids if tid not in found_ids]
+
+                # Check duplicates for idempotency
+                existing_map = {
+                    r.timeslot_id
+                    for r in self.db.exec(
+                        select(RegistrationTimeslot).where(
+                            RegistrationTimeslot.registration_id == registration_id,
+                            RegistrationTimeslot.timeslot_id.in_(distinct_ids),
+                        )
+                    ).all()
+                }
+
+                # Capacity check
+                full_ids = [row.id for row in rows if row.booked_count >= row.capacity]
+
+                if missing_ids or full_ids or existing_map:
+                    # Abort to ensure atomic rollback
+                    raise RuntimeError("booking_conflict")
+
+                # Proceed: increment counts and create join rows
+                for row in rows:
+                    row.booked_count += 1
+                    self.db.add(
+                        RegistrationTimeslot(
+                            registration_id=registration_id, timeslot_id=row.id
+                        )
+                    )
+
+            # Commit the outer transaction so changes persist when not managed by caller
+            self.db.commit()
+            return BookingResult(True, distinct_ids, [], [])
+
+        except (IntegrityError, RuntimeError):
+            # Unique constraint on (registration_id, timeslot_id) or other DB issue
+            self.db.rollback()
+            # Recompute which ones already existed for this registration
+            existing = {
+                r.timeslot_id
+                for r in self.db.exec(
+                    select(RegistrationTimeslot).where(
+                        RegistrationTimeslot.registration_id == registration_id,
+                        RegistrationTimeslot.timeslot_id.in_(distinct_ids),
+                    )
+                ).all()
+            }
+            # Determine which are missing and which are full
+            rows_now: List[Timeslot] = list(
+                self.db.exec(
+                    select(Timeslot).where(Timeslot.id.in_(distinct_ids))
+                ).all()
+            )
+            found_ids = {row.id for row in rows_now}
+            missing_ids = [tid for tid in distinct_ids if tid not in found_ids]
+            full_ids = [row.id for row in rows_now if row.booked_count >= row.capacity]
+            unavailable = missing_ids or full_ids
+            return BookingResult(False, [], unavailable, list(existing))
