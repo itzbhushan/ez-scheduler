@@ -30,6 +30,7 @@ class SignupForm(SQLModel, table=True):
     location: str
     description: str
     url_slug: str = Field(unique=True, index=True)
+    time_zone: Optional[str] = None  # IANA time zone, e.g., "America/New_York"
     status: FormStatus = Field(
         default=FormStatus.DRAFT,
         sa_column=Column(
