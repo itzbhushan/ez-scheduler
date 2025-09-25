@@ -60,8 +60,6 @@ async def mcp_server_process(postgres_container):
             "python",
             "src/ez_scheduler/main.py",
         ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
         env=env,
     )
 
@@ -120,33 +118,15 @@ def _run_migrations(database_url: str):
     env["DATABASE_URL"] = database_url
 
     try:
-        # Run alembic upgrade head (prefer CLI, fallback to module)
-        try:
-            result = subprocess.run(
-                ["alembic", "-c", str(alembic_ini), "upgrade", "head"],
-                cwd=server_dir,
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-        except FileNotFoundError:
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "alembic",
-                    "-c",
-                    str(alembic_ini),
-                    "upgrade",
-                    "head",
-                ],
-                cwd=server_dir,
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
+        # Run alembic upgrade head
+        result = subprocess.run(
+            ["alembic", "-c", str(alembic_ini), "upgrade", "head"],
+            cwd=server_dir,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
 
         if result.returncode != 0:
             logger.error(f"Alembic migration failed: {result.stderr}")

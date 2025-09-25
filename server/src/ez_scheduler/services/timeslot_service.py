@@ -51,7 +51,7 @@ class TimeslotSchedule(BaseModel):
     slot_minutes: int
     weeks_ahead: int = Field(ge=1, le=12)
     start_from_date: Optional[date] = None
-    capacity_per_slot: int = Field(default=1, ge=1)
+    capacity_per_slot: Optional[int] = Field(default=None)
     time_zone: Optional[str] = None
 
     @field_validator("days_of_week")
@@ -78,6 +78,15 @@ class TimeslotSchedule(BaseModel):
         allowed = {15, 30, 45, 60, 90, 120, 180, 240}
         if v not in allowed:
             raise ValueError(f"slot_minutes must be one of {sorted(allowed)}, got {v}")
+        return v
+
+    @field_validator("capacity_per_slot")
+    @classmethod
+    def _validate_capacity(cls, v: Optional[int]) -> Optional[int]:
+        if v is None:
+            return None
+        if v < 1:
+            raise ValueError("capacity_per_slot must be >= 1 when provided")
         return v
 
 
@@ -279,7 +288,10 @@ class TimeslotService:
         stmt = select(Timeslot).where(
             Timeslot.form_id == form_id,
             Timeslot.start_at >= now_utc,
-            Timeslot.booked_count < Timeslot.capacity,
+            (
+                (Timeslot.capacity.is_(None))
+                | (Timeslot.booked_count < Timeslot.capacity)
+            ),
         )
         if from_date is not None:
             stmt = stmt.where(Timeslot.start_at >= from_date)
@@ -334,7 +346,11 @@ class TimeslotService:
                 }
 
                 # Capacity check
-                full_ids = [row.id for row in rows if row.booked_count >= row.capacity]
+                full_ids = [
+                    row.id
+                    for row in rows
+                    if (row.capacity is not None and row.booked_count >= row.capacity)
+                ]
 
                 if missing_ids or full_ids or existing_map:
                     # Abort to ensure atomic rollback

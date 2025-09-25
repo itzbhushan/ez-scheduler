@@ -16,6 +16,7 @@ from ez_scheduler.models.field_type import FieldType
 from ez_scheduler.models.signup_form import FormStatus, SignupForm
 from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.signup_form_service import SignupFormService
+from ez_scheduler.services.timeslot_service import TimeslotSchedule, TimeslotService
 from ez_scheduler.system_prompts import FORM_BUILDER_PROMPT, FORM_RESPONSE_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -72,6 +73,13 @@ class FormExtractionSchema(BaseModel):
     )
     form_url: Optional[str] = Field(None, description="Generated form URL")
     form_id: Optional[str] = Field(None, description="Database form ID")
+    # Optional timeslot schedule for bookable slots
+    timeslot_schedule: Optional[dict] = Field(
+        default=None,
+        description=(
+            "If present, describes a schedule for generating timeslots: {days_of_week, window_start, window_end, slot_minutes, weeks_ahead, start_from_date, capacity_per_slot, time_zone}"
+        ),
+    )
 
 
 class ConversationResponse(BaseModel):
@@ -554,6 +562,17 @@ async def _create_form(
         if not signup_form.updated_at:
             signup_form.updated_at = datetime.now(timezone.utc)
 
+        # If a timeslot schedule specified a time_zone, apply it to the form
+        if form_data.timeslot_schedule and isinstance(
+            form_data.timeslot_schedule, dict
+        ):
+            tz = form_data.timeslot_schedule.get("time_zone")
+            if tz:
+                try:
+                    signup_form.time_zone = str(tz)
+                except Exception:
+                    pass
+
         # Add signup form to session and flush to get the ID in database
         db_session.add(signup_form)
         db_session.flush()  # This writes the form to DB but doesn't commit the transaction
@@ -579,6 +598,30 @@ async def _create_form(
             ]
 
             form_field_service.create_form_fields(signup_form.id, custom_fields_data)
+
+        # If a timeslot schedule is present, generate slots now (same transaction)
+        if form_data.timeslot_schedule and isinstance(
+            form_data.timeslot_schedule, dict
+        ):
+            try:
+                # Build TimeslotSchedule model (coerce date string if provided)
+                sched_dict = dict(form_data.timeslot_schedule)
+                sfd = sched_dict.get("start_from_date")
+                if sfd:
+                    try:
+                        # Accept YYYY-MM-DD
+                        sched_dict["start_from_date"] = date.fromisoformat(sfd)
+                    except Exception:
+                        # If parsing fails, drop to let service default to today
+                        sched_dict.pop("start_from_date", None)
+
+                schedule = TimeslotSchedule(**sched_dict)
+                ts_service = TimeslotService(db_session)
+                ts_service.generate_slots(signup_form.id, schedule)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to generate timeslots from schedule: {e}. Continue without timeslots."
+                )
 
         # Commit the entire transaction
         db_session.commit()

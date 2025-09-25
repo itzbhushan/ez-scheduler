@@ -8,6 +8,9 @@ import pytest
 from ez_scheduler.models.signup_form import FormStatus, SignupForm
 from ez_scheduler.services import TimeslotSchedule, TimeslotService
 
+# Fixed reference Monday date for deterministic scheduling
+TEST_MONDAY = date(2025, 10, 6)
+
 
 def _create_published_form(
     signup_service, slug: str = None, tz: str = "UTC"
@@ -35,18 +38,14 @@ class TestTimeslotEndpoints:
         client, _ = authenticated_client
         form = _create_published_form(signup_service, slug="ts-form-get")
 
-        # Generate future slots later today to ensure availability
-        now = datetime.now(timezone.utc)
-        start_local = (now + timedelta(hours=2)).time().replace(second=0, microsecond=0)
-        end_local = (now + timedelta(hours=4)).time().replace(second=0, microsecond=0)
-        dow = now.strftime("%A").lower()
+        # Use a fixed future Monday window for determinism
         spec = TimeslotSchedule(
-            days_of_week=[dow],
-            window_start=start_local.strftime("%H:%M"),
-            window_end=end_local.strftime("%H:%M"),
+            days_of_week=["monday"],
+            window_start="10:00",
+            window_end="12:00",
             slot_minutes=60,
             weeks_ahead=1,
-            start_from_date=now.date(),
+            start_from_date=TEST_MONDAY,
             time_zone="UTC",
         )
         gen = timeslot_service.generate_slots(form.id, spec)
@@ -67,18 +66,14 @@ class TestTimeslotEndpoints:
         client, _ = authenticated_client
         form = _create_published_form(signup_service, slug="ts-form-require")
 
-        # Create at least one future slot
-        now = datetime.now(timezone.utc)
-        start_local = (now + timedelta(hours=2)).time().replace(second=0, microsecond=0)
-        end_local = (now + timedelta(hours=3)).time().replace(second=0, microsecond=0)
-        dow = now.strftime("%A").lower()
+        # Create exactly one slot on a fixed Monday
         spec = TimeslotSchedule(
-            days_of_week=[dow],
-            window_start=start_local.strftime("%H:%M"),
-            window_end=end_local.strftime("%H:%M"),
+            days_of_week=["monday"],
+            window_start="10:00",
+            window_end="11:00",
             slot_minutes=60,
             weeks_ahead=1,
-            start_from_date=now.date(),
+            start_from_date=TEST_MONDAY,
             time_zone="UTC",
         )
         timeslot_service.generate_slots(form.id, spec)
@@ -101,17 +96,14 @@ class TestTimeslotEndpoints:
         client, _ = authenticated_client
         form = _create_published_form(signup_service, slug="ts-form-book")
 
-        now = datetime.now(timezone.utc)
-        start_local = (now + timedelta(hours=2)).time().replace(second=0, microsecond=0)
-        end_local = (now + timedelta(hours=3)).time().replace(second=0, microsecond=0)
-        dow = now.strftime("%A").lower()
+        # Fixed Monday single-slot window with capacity 1
         spec = TimeslotSchedule(
-            days_of_week=[dow],
-            window_start=start_local.strftime("%H:%M"),
-            window_end=end_local.strftime("%H:%M"),
+            days_of_week=["monday"],
+            window_start="10:00",
+            window_end="11:00",
             slot_minutes=60,
             weeks_ahead=1,
-            start_from_date=now.date(),
+            start_from_date=TEST_MONDAY,
             time_zone="UTC",
             capacity_per_slot=1,
         )
@@ -154,17 +146,14 @@ class TestTimeslotEndpoints:
         form_a = _create_published_form(signup_service, slug="ts-form-a")
         form_b = _create_published_form(signup_service, slug="ts-form-b")
 
-        now = datetime.now(timezone.utc)
-        start_local = (now + timedelta(hours=2)).time().replace(second=0, microsecond=0)
-        end_local = (now + timedelta(hours=3)).time().replace(second=0, microsecond=0)
-        dow = now.strftime("%A").lower()
+        # Fixed Monday single-slot window
         spec = TimeslotSchedule(
-            days_of_week=[dow],
-            window_start=start_local.strftime("%H:%M"),
-            window_end=end_local.strftime("%H:%M"),
+            days_of_week=["monday"],
+            window_start="10:00",
+            window_end="11:00",
             slot_minutes=60,
             weeks_ahead=1,
-            start_from_date=now.date(),
+            start_from_date=TEST_MONDAY,
             time_zone="UTC",
         )
         # Create a slot for form B

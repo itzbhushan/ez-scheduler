@@ -83,6 +83,22 @@ OPTIONAL FORM FIELDS (extract if mentioned, NOT required for form creation):
 - start_time: Event start time in HH:MM format (24-hour format, e.g. "14:30" for 2:30 PM) - only extract if explicitly mentioned
 - end_time: Event end time in HH:MM format (24-hour format, e.g. "16:00" for 4:00 PM) - only extract if explicitly mentioned
 
+OPTIONAL: TIMESLOT SCHEDULE (only when the user intends concrete bookable timeslots instead of a single event time)
+If the user asks for bookable timeslots (e.g., "between 5–9pm on Mondays and Wednesdays with 1 hour slots for the next 2 weeks"), include a concise `timeslot_schedule` object with:
+  - days_of_week: ["monday", "wednesday", ...]
+  - window_start: "HH:MM" (24h)
+  - window_end: "HH:MM" (24h)
+  - slot_minutes: one of [15, 30, 45, 60, 90, 120, 180, 240]
+  - weeks_ahead: integer (1–12)
+  - start_from_date: optional ISO date (YYYY-MM-DD); if omitted, assume today
+  - capacity_per_slot: optional integer (default is unlimited if omitted)
+  - time_zone: optional IANA TZ name (e.g., "America/New_York"); if omitted, the app defaults will apply
+
+Notes:
+- Only include `timeslot_schedule` when the user intends a schedule of bookable times.
+- Do not include conflicting single start/end times for the form when a schedule is present.
+- If the user does NOT specify a limit per slot, set `is_complete=false` and ask: "Do you want to limit how many people can book each timeslot, or keep it unlimited?"
+
 STANDARD FORM FIELDS (always included):
 - name: Full name (required)
 - email: Email address (required)
@@ -203,6 +219,16 @@ RESPONSE FORMAT (return exactly this structure):
         "end_time": "extracted end time or null",
         "location": "extracted location",
         "description": "extracted description",
+        "timeslot_schedule": {{
+            "days_of_week": ["monday", "wednesday"],
+            "window_start": "17:00",
+            "window_end": "21:00",
+            "slot_minutes": 60,
+            "weeks_ahead": 2,
+            "start_from_date": "2025-10-06",
+            "capacity_per_slot": 1,
+            "time_zone": "America/New_York"
+        }} or null,
         "custom_fields": [
             {{
                 "field_name": "internal_name",
