@@ -308,9 +308,9 @@ class TimeslotService:
 
         distinct_ids = list(dict.fromkeys(timeslot_ids))
 
-        # Start a transaction explicitly to ensure atomicity
+        # Start a transaction (nested to tolerate an existing outer transaction)
         try:
-            with self.db.begin():
+            with self.db.begin_nested():
                 # Lock the rows to avoid race conditions
                 stmt = (
                     select(Timeslot)
@@ -321,8 +321,6 @@ class TimeslotService:
 
                 found_ids = {row.id for row in rows}
                 missing_ids = [tid for tid in distinct_ids if tid not in found_ids]
-                if missing_ids:
-                    return BookingResult(False, [], missing_ids, [])
 
                 # Check duplicates for idempotency
                 existing_map = {
@@ -336,13 +334,11 @@ class TimeslotService:
                 }
 
                 # Capacity check
-                full_ids = [
-                    row.id for row in rows if row.booked_count >= row.capacity
-                ]
+                full_ids = [row.id for row in rows if row.booked_count >= row.capacity]
 
-                if full_ids or existing_map:
-                    # On any conflict, do not partially book
-                    return BookingResult(False, [], full_ids, list(existing_map))
+                if missing_ids or full_ids or existing_map:
+                    # Abort to ensure atomic rollback
+                    raise RuntimeError("booking_conflict")
 
                 # Proceed: increment counts and create join rows
                 for row in rows:
@@ -353,10 +349,11 @@ class TimeslotService:
                         )
                     )
 
-            # Transaction committed successfully
+            # Commit the outer transaction so changes persist when not managed by caller
+            self.db.commit()
             return BookingResult(True, distinct_ids, [], [])
 
-        except IntegrityError:
+        except (IntegrityError, RuntimeError):
             # Unique constraint on (registration_id, timeslot_id) or other DB issue
             self.db.rollback()
             # Recompute which ones already existed for this registration
@@ -369,4 +366,14 @@ class TimeslotService:
                     )
                 ).all()
             }
-            return BookingResult(False, [], [], list(existing))
+            # Determine which are missing and which are full
+            rows_now: List[Timeslot] = list(
+                self.db.exec(
+                    select(Timeslot).where(Timeslot.id.in_(distinct_ids))
+                ).all()
+            )
+            found_ids = {row.id for row in rows_now}
+            missing_ids = [tid for tid in distinct_ids if tid not in found_ids]
+            full_ids = [row.id for row in rows_now if row.booked_count >= row.capacity]
+            unavailable = missing_ids or full_ids
+            return BookingResult(False, [], unavailable, list(existing))

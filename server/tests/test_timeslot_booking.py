@@ -134,4 +134,3 @@ def test_atomic_rollback_on_partial_failure(
     now = datetime(2024, 1, 8, 9, 0, tzinfo=timezone.utc)
     avail_ids = [s.id for s in timeslot_service.list_available(form_id, now=now)]
     assert s11 in avail_ids
-
