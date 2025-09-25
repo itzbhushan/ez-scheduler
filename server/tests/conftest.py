@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import subprocess
+import sys
 import time
 import uuid
 from pathlib import Path
@@ -22,6 +23,7 @@ from ez_scheduler.models.database import get_db
 from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.registration_service import RegistrationService
 from ez_scheduler.services.signup_form_service import SignupFormService
+from ez_scheduler.services.timeslot_service import TimeslotService
 from tests.config import test_config
 
 logging.basicConfig(level=logging.INFO)
@@ -192,6 +194,15 @@ def form_field_service(_db_session):
     """Create a FormFieldService instance for testing"""
 
     return FormFieldService(_db_session)
+
+
+@pytest.fixture
+def timeslot_service(_db_session):
+    """Create a TimeslotService instance for testing.
+
+    Tests should prefer using service fixtures over raw DB sessions.
+    """
+    return TimeslotService(_db_session)
 
 
 @pytest.fixture
