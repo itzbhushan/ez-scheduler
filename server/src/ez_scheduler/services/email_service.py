@@ -26,6 +26,7 @@ class EmailService:
         form: SignupForm,
         registration: Registration,
         form_url: str,
+        selected_slot_lines: list[str] | None = None,
     ) -> bool:
         """
         Generate and send personalized email using LLM based on form type and RSVP response.
@@ -93,6 +94,13 @@ Generate appropriate email subject and body for this scenario."""
             else:
                 logger.info(f"Generated {email_type} email for {registration.name}")
 
+            # Append selected timeslots (if any) to the body in a consistent format
+            if selected_slot_lines:
+                timeslots_block = "\n\nYour selected timeslots:\n" + "\n".join(
+                    f"• {line}" for line in selected_slot_lines
+                )
+                email_content["body"] = email_content["body"].rstrip() + timeslots_block
+
             # Send the email
             return await self._send_email(registration.email, email_content)
 
@@ -100,6 +108,11 @@ Generate appropriate email subject and body for this scenario."""
             logger.warning(f"Failed to generate LLM email content: {e}")
             # Fallback to simple email
             email_content = self._generate_fallback_email(form, registration)
+            if selected_slot_lines:
+                timeslots_block = "\n\nYour selected timeslots:\n" + "\n".join(
+                    f"• {line}" for line in selected_slot_lines
+                )
+                email_content["body"] = email_content["body"].rstrip() + timeslots_block
             return await self._send_email(registration.email, email_content)
 
     def _format_event_details(self, form: SignupForm) -> str:
@@ -183,6 +196,7 @@ Event Details:
         self,
         form: SignupForm,
         registration: Registration,
+        selected_slot_lines: list[str] | None = None,
     ) -> bool:
         """
         Send notification email to form creator about new registration.
@@ -228,6 +242,10 @@ Event Details:
                     details.append(f"Number of guests: {count}")
 
             registration_details = "\n".join(details)
+            if selected_slot_lines:
+                registration_details += "\nSelected timeslots:\n" + "\n".join(
+                    f"• {line}" for line in selected_slot_lines
+                )
 
             # Format event details
             event_details = []
