@@ -121,6 +121,34 @@ def test_skip_past_slots_on_today(signup_service, timeslot_service: TimeslotServ
     )
 
 
+def test_do_not_skip_when_now_equals_slot_start(
+    signup_service, timeslot_service: TimeslotService
+):
+    form = _create_form(signup_service, tz="UTC")
+    svc = timeslot_service
+
+    # Window 10:00-12:00 UTC, now exactly 10:00 → should include 10:00 and 11:00
+    today = date(2024, 1, 8)
+    now = datetime(2024, 1, 8, 10, 0, tzinfo=timezone.utc)
+    spec = TimeslotSchedule(
+        days_of_week=["monday"],
+        window_start="10:00",
+        window_end="12:00",
+        slot_minutes=60,
+        weeks_ahead=1,
+        start_from_date=today,
+        capacity_per_slot=1,
+        time_zone="UTC",
+    )
+
+    result = svc.generate_slots(form.id, spec, now=now)
+    starts = sorted(s.start_at for s in result.created)
+    assert starts == [
+        datetime(2024, 1, 8, 10, 0, tzinfo=timezone.utc),
+        datetime(2024, 1, 8, 11, 0, tzinfo=timezone.utc),
+    ]
+
+
 def test_list_available_filters_past_only(
     signup_service, timeslot_service: TimeslotService
 ):
@@ -145,6 +173,60 @@ def test_list_available_filters_past_only(
     results = svc.list_available(form.id, now=now)
     assert len(results) == 1
     assert results[0].start_at == datetime(2024, 1, 8, 12, 0, tzinfo=timezone.utc)
+
+
+def test_list_available_date_range_filter(
+    signup_service, timeslot_service: TimeslotService
+):
+    form = _create_form(signup_service, tz="UTC")
+    svc = timeslot_service
+
+    # Create 10:00, 11:00, 12:00
+    spec = TimeslotSchedule(
+        days_of_week=["monday"],
+        window_start="10:00",
+        window_end="13:00",
+        slot_minutes=60,
+        weeks_ahead=1,
+        start_from_date=date(2024, 1, 8),
+        time_zone="UTC",
+    )
+    svc.generate_slots(form.id, spec)
+
+    # Filter range [11:00, 12:00)
+    results = svc.list_available(
+        form.id,
+        now=datetime(2024, 1, 8, 9, 0, tzinfo=timezone.utc),
+        from_date=datetime(2024, 1, 8, 11, 0, tzinfo=timezone.utc),
+        to_date=datetime(2024, 1, 8, 12, 0, tzinfo=timezone.utc),
+    )
+    assert len(results) == 1
+    assert results[0].start_at == datetime(2024, 1, 8, 11, 0, tzinfo=timezone.utc)
+
+
+def test_list_available_form_not_found(timeslot_service: TimeslotService):
+    # Random UUID should raise for nonexistent form
+    with pytest.raises(ValueError):
+        timeslot_service.list_available(uuid.uuid4())
+
+
+def test_generate_slots_invalid_timezone(
+    signup_service, timeslot_service: TimeslotService
+):
+    form = _create_form(signup_service, tz="UTC")
+    svc = timeslot_service
+
+    spec = TimeslotSchedule(
+        days_of_week=["monday"],
+        window_start="10:00",
+        window_end="11:00",
+        slot_minutes=60,
+        weeks_ahead=1,
+        start_from_date=date(2024, 1, 8),
+        time_zone="Mars/Phobos",
+    )
+    with pytest.raises(ValueError):
+        svc.generate_slots(form.id, spec)
 
 
 def test_cap_enforcement(

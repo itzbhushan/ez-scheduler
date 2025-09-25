@@ -54,12 +54,7 @@ async def mcp_server_process(postgres_container):
 
     # Start the HTTP server process
     process = subprocess.Popen(
-        [
-            "uv",
-            "run",
-            "python",
-            "src/ez_scheduler/main.py",
-        ],
+        [sys.executable, "src/ez_scheduler/main.py"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         env=env,
@@ -122,7 +117,7 @@ def _run_migrations(database_url: str):
     try:
         # Run alembic upgrade head
         result = subprocess.run(
-            ["alembic", "-c", str(alembic_ini), "upgrade", "head"],
+            [sys.executable, "-m", "alembic", "-c", str(alembic_ini), "upgrade", "head"],
             cwd=server_dir,
             env=env,
             capture_output=True,

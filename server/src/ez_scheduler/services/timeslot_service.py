@@ -16,7 +16,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Iterable, List, Optional
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func
@@ -137,7 +137,7 @@ class TimeslotService:
         tz_name = schedule.time_zone or form.time_zone or "UTC"
         try:
             tz = ZoneInfo(tz_name)
-        except Exception as e:  # invalid tz
+        except ZoneInfoNotFoundError as e:  # invalid tz
             raise ValueError(f"Invalid time zone: {tz_name}") from e
 
         local_today = (
@@ -259,6 +259,11 @@ class TimeslotService:
         - Optional range filtering on UTC datetimes
         - Ordered by start_at ascending
         """
+
+        # Validate form existence for consistency with generate_slots
+        form = self.db.get(SignupForm, form_id)
+        if not form:
+            raise ValueError("Signup form not found")
 
         now_utc = now.astimezone(timezone.utc) if now else datetime.now(timezone.utc)
 
