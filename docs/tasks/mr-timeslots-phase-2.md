@@ -24,6 +24,8 @@ Last updated: 2025-09-24
 - Acceptance
   - Removing a weekday/time window across N weeks deletes only unbooked slots.
   - Booked slots remain; `skipped_booked` reports the count.
+  - Validate remove/add specs (caps on `weeks_ahead`, allowed `slot_minutes`, non-empty weekdays).
+  - Enforce max of 100 total timeslots per form (existing + added). If adding would exceed the cap, return a clear error instructing the creator to split into multiple forms.
 
 ## MR-TS-10: Update Flow Integration (LLM/Router) — intent-based
 
@@ -35,6 +37,8 @@ Last updated: 2025-09-24
 - Acceptance
   - The example conversation (“remove Fridays; add Thursday 4–6pm for 2 weeks”) updates the draft and returns a summary.
   - No new endpoints; prompt changes limited to update addendum only.
+  - Router surfaces 409 with unavailable ids when applicable; 422 on malformed specs.
+  - If an add mutation would exceed 100 total slots, return a friendly message guiding the user to split forms.
 
 ## MR-TS-11: Template & Validation Adjustments (public form only)
 
@@ -44,6 +48,7 @@ Last updated: 2025-09-24
   - POST validation: for timeslot forms, require `timeslot_ids` only when there are available slots (no change when there are none).
 - Acceptance
   - Draft page shows updated slots; published submission behavior unchanged.
+  - Pagination for many slots works; grouping by date remains correct after mutations.
 
 ## MR-TS-12: Tests — Draft Edits
 
@@ -53,6 +58,7 @@ Last updated: 2025-09-24
   - Attempt removal where some slots are booked; assert counts and preservation.
 - Acceptance
   - All tests pass; no duplicates on repeated adds.
+  - Concurrency test: simulate 10 bookings against a single last slot; only 1 success.
 
 ---
 

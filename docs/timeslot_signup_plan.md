@@ -47,16 +47,16 @@ Scope is additive: existing single-date forms continue to work. Timeslot forms b
 
 ## Data Model
 
-New tables (SQLModel + Alembic):
+New/updated tables (SQLModel + Alembic):
 
 - timeslots
   - id (UUID, PK)
   - form_id (UUID, FK → signup_forms.id, indexed, cascade delete)
-  - start_at (TIMESTAMP WITH TIME ZONE)
-  - end_at (TIMESTAMP WITH TIME ZONE)
-  - capacity (INT, default 1)
-  - booked_count (INT, default 0)
-  - status (ENUM: available, full, cancelled; derived from counts for most flows)
+  - start_at (TIMESTAMP WITH TIME ZONE, stored in UTC)
+  - end_at (TIMESTAMP WITH TIME ZONE, stored in UTC)
+  - capacity (INT, default 1, CHECK capacity >= 1)
+  - booked_count (INT, default 0, CHECK booked_count >= 0 AND booked_count <= capacity)
+  - status (optional ENUM: available, full, cancelled). Availability is primarily computed as booked_count < capacity; keep status only if needed for cancellations.
   - created_at, updated_at (UTC)
 
 - registration_timeslots
@@ -66,7 +66,9 @@ New tables (SQLModel + Alembic):
   - UNIQUE(registration_id, timeslot_id)
 
 Notes
-- We keep existing `signup_forms.event_date/start_time/end_time` for non-timeslot forms. For timeslot forms these may be null or used for general context.
+- We keep existing `signup_forms.event_date/start_time/end_time` for non-timeslot forms. For timeslot forms these are not used for booking display.
+- Form type is inferred: a form is considered a timeslot form if it has one or more timeslots; otherwise it's a single-date form.
+- Add `signup_forms.time_zone` (IANA TZ string, e.g., "America/New_York") to anchor interpretation of schedule specs; store slots in UTC.
 - Consider adding optional `form_time_zone` (IANA string). For v1 we assume server/local TZ in generation and store UTC.
 
 ---
@@ -75,19 +77,21 @@ Notes
 
 Extend the form creation schema to support schedules:
 
-- timeslot_schedule
+- timeslot_schedule (creation intent)
   - days_of_week: ["monday", "wednesday", ...]
-  - window_start: "17:00"  (24h format)
-  - window_end: "21:00"
+  - window_start: "17:00" (ISO 8601 time, HH:MM)
+  - window_end: "21:00" (ISO 8601 time, HH:MM)
   - slot_minutes: 60
   - weeks_ahead: 2  (or explicit end_date)
   - start_from_date: optional ISO date (defaults to today)
   - capacity_per_slot: optional int (default 1)
+  - time_zone: optional IANA TZ name; default to form.time_zone if omitted
 
 Generation algorithm
 - Build date range [start_from_date, start_from_date + weeks_ahead*7).
 - For each date whose weekday ∈ days_of_week, step from window_start to window_end by slot_minutes creating [start_at, end_at) slots.
 - Skip past times (if start_from_date is today and window already passed).
+- Convert local times (time_zone) to UTC for storage; display converted back to local for UI and emails.
 
 ---
 
@@ -95,14 +99,16 @@ Generation algorithm
 
 - TimeslotService
   - generate_slots(form_id, schedule_spec) → List[Timeslot]
-  - list_available(form_id, now=utcnow)
+  - list_available(form_id, now=utcnow, limit=100, offset=0, from_date=None, to_date=None)
   - book_slots(registration_id, [timeslot_ids]) with transaction/locking:
     - SELECT ... FOR UPDATE on rows; verify not full/cancelled; increment booked_count atomically; insert into registration_timeslots.
 
 - Registration flow (public POST /form/{slug})
   - Accept `timeslot_ids` as a multi-value or JSON array.
   - Create Registration row, then attempt `book_slots`.
-  - If any slot cannot be booked, rollback with clear error; otherwise commit all.
+  - Validate that all provided timeslot_ids belong to the target form. If any mismatch, respond 403/404.
+  - If any slot cannot be booked, rollback with clear error; respond 409 with the specific unavailable slot ids; otherwise commit all.
+  - Hard cap: if a form has more than 100 total timeslots (existing + to-be-added), reject creation/update with a helpful message asking to split across multiple forms.
 
 - Creator flows
   - On create via LLM: if `timeslot_schedule` present, create form (draft) then generate slots.
@@ -112,10 +118,12 @@ Generation algorithm
 
 ## UI/Template
 
-- Form page lists available slots grouped by date (checkboxes for multi-select). Disable or hide full/cancelled slots.
+- Form page lists available slots grouped by date (checkboxes for multi-select). Disable or hide full/cancelled/past slots.
 - Validation: require at least one slot when the form has timeslots.
 - Success and emails display selected slots (date + start–end times).
 - No submission allowed for draft forms (existing behavior retained).
+- Pagination/limit: show next N days by default with a "load more" affordance if there are many slots.
+ - If a request would create >100 total timeslots, surface a clear message: "This form exceeds the current limit of 100 timeslots. Please split into multiple forms."
 
 ---
 
@@ -123,14 +131,17 @@ Generation algorithm
 
 - Emails (to registrant and creator): include a section “Your selected timeslots” with a bullet list.
 - Analytics additions: number of slots generated, slots booked, unique registrants, fill rate.
+ - Timezone clarity: format times in the form's time_zone with clear abbreviations.
 
 ---
 
 ## Error Handling & Concurrency
 
 - Enforce atomic booking using DB transactions and row-level locking.
-- Return actionable errors: “One or more selected slots were just taken. Please refresh and try again.”
+- Return actionable errors with details: 409 Conflict and the list of timeslot_ids that failed.
 - Idempotency: repeated submission with same registration ID should not overbook (unique join constraint + checks).
+ - Validate schedule specs: cap `weeks_ahead` (e.g., <= 12), restrict `slot_minutes` to sensible values (e.g., 15, 30, 45, 60, 90, 120), ensure `window_start < window_end`.
+ - Rate limiting is handled externally (reverse proxy/WAF); no app-level throttling changes required here.
 
 ---
 
@@ -140,14 +151,20 @@ Generation algorithm
 - Add `timeslots` and `registration_timeslots` tables via Alembic.
 - Add SQLModel classes and basic indices.
 - Include unique `(form_id, start_at, end_at)` from the start for idempotency.
+- Add CHECK constraints for capacity/booked_count; add optional `signup_forms.time_zone`.
+- Indexing: `idx_timeslots_form_start (form_id, start_at)`; composite index `(form_id, status, start_at)` to support explicit status queries; consider a partial index on `(form_id, start_at)` WHERE `booked_count < capacity` for fast availability scans.
 
 2) Timeslot service
 - Slot generation from schedule spec; list and DTOs.
 - Booking with transactional locking; unit tests.
+- Enforce spec validation (caps and allowed values); convert local TZ to UTC.
+ - Enforce max 100 total timeslots per form (existing + newly generated). If exceeded, return a clear error instructing the creator to split across multiple forms.
 
 3) Public router + template
 - Render available slots on GET; accept `timeslot_ids` on POST.
 - Persist selections; show them on success page.
+ - Enforce form ownership of timeslot_ids; return 409 on conflicts, 422 on validation errors.
+ - Add pagination/limit for slot listing.
 
 4) LLM integration
 - Update prompts (FORM_BUILDER_PROMPT) to extract `timeslot_schedule` when found in natural language.
@@ -158,10 +175,12 @@ Generation algorithm
 
 6) Analytics
 - Extend analytics tool to report slots, bookings, fill rate.
+ - Add questions/metrics that consider time zones and scale (100+ slots).
 
 7) Polish (optional)
 - “Full”/“Cancelled” indicators, filtering/hiding past slots, capacity > 1.
 - Optional form-level setting to limit max slots per registration.
+ - Add housekeeping: optional job to archive/hide past slots and compress analytics.
 
 ---
 
@@ -182,7 +201,9 @@ Generation algorithm
 
 - Booking: Visitor selects one or more slots across days; submission succeeds; confirmation shows chosen slots.
 
-- Overbook prevention: Two concurrent submissions to the last slot → one succeeds, one gets a clear error.
+- Overbook prevention: Ten concurrent submissions to the last slot → one succeeds, nine receive 409 with the unavailable slot id.
+- Timezone: "5–9pm EST shows correctly for a user in PST (times converted to EST on the form)."
+- Scale: "Forms with 100+ timeslots page quickly and paginate cleanly."
 
 ---
 

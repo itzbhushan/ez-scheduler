@@ -12,11 +12,13 @@ Last updated: 2025-09-24
     - Create `timeslots` table (see plan for columns and indexes).
     - Create `registration_timeslots` table with `UNIQUE(registration_id, timeslot_id)`.
     - Add `UNIQUE(form_id, start_at, end_at)` on `timeslots` to guarantee idempotent generation.
-    - Useful indices: `idx_timeslots_form_start` on `(form_id, start_at)`.
+    - Useful indices: `idx_timeslots_form_start` on `(form_id, start_at)`; composite index `(form_id, status, start_at)` for status-driven queries; consider partial index `WHERE booked_count < capacity` to speed availability lookups.
+    - Add optional column `signup_forms.time_zone` (IANA TZ string) to initialize timezone support early.
 - Acceptance
   - Migrations apply cleanly; downgrade returns to prior schema.
   - Models import without circular deps; appears in metadata.
   - Unique constraints created successfully on new/empty tables (no data cleanup required).
+  - Check constraints prevent negative counts and over-capacity values.
 
 ## MR-TS-2: Timeslot Service (generate + query) — internal only
 
@@ -29,6 +31,8 @@ Last updated: 2025-09-24
 - Acceptance
   - Deterministic generation across week boundaries; skips past windows on `start_from_date=today`.
   - No prompt changes in this MR.
+  - Timezone conversion: generation stores UTC given a form time_zone; tests cover conversion basics.
+  - Generation enforces a max of 100 total timeslots per form; attempts beyond the limit return a clear error to split across forms.
 
 ## MR-TS-3: Booking with Concurrency Safety — internal only
 
@@ -42,6 +46,7 @@ Last updated: 2025-09-24
 - Acceptance
   - Overbooking avoided; precise error returned when slot is full.
   - No prompt changes in this MR.
+  - Booking API returns unavailable ids for partial failures (to be surfaced as 409 by router later).
 
 ## MR-TS-4: Public Router + Template (POST /form/{slug} only)
 
@@ -54,6 +59,8 @@ Last updated: 2025-09-24
   - Draft forms show disabled UI; published forms accept selections.
   - Selecting zero slots on a timeslot form returns validation error.
   - No prompt changes in this MR.
+  - Security: verify all `timeslot_ids` belong to the form; reject otherwise (403/404).
+  - Errors: 409 Conflict on booking race, include which ids failed; 422 for invalid payloads.
 
 ## MR-TS-5: LLM Integration for Creation (intent detection)
 
@@ -64,6 +71,7 @@ Last updated: 2025-09-24
 - Acceptance
   - Prompt example (“1-1 soccer coaching … 5–9pm … Mon/Wed … 1h … next 2 weeks”) creates draft form with 16 slots.
   - Keep additions concise; preserve the strict JSON response contract.
+  - Extract and apply `time_zone` if specified; default to form/user locale.
 
 ## MR-TS-6: Emails and Analytics
 
@@ -73,6 +81,7 @@ Last updated: 2025-09-24
 - Acceptance
   - Emails render slot lines like “Mon Oct 7, 5:00–6:00 PM”.
   - Analytics questions can summarize bookings for timeslot forms.
+  - Times are formatted consistently in the form's time_zone.
 
 ## MR-TS-7 (Optional): UX Polish
 
