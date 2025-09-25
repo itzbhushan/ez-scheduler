@@ -298,15 +298,11 @@ async def submit_registration_form(
             ]
             booking = timeslot_service.book_slots(registration.id, slot_uuids)
             if not booking.success:
-                # 409 Conflict with details
+                # 409 Conflict with minimal details to avoid leaking booking state
                 raise HTTPException(
                     status_code=409,
                     detail={
-                        "message": "One or more selected timeslots are no longer available.",
-                        "unavailable_ids": [str(x) for x in booking.unavailable_ids],
-                        "already_booked_ids": [
-                            str(x) for x in booking.already_booked_ids
-                        ],
+                        "message": "One or more selected timeslots are no longer available. Please refresh and try again.",
                     },
                 )
             booked_slot_ids = [str(x) for x in booking.booked_ids]

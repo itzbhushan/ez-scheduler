@@ -136,7 +136,7 @@ class TestTimeslotEndpoints:
         assert resp2.status_code == 409
         js2 = resp2.json()
         assert isinstance(js2.get("detail"), dict)
-        assert "unavailable_ids" in js2["detail"]
+        assert "message" in js2["detail"]
 
     @pytest.mark.asyncio
     async def test_post_rejects_timeslot_not_belonging_to_form(

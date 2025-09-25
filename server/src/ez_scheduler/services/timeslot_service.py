@@ -390,6 +390,10 @@ class TimeslotService:
             )
             found_ids = {row.id for row in rows_now}
             missing_ids = [tid for tid in distinct_ids if tid not in found_ids]
-            full_ids = [row.id for row in rows_now if row.booked_count >= row.capacity]
+            full_ids = [
+                row.id
+                for row in rows_now
+                if (row.capacity is not None and row.booked_count >= row.capacity)
+            ]
             unavailable = missing_ids or full_ids
             return BookingResult(False, [], unavailable, list(existing))
