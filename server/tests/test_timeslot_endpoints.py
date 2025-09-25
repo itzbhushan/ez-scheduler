@@ -88,7 +88,7 @@ class TestTimeslotEndpoints:
             f"/form/{form.url_slug}",
             data={
                 "name": "Alice",
-                "email": "alice@example.com",
+                "phone": "555-1234",
             },
         )
         assert resp.status_code == 400
@@ -123,7 +123,7 @@ class TestTimeslotEndpoints:
             f"/form/{form.url_slug}",
             data={
                 "name": "Bob",
-                "email": "bob@example.com",
+                "phone": "555-1234",
                 "timeslot_ids": slot_id,
             },
         )
@@ -137,7 +137,7 @@ class TestTimeslotEndpoints:
             f"/form/{form.url_slug}",
             data={
                 "name": "Carol",
-                "email": "carol@example.com",
+                "phone": "555-5678",
                 "timeslot_ids": slot_id,
             },
         )
@@ -176,7 +176,7 @@ class TestTimeslotEndpoints:
             f"/form/{form_a.url_slug}",
             data={
                 "name": "Dana",
-                "email": "dana@example.com",
+                "phone": "555-9999",
                 "timeslot_ids": foreign_slot_id,
             },
         )
