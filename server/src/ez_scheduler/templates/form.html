@@ -85,6 +85,31 @@
                 x-show="!submitted"
                 class="space-y-6"
             >
+                {% if is_timeslot_form %}
+                <!-- Timeslot Selection -->
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-3">Available Timeslots</h3>
+                    {% if timeslots_grouped and timeslots_grouped|length > 0 %}
+                        <div class="space-y-4">
+                            {% for day, slots in timeslots_grouped.items() %}
+                                <div class="border rounded p-3">
+                                    <div class="font-semibold text-gray-800 mb-2">{{ day }}</div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {% for slot in slots %}
+                                            <label class="inline-flex items-center space-x-2">
+                                                <input type="checkbox" name="timeslot_ids" value="{{ slot.id }}" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2" {% if form.status == 'draft' %}disabled{% endif %}>
+                                                <span class="text-gray-700 text-sm">{{ slot.start }} – {{ slot.end }}</span>
+                                            </label>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="bg-gray-50 border rounded p-3 text-sm text-gray-600">No timeslots are currently available.</div>
+                    {% endif %}
+                </div>
+                {% endif %}
                 <!-- Name Field -->
                 <div>
                     <label for="name" class="block text-sm font-medium text-gray-700 mb-2">
@@ -325,6 +350,16 @@
                         return;
                     }
 
+                    // If this is a timeslot form, require at least one timeslot selection
+                    {% if is_timeslot_form %}
+                    const selectedSlots = formData.getAll('timeslot_ids');
+                    if (selectedSlots.length === 0) {
+                        this.error = 'Please select at least one timeslot.';
+                        this.submitting = false;
+                        return;
+                    }
+                    {% endif %}
+
                     try {
                         const response = await fetch(`/form/{{ url_slug }}`, {
                             method: 'POST',
@@ -337,7 +372,12 @@
                             this.confirmationMessage = result.message;
                             this.submitted = true;
                         } else {
-                            this.error = result.detail || 'An error occurred while submitting the form.';
+                            // Conflict payload may be an object with details
+                            if (result && result.detail && typeof result.detail === 'object') {
+                                this.error = result.detail.message || 'Selected timeslots are no longer available. Please refresh and try again.';
+                            } else {
+                                this.error = result.detail || 'An error occurred while submitting the form.';
+                            }
                         }
                     } catch (error) {
                         this.error = 'Network error. Please try again.';

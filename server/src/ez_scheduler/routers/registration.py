@@ -2,20 +2,23 @@
 
 import logging
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.templating import Jinja2Templates
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from ez_scheduler.config import config
 from ez_scheduler.models.database import get_db
 from ez_scheduler.models.field_type import FieldType
 from ez_scheduler.models.signup_form import FormStatus
+from ez_scheduler.models.timeslot import Timeslot
 from ez_scheduler.services.email_service import EmailService
 from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.registration_service import RegistrationService
 from ez_scheduler.services.signup_form_service import SignupFormService
+from ez_scheduler.services.timeslot_service import TimeslotService
 from ez_scheduler.utils.address_utils import generate_google_maps_url
 
 router = APIRouter(include_in_schema=False)
@@ -66,6 +69,35 @@ async def serve_registration_form(
         else "form.html"
     )
 
+    # Timeslots: determine if this is a timeslot form and fetch available slots
+    is_timeslot_form = False
+    timeslots_grouped: dict[str, list[dict]] = {}
+    try:
+        # Check if any timeslots exist for this form
+        any_slot = db.exec(
+            select(Timeslot.id).where(Timeslot.form_id == form.id).limit(1)
+        ).first()
+        is_timeslot_form = any_slot is not None
+
+        if is_timeslot_form:
+            tz = ZoneInfo(form.time_zone) if form.time_zone else ZoneInfo("UTC")
+            ts_service = TimeslotService(db)
+            available = ts_service.list_available(form.id)
+            # Group by local date string
+            for slot in available:
+                local_start = slot.start_at.astimezone(tz)
+                local_end = slot.end_at.astimezone(tz)
+                key = local_start.strftime("%A, %B %d, %Y")
+                entry = {
+                    "id": str(slot.id),
+                    "start": local_start.strftime("%I:%M %p").lstrip("0"),
+                    "end": local_end.strftime("%I:%M %p").lstrip("0"),
+                }
+                timeslots_grouped.setdefault(key, []).append(entry)
+    except Exception:
+        # If any error occurs in timeslot handling, fall back to standard form
+        is_timeslot_form = False
+
     return templates.TemplateResponse(
         request,
         template_name,
@@ -77,6 +109,8 @@ async def serve_registration_form(
             "formatted_start_time": formatted_start_time,
             "formatted_end_time": formatted_end_time,
             "google_maps_url": google_maps_url,
+            "is_timeslot_form": is_timeslot_form,
+            "timeslots_grouped": timeslots_grouped,
         },
     )
 
@@ -95,6 +129,7 @@ async def submit_registration_form(
     registration_service = RegistrationService(db, llm_client)
     form_field_service = FormFieldService(db)
     email_service = EmailService(llm_client, config)
+    timeslot_service = TimeslotService(db)
 
     # Get the form by URL slug
     form = signup_form_service.get_form_by_url_slug(url_slug)
@@ -185,6 +220,26 @@ async def submit_registration_form(
         ):
             additional_data[field.field_name] = field_value
 
+    # Handle timeslot selection if this is a timeslot form
+    # Determine if any timeslots exist for this form
+    has_timeslots = (
+        db.exec(select(Timeslot.id).where(Timeslot.form_id == form.id).limit(1)).first()
+        is not None
+    )
+
+    # Always read submitted timeslot IDs (if any)
+    selected_timeslot_ids: list[str] = form_data.getlist("timeslot_ids")
+    if selected_timeslot_ids and not has_timeslots:
+        # Timeslots submitted but the form doesn't support timeslots
+        raise HTTPException(
+            status_code=403,
+            detail="One or more selected timeslots are invalid for this form.",
+        )
+    if has_timeslots and not selected_timeslot_ids:
+        raise HTTPException(
+            status_code=400, detail="Please select at least one timeslot."
+        )
+
     # Store RSVP response if provided (for RSVP yes/no forms)
     if rsvp_response:
         additional_data["rsvp_response"] = rsvp_response
@@ -213,6 +268,49 @@ async def submit_registration_form(
 
         logger.info(f"Created registration {registration.id} for form {form.id}")
 
+        # If this is a timeslot form, attempt to book selected slots
+        booked_slot_ids: list[str] = []
+        if has_timeslots and selected_timeslot_ids:
+            # Validate that all provided IDs belong to this form
+            # Fetch set of provided ids that belong to the form
+            provided_ids = {sid for sid in selected_timeslot_ids}
+            rows = db.exec(
+                select(Timeslot.id).where(
+                    Timeslot.form_id == form.id, Timeslot.id.in_(provided_ids)
+                )
+            ).all()
+            form_owned_ids = {str(r[0] if isinstance(r, tuple) else r) for r in rows}
+            if form_owned_ids != provided_ids:
+                raise HTTPException(
+                    status_code=403,
+                    detail="One or more selected timeslots are invalid for this form.",
+                )
+
+            # Book
+            # Convert to UUIDs
+            slot_uuids = [
+                (
+                    __import__("uuid").UUID(s)
+                    if not isinstance(s, str)
+                    else __import__("uuid").UUID(s)
+                )
+                for s in selected_timeslot_ids
+            ]
+            booking = timeslot_service.book_slots(registration.id, slot_uuids)
+            if not booking.success:
+                # 409 Conflict with details
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "One or more selected timeslots are no longer available.",
+                        "unavailable_ids": [str(x) for x in booking.unavailable_ids],
+                        "already_booked_ids": [
+                            str(x) for x in booking.already_booked_ids
+                        ],
+                    },
+                )
+            booked_slot_ids = [str(x) for x in booking.booked_ids]
+
         # Generate fallback confirmation message for response
         confirmation_message = await registration_service.generate_confirmation_message(
             form, name.strip(), rsvp_response
@@ -236,11 +334,15 @@ async def submit_registration_form(
             "email_sent": email_sent,
             "creator_notification_sent": creator_notification_sent,
             "registration_id": str(registration.id),
+            "timeslot_ids": booked_slot_ids,
         }
 
     except ValueError as e:
         # Handle validation errors (400 Bad Request)
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        # Propagate HTTP exceptions such as 403/409 we intentionally raised
+        raise
     except Exception as e:
         # Handle all other errors (500 Internal Server Error)
         logger.error(f"Error creating registration: {type(e).__name__}: {e}")
