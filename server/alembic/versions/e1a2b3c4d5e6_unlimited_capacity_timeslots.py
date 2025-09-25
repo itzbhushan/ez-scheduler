@@ -21,97 +21,91 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Make capacity nullable to indicate unlimited when NULL
-    with op.batch_alter_table("timeslots") as batch_op:
-        try:
-            batch_op.alter_column("capacity", existing_type=sa.Integer(), nullable=True)
-        except Exception:
-            pass
+    # Use explicit SQL to avoid transaction-aborting errors on missing objects
+    op.execute("ALTER TABLE timeslots ALTER COLUMN capacity DROP NOT NULL")
 
-        # Drop old constraints if present
-        for cname in (
-            "ck_timeslots_capacity_ge_1",
-            "ck_timeslots_booked_le_capacity",
-        ):
-            try:
-                batch_op.drop_constraint(cname, type_="check")
-            except Exception:
-                pass
+    # Drop legacy constraints if present (safe with IF EXISTS)
+    op.execute(
+        "ALTER TABLE timeslots DROP CONSTRAINT IF EXISTS ck_timeslots_capacity_ge_1"
+    )
+    op.execute(
+        "ALTER TABLE timeslots DROP CONSTRAINT IF EXISTS ck_timeslots_booked_le_capacity"
+    )
 
-        # Create new constraints tolerant of NULL capacity
-        try:
-            batch_op.create_check_constraint(
-                "ck_timeslots_capacity_ge_1_or_null",
-                "capacity IS NULL OR capacity >= 1",
-            )
-        except Exception:
-            pass
-        try:
-            batch_op.create_check_constraint(
-                "ck_timeslots_booked_le_capacity_or_null",
-                "capacity IS NULL OR booked_count <= capacity",
-            )
-        except Exception:
-            pass
+    # Create new constraints tolerant of NULL capacity; guard against duplicates
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            ALTER TABLE timeslots
+            ADD CONSTRAINT ck_timeslots_capacity_ge_1_or_null
+            CHECK (capacity IS NULL OR capacity >= 1);
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END$$;
+        """
+    )
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            ALTER TABLE timeslots
+            ADD CONSTRAINT ck_timeslots_booked_le_capacity_or_null
+            CHECK (capacity IS NULL OR booked_count <= capacity);
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END$$;
+        """
+    )
 
     # Adjust availability index to include unlimited capacity
-    try:
-        op.drop_index("idx_timeslots_availability", table_name="timeslots")
-    except Exception:
-        pass
-    try:
-        op.create_index(
-            "idx_timeslots_availability",
-            "timeslots",
-            ["form_id", "start_at"],
-            unique=False,
-            postgresql_where=sa.text("capacity IS NULL OR booked_count < capacity"),
-        )
-    except Exception:
-        pass
+    op.execute("DROP INDEX IF EXISTS idx_timeslots_availability")
+    op.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_timeslots_availability
+        ON timeslots (form_id, start_at)
+        WHERE (capacity IS NULL OR booked_count < capacity)
+        """
+    )
 
 
 def downgrade() -> None:
     # Revert availability index
-    try:
-        op.drop_index("idx_timeslots_availability", table_name="timeslots")
-    except Exception:
-        pass
-    try:
-        op.create_index(
-            "idx_timeslots_availability",
-            "timeslots",
-            ["form_id", "start_at"],
-            unique=False,
-            postgresql_where=sa.text("booked_count < capacity"),
-        )
-    except Exception:
-        pass
+    op.execute("DROP INDEX IF EXISTS idx_timeslots_availability")
+    op.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_timeslots_availability
+        ON timeslots (form_id, start_at)
+        WHERE (booked_count < capacity)
+        """
+    )
 
     # Revert constraints and column nullability
-    with op.batch_alter_table("timeslots") as batch_op:
-        for cname in (
-            "ck_timeslots_booked_le_capacity_or_null",
-            "ck_timeslots_capacity_ge_1_or_null",
-        ):
-            try:
-                batch_op.drop_constraint(cname, type_="check")
-            except Exception:
-                pass
-        try:
-            batch_op.create_check_constraint(
-                "ck_timeslots_capacity_ge_1", "capacity >= 1"
-            )
-        except Exception:
-            pass
-        try:
-            batch_op.create_check_constraint(
-                "ck_timeslots_booked_le_capacity", "booked_count <= capacity"
-            )
-        except Exception:
-            pass
-        try:
-            batch_op.alter_column(
-                "capacity", existing_type=sa.Integer(), nullable=False
-            )
-        except Exception:
-            pass
+    op.execute(
+        "ALTER TABLE timeslots DROP CONSTRAINT IF EXISTS ck_timeslots_booked_le_capacity_or_null"
+    )
+    op.execute(
+        "ALTER TABLE timeslots DROP CONSTRAINT IF EXISTS ck_timeslots_capacity_ge_1_or_null"
+    )
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            ALTER TABLE timeslots
+            ADD CONSTRAINT ck_timeslots_capacity_ge_1
+            CHECK (capacity >= 1);
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END$$;
+        """
+    )
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            ALTER TABLE timeslots
+            ADD CONSTRAINT ck_timeslots_booked_le_capacity
+            CHECK (booked_count <= capacity);
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END$$;
+        """
+    )
+    # Make capacity NOT NULL again
+    op.execute("ALTER TABLE timeslots ALTER COLUMN capacity SET NOT NULL")
