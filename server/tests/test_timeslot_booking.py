@@ -57,6 +57,7 @@ def test_book_single_slot_success(
         weeks_ahead=1,
         start_from_date=date(2024, 1, 8),
         time_zone="UTC",
+        capacity_per_slot=1,
     )
     gen = timeslot_service.generate_slots(form_id, spec)
     slot_id = gen.created[0].id
@@ -116,6 +117,7 @@ def test_atomic_rollback_on_partial_failure(
         weeks_ahead=1,
         start_from_date=date(2024, 1, 8),
         time_zone="UTC",
+        capacity_per_slot=1,
     )
     gen = timeslot_service.generate_slots(form_id, spec)
     s10, s11 = gen.created[0].id, gen.created[1].id

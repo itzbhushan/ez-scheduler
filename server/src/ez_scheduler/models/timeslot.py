@@ -32,9 +32,10 @@ class Timeslot(SQLModel, table=True):
     )
     end_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
 
-    capacity: int = Field(
-        default=1,
-        sa_column=Column(Integer, nullable=False, server_default="1"),
+    # None capacity means unlimited bookings per slot
+    capacity: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, nullable=True),
     )
     booked_count: int = Field(
         default=0,
@@ -52,10 +53,14 @@ class Timeslot(SQLModel, table=True):
         UniqueConstraint(
             "form_id", "start_at", "end_at", name="uq_timeslots_form_start_end"
         ),
-        CheckConstraint("capacity >= 1", name="ck_timeslots_capacity_ge_1"),
+        CheckConstraint(
+            "capacity IS NULL OR capacity >= 1",
+            name="ck_timeslots_capacity_ge_1_or_null",
+        ),
         CheckConstraint("booked_count >= 0", name="ck_timeslots_booked_ge_0"),
         CheckConstraint(
-            "booked_count <= capacity", name="ck_timeslots_booked_le_capacity"
+            "capacity IS NULL OR booked_count <= capacity",
+            name="ck_timeslots_booked_le_capacity_or_null",
         ),
         CheckConstraint("start_at < end_at", name="ck_timeslots_start_before_end"),
         Index("idx_timeslots_form_start", "form_id", "start_at"),
