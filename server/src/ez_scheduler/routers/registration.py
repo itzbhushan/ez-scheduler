@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.templating import Jinja2Templates
@@ -270,6 +270,7 @@ async def submit_registration_form(
 
         # If this is a timeslot form, attempt to book selected slots
         booked_slot_ids: list[str] = []
+        selected_slot_lines: list[str] | None = None
         if has_timeslots and selected_timeslot_ids:
             # Validate that all provided IDs belong to this form
             # Fetch set of provided ids that belong to the form
@@ -307,6 +308,58 @@ async def submit_registration_form(
                 )
             booked_slot_ids = [str(x) for x in booking.booked_ids]
 
+            # Prepare human-readable lines for the booked timeslots for emails
+            def _format_lines(rows, tzinfo):
+                lines = []
+                for r in rows:
+                    start_local = r.start_at.astimezone(tzinfo)
+                    end_local = r.end_at.astimezone(tzinfo)
+                    day = start_local.strftime("%a %b %d").replace(" 0", " ")
+                    start_str = start_local.strftime("%I:%M %p").lstrip("0")
+                    end_str = end_local.strftime("%I:%M %p").lstrip("0")
+                    lines.append(f"{day}, {start_str}–{end_str}")
+                return lines
+
+            rows = db.exec(
+                select(Timeslot).where(
+                    Timeslot.id.in_(
+                        [__import__("uuid").UUID(x) for x in booked_slot_ids]
+                    )
+                )
+            ).all()
+            rows_sorted = sorted(rows, key=lambda r: r.start_at)
+
+            # Resolve timezone with fallback to UTC on invalid tz
+            try:
+                tz = ZoneInfo(form.time_zone) if form.time_zone else ZoneInfo("UTC")
+            except ZoneInfoNotFoundError:
+                logger.warning(
+                    "Invalid form time_zone '%s' for form_id=%s; falling back to UTC",
+                    form.time_zone,
+                    form.id,
+                )
+                tz = ZoneInfo("UTC")
+            except Exception:
+                logger.exception(
+                    "Failed to load time_zone '%s' for form_id=%s",
+                    form.time_zone,
+                    form.id,
+                )
+                tz = ZoneInfo("UTC")
+
+            try:
+                selected_slot_lines = _format_lines(rows_sorted, tz)
+            except Exception:
+                logger.exception(
+                    "Failed to format selected timeslots with tz=%s; falling back to UTC",
+                    getattr(tz, "key", str(tz)),
+                )
+                try:
+                    selected_slot_lines = _format_lines(rows_sorted, ZoneInfo("UTC"))
+                except Exception:
+                    logger.exception("Failed to format selected timeslots even in UTC")
+                    selected_slot_lines = None
+
         # Generate fallback confirmation message for response
         confirmation_message = await registration_service.generate_confirmation_message(
             form, name.strip(), rsvp_response
@@ -315,12 +368,17 @@ async def submit_registration_form(
         # Send confirmation email using EmailService
         form_url = f"{request.base_url}form/{url_slug}"
         email_sent = await email_service.notify_registration_user(
-            form=form, registration=registration, form_url=str(form_url)
+            form=form,
+            registration=registration,
+            form_url=str(form_url),
+            selected_slot_lines=selected_slot_lines,
         )
 
         # Send creator notification email
         creator_notification_sent = await email_service.notify_creator(
-            form=form, registration=registration
+            form=form,
+            registration=registration,
+            selected_slot_lines=selected_slot_lines,
         )
 
         # Return JSON success response

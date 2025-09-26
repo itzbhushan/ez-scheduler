@@ -92,12 +92,12 @@ If the user asks for bookable timeslots (e.g., "between 5–9pm on Mondays and W
   - weeks_ahead: integer (1–12)
   - start_from_date: optional ISO date (YYYY-MM-DD); if omitted, assume today
   - capacity_per_slot: optional integer (default is unlimited if omitted)
-  - time_zone: optional IANA TZ name (e.g., "America/New_York"); if omitted, the app defaults will apply
 
 Notes:
 - Only include `timeslot_schedule` when the user intends a schedule of bookable times.
 - Do not include conflicting single start/end times for the form when a schedule is present.
 - If the user does NOT specify a limit per slot, set `is_complete=false` and ask: "Do you want to limit how many people can book each timeslot, or keep it unlimited?"
+ - Do not include a time zone; the system derives it from the event location when needed.
 
 STANDARD FORM FIELDS (always included):
 - name: Full name (required)
@@ -226,8 +226,7 @@ RESPONSE FORMAT (return exactly this structure):
             "slot_minutes": 60,
             "weeks_ahead": 2,
             "start_from_date": "2025-10-06",
-            "capacity_per_slot": 1,
-            "time_zone": "America/New_York"
+            "capacity_per_slot": 1
         }} or null,
         "custom_fields": [
             {{
@@ -610,6 +609,39 @@ Response: {{
     "parameters": {{"user_id": "current_user"}},
     "explanation": "Counts total people attending workshop using guest_count as total people (including registrant), only including yes RSVPs or non-RSVP forms"
 }}"""
+
+# Timeslot analytics addendum (MR-TS-6)
+SQL_GENERATOR_PROMPT += """
+
+TIMESLOT ANALYTICS (for forms with bookable timeslots):
+- Tables:
+  - timeslots (id UUID PK, form_id UUID FK->signup_forms.id, start_at TIMESTAMPTZ, end_at TIMESTAMPTZ, capacity INT NULL, booked_count INT)
+  - registration_timeslots (id UUID PK, registration_id UUID FK->registrations.id, timeslot_id UUID FK->timeslots.id)
+
+Useful patterns:
+- Total slots per form: COUNT(ts.id)
+- Booked slots per form: COUNT(CASE WHEN ts.booked_count > 0 THEN 1 END)
+- Slot fill rate (percentage of slots with at least 1 booking):
+  ROUND(100.0 * COUNT(CASE WHEN ts.booked_count > 0 THEN 1 END) / NULLIF(COUNT(ts.id), 0), 1) as fill_rate_percent
+- Total bookings across timeslots (number of registrations on slots): COUNT(rt.id)
+
+Always filter by sf.user_id = :user_id.
+
+Example requests and responses:
+Request: "Show total slots, booked slots, and fill rate for my coaching sessions"
+Response: {
+    "sql_query": "SELECT sf.title, COUNT(ts.id) AS total_slots, COUNT(CASE WHEN ts.booked_count > 0 THEN 1 END) AS booked_slots, ROUND(100.0 * COUNT(CASE WHEN ts.booked_count > 0 THEN 1 END) / NULLIF(COUNT(ts.id), 0), 1) AS fill_rate_percent FROM signup_forms sf LEFT JOIN timeslots ts ON ts.form_id = sf.id WHERE sf.user_id = :user_id AND sf.title ILIKE '%coaching%' GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
+    "parameters": {"user_id": "current_user"},
+    "explanation": "Summarizes total slots, booked slots, and fill rate for matching forms"
+}
+
+Request: "How many bookings were made across timeslots for my tutoring form?"
+Response: {
+    "sql_query": "SELECT sf.title, COUNT(rt.id) AS booking_count FROM signup_forms sf LEFT JOIN timeslots ts ON ts.form_id = sf.id LEFT JOIN registration_timeslots rt ON rt.timeslot_id = ts.id WHERE sf.user_id = :user_id AND sf.title ILIKE '%tutoring%' GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
+    "parameters": {"user_id": "current_user"},
+    "explanation": "Counts total timeslot bookings per form"
+}
+"""
 
 # Analytics response formatting system prompt
 ANALYTICS_FORMATTER_PROMPT = """You are a helpful analytics assistant that formats database query results into user-friendly responses.
