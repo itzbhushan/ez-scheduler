@@ -135,3 +135,62 @@ async def test_timeslot_lines_in_creator_email(
     body = creator_emails[0]["body"].lower()
     assert "selected timeslots:" in body
     assert "mon oct 6, 5:00 pm–6:00 pm" in body
+
+
+@pytest.mark.asyncio
+async def test_timeslot_lines_fallback_to_utc_on_invalid_form_timezone(
+    signup_service, timeslot_service: TimeslotService, authenticated_client, monkeypatch
+):
+    """If form.time_zone is invalid, we still include timeslot lines using UTC fallback."""
+    client, _ = authenticated_client
+
+    sent = []
+
+    async def fake_send_email(self, to_email, email_content):
+        sent.append(
+            {
+                "to": to_email,
+                "subject": email_content.get("subject"),
+                "body": email_content.get("body", ""),
+            }
+        )
+        return True
+
+    monkeypatch.setattr(EmailService, "_send_email", fake_send_email, raising=True)
+
+    # Form with invalid time zone
+    form = _create_published_form(
+        signup_service, slug="ts-email-invalid-tz", tz="Mars/Phobos"
+    )
+
+    # Generate one slot using a valid schedule TZ so rows exist; 5–6 PM New York -> 21:00–22:00 UTC
+    spec = TimeslotSchedule(
+        days_of_week=["monday"],
+        window_start="17:00",
+        window_end="18:00",
+        slot_minutes=60,
+        weeks_ahead=1,
+        start_from_date=TEST_MONDAY,
+        time_zone="America/New_York",
+        capacity_per_slot=1,
+    )
+    gen = timeslot_service.generate_slots(form.id, spec)
+    slot_id = str(gen.created[0].id)
+
+    # Book
+    resp = client.post(
+        f"/form/{form.url_slug}",
+        data={
+            "name": "Eve",
+            "email": "eve@example.com",
+            "timeslot_ids": slot_id,
+        },
+    )
+    assert resp.status_code == 200
+
+    # Registrant email should include slots, formatted in UTC (21:00–22:00)
+    registrant = [m for m in sent if m["to"] == "eve@example.com"]
+    assert registrant, "Expected registrant email"
+    body = registrant[0]["body"].lower()
+    assert "your selected timeslots:" in body
+    assert "mon oct 6, 9:00 pm–10:00 pm" in body
