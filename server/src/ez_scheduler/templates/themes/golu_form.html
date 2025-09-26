@@ -124,9 +124,12 @@
                     <div class="text-sm font-semibold text-[var(--navy)] mb-2">{{ day }}</div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {% for slot in slots %}
-                        <label class="flex items-center gap-2 text-sm">
-                          <input type="checkbox" name="timeslot_ids" value="{{ slot.id }}" class="w-4 h-4 border-2 border-[#8d7f63] rounded" {% if form.status == 'draft' %}disabled{% endif %}>
+                        <label class="flex items-center gap-2 text-sm {% if form.status == 'draft' or slot.full %}opacity-60 cursor-not-allowed{% endif %}">
+                          <input type="checkbox" name="timeslot_ids" value="{{ slot.id }}" class="w-4 h-4 border-2 border-[#8d7f63] rounded" {% if form.status == 'draft' or slot.full %}disabled{% endif %}>
                           <span>{{ slot.start }} – {{ slot.end }}</span>
+                          {% if slot.full %}
+                            <span class="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded" style="background:rgba(141,127,99,.15); border:1px solid rgba(141,127,99,.35); color:#5b5240">Full</span>
+                          {% endif %}
                         </label>
                       {% endfor %}
                     </div>

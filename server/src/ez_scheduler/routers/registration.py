@@ -83,9 +83,9 @@ async def serve_registration_form(
         if is_timeslot_form:
             tz = ZoneInfo(form.time_zone) if form.time_zone else ZoneInfo("UTC")
             ts_service = TimeslotService(db)
-            available = ts_service.list_available(form.id)
-            # Group by local date string
-            for slot in available:
+            upcoming = ts_service.list_upcoming(form.id)
+            # Group by local date string and mark full slots
+            for slot in upcoming:
                 local_start = slot.start_at.astimezone(tz)
                 local_end = slot.end_at.astimezone(tz)
                 key = local_start.strftime("%A, %B %d, %Y")
@@ -93,13 +93,18 @@ async def serve_registration_form(
                     "id": str(slot.id),
                     "start": local_start.strftime("%I:%M %p").lstrip("0"),
                     "end": local_end.strftime("%I:%M %p").lstrip("0"),
+                    "full": bool(
+                        (slot.capacity is not None)
+                        and (slot.booked_count is not None)
+                        and (slot.booked_count >= slot.capacity)
+                    ),
                 }
                 timeslots_grouped.setdefault(key, []).append(entry)
 
             # Build a friendly date range header for timeslot forms with slots
-            if available:
-                earliest_local = min(s.start_at for s in available).astimezone(tz)
-                latest_local = max(s.end_at for s in available).astimezone(tz)
+            if upcoming:
+                earliest_local = min(s.start_at for s in upcoming).astimezone(tz)
+                latest_local = max(s.end_at for s in upcoming).astimezone(tz)
 
                 def _fmt_range(a, b):
                     # a, b are local datetimes
