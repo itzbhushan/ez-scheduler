@@ -77,7 +77,7 @@ class FormExtractionSchema(BaseModel):
     timeslot_schedule: Optional[dict] = Field(
         default=None,
         description=(
-            "If present, describes a schedule for generating timeslots: {days_of_week, window_start, window_end, slot_minutes, weeks_ahead, start_from_date, capacity_per_slot, time_zone}"
+            "If present, describes a schedule for generating timeslots: {days_of_week, window_start, window_end, slot_minutes, weeks_ahead, start_from_date, capacity_per_slot}"
         ),
     )
 
@@ -562,8 +562,7 @@ async def _create_form(
         if not signup_form.updated_at:
             signup_form.updated_at = datetime.now(timezone.utc)
 
-        # Intentionally ignore any time_zone provided by LLM/users.
-        # The canonical timezone should come from the event location (not user-specified).
+        # Timezone is not set at creation time; it will derive from location in future flows if needed.
 
         # Add signup form to session and flush to get the ID in database
         db_session.add(signup_form)
@@ -598,10 +597,6 @@ async def _create_form(
             try:
                 # Build TimeslotSchedule model (coerce date string if provided)
                 sched_dict = dict(form_data.timeslot_schedule)
-                # Do not allow LLM/user-provided time_zone; derive timezone from location elsewhere.
-                if "time_zone" in sched_dict:
-                    logger.info("Ignoring user-provided time_zone in timeslot_schedule")
-                    sched_dict.pop("time_zone", None)
                 sfd = sched_dict.get("start_from_date")
                 if sfd:
                     try:
