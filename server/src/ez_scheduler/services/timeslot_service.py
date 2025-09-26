@@ -18,7 +18,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Iterable, List, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
@@ -335,6 +335,185 @@ class TimeslotService:
 
         stmt = stmt.order_by(Timeslot.start_at.asc()).limit(limit).offset(offset)
         return list(self.db.exec(stmt).all())
+
+    # --------------------------
+    # MR-TS-9: Add/Remove Schedules
+    # --------------------------
+
+    class TimeslotRemoveSpec(BaseModel):
+        """Spec for removing generated timeslots in a draft.
+
+        - days_of_week: required weekdays to match
+        - window_start/window_end: optional HH:MM local time window; when provided,
+          a slot matches if its local START time is within [start, end)
+        - weeks_ahead or end_date: one must be provided to bound the range
+        - start_from_date: local start date; defaults to 'today' in time_zone
+        - time_zone: IANA tz used for interpretation; defaults to form.time_zone or UTC
+        """
+
+        days_of_week: List[str]
+        window_start: Optional[str] = None
+        window_end: Optional[str] = None
+        weeks_ahead: Optional[int] = Field(default=None, ge=1, le=12)
+        end_date: Optional[date] = None
+        start_from_date: Optional[date] = None
+        time_zone: Optional[str] = None
+
+        @field_validator("days_of_week")
+        @classmethod
+        def _normalize_days(cls, v: Iterable[str]) -> List[str]:
+            normalized = [d.strip().lower() for d in v]
+            valid = {
+                "monday",
+                "tuesday",
+                "wednesday",
+                "thursday",
+                "friday",
+                "saturday",
+                "sunday",
+            }
+            for d in normalized:
+                if d not in valid:
+                    raise ValueError(f"Invalid day_of_week '{d}'")
+            if not normalized:
+                raise ValueError("days_of_week must not be empty")
+            return normalized
+
+        @model_validator(mode="after")
+        def _validate_window_and_range(self):  # type: ignore[override]
+            if (self.window_start and not self.window_end) or (
+                self.window_end and not self.window_start
+            ):
+                raise ValueError(
+                    "Both window_start and window_end must be provided together or omitted"
+                )
+            if self.window_start and self.window_end:
+                # Validate format and ordering
+                _ = _parse_hh_mm(self.window_start)
+                end = _parse_hh_mm(self.window_end)
+                start = _parse_hh_mm(self.window_start)
+                if datetime.combine(date.today(), start) >= datetime.combine(
+                    date.today(), end
+                ):
+                    raise ValueError("window_start must be before window_end")
+
+            if (self.weeks_ahead is None) and (self.end_date is None):
+                raise ValueError(
+                    "Provide either weeks_ahead or end_date to bound the range"
+                )
+            return self
+
+    @dataclass
+    class AddResult:
+        added_count: int
+        skipped_existing: int
+
+    @dataclass
+    class RemoveResult:
+        removed_count: int
+        skipped_booked: int
+
+    def add_schedule(
+        self,
+        form_id: uuid.UUID,
+        add_spec: TimeslotSchedule,
+        now: Optional[datetime] = None,
+    ) -> "TimeslotService.AddResult":
+        """Add timeslots per the schedule spec. Wrapper over generate_slots."""
+        res = self.generate_slots(form_id, add_spec, now=now)
+        return TimeslotService.AddResult(
+            added_count=len(res.created), skipped_existing=res.skipped_existing
+        )
+
+    def remove_schedule(
+        self,
+        form_id: uuid.UUID,
+        remove_spec: "TimeslotService.TimeslotRemoveSpec",
+    ) -> "TimeslotService.RemoveResult":
+        """Remove unbooked slots matching the spec. Returns counts only.
+
+        Matching logic:
+        - Limit search to [start_date, end_date) in local tz, converted to UTC bounds
+        - Match weekday against remove_spec.days_of_week
+        - If a window is provided, match when slot's local START time is within [start, end)
+        - Delete only when booked_count == 0; otherwise count as skipped_booked
+        """
+
+        form = self.db.get(SignupForm, form_id)
+        if not form:
+            raise ValueError("Signup form not found")
+
+        tz_name = remove_spec.time_zone or form.time_zone or "UTC"
+        try:
+            tz = ZoneInfo(tz_name)
+        except ZoneInfoNotFoundError as e:
+            raise ValueError(f"Invalid time zone: {tz_name}") from e
+
+        local_start_date = (
+            remove_spec.start_from_date
+            if remove_spec.start_from_date is not None
+            else datetime.now(tz).date()
+        )
+        if remove_spec.end_date is not None:
+            local_end_date = remove_spec.end_date + timedelta(days=1)  # exclusive
+        else:
+            weeks = remove_spec.weeks_ahead or 1
+            local_end_date = local_start_date + timedelta(days=weeks * 7)
+
+        # UTC bounds for query
+        start_bound_local = datetime.combine(local_start_date, time(0, 0), tzinfo=tz)
+        end_bound_local = datetime.combine(local_end_date, time(0, 0), tzinfo=tz)
+        start_utc = start_bound_local.astimezone(timezone.utc)
+        end_utc = end_bound_local.astimezone(timezone.utc)
+
+        # Prefetch slots in the bounded window
+        stmt = (
+            select(Timeslot)
+            .where(
+                Timeslot.form_id == form_id,
+                Timeslot.start_at >= start_utc,
+                Timeslot.start_at < end_utc,
+            )
+            .order_by(Timeslot.start_at.asc())
+        )
+        rows: List[Timeslot] = list(self.db.exec(stmt).all())
+
+        days_set = {_weekday_name_to_int(d) for d in remove_spec.days_of_week}
+        start_t = (
+            _parse_hh_mm(remove_spec.window_start) if remove_spec.window_start else None
+        )
+        end_t = _parse_hh_mm(remove_spec.window_end) if remove_spec.window_end else None
+
+        removed = 0
+        skipped = 0
+
+        for slot in rows:
+            local_start = slot.start_at.astimezone(tz)
+            # Weekday match
+            if local_start.weekday() not in days_set:
+                continue
+            # Optional time-window: start time within [start_t, end_t)
+            if start_t and end_t:
+                lt = local_start.timetz().replace(tzinfo=None)
+                if not (start_t <= lt < end_t):
+                    continue
+            # Only delete unbooked
+            if slot.booked_count and slot.booked_count > 0:
+                skipped += 1
+                continue
+            try:
+                self.db.delete(slot)
+                removed += 1
+            except Exception:
+                # Be safe; if delete fails, treat as skipped
+                skipped += 1
+
+        if removed:
+            self.db.commit()
+
+        return TimeslotService.RemoveResult(
+            removed_count=removed, skipped_booked=skipped
+        )
 
     # Booking with concurrency safety
     def book_slots(
