@@ -301,6 +301,41 @@ class TimeslotService:
         stmt = stmt.order_by(Timeslot.start_at.asc()).limit(limit).offset(offset)
         return list(self.db.exec(stmt).all())
 
+    def list_upcoming(
+        self,
+        form_id: uuid.UUID,
+        now: Optional[datetime] = None,
+        limit: int = 200,
+        offset: int = 0,
+        from_date: Optional[datetime] = None,
+        to_date: Optional[datetime] = None,
+    ) -> List[Timeslot]:
+        """Return all upcoming timeslots for a form (including full ones).
+
+        - Filters: start_at >= now (UTC)
+        - Does NOT filter by capacity; caller can compute "full" status
+        - Ordered by start_at ascending
+        """
+
+        # Validate form existence for consistency
+        form = self.db.get(SignupForm, form_id)
+        if not form:
+            raise ValueError("Signup form not found")
+
+        now_utc = now.astimezone(timezone.utc) if now else datetime.now(timezone.utc)
+
+        stmt = select(Timeslot).where(
+            Timeslot.form_id == form_id,
+            Timeslot.start_at >= now_utc,
+        )
+        if from_date is not None:
+            stmt = stmt.where(Timeslot.start_at >= from_date)
+        if to_date is not None:
+            stmt = stmt.where(Timeslot.start_at < to_date)
+
+        stmt = stmt.order_by(Timeslot.start_at.asc()).limit(limit).offset(offset)
+        return list(self.db.exec(stmt).all())
+
     # Booking with concurrency safety
     def book_slots(
         self, registration_id: uuid.UUID, timeslot_ids: List[uuid.UUID]

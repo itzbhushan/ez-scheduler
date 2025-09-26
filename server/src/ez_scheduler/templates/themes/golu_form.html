@@ -56,7 +56,9 @@
 
       <!-- Heading area -->
       <div class="text-center pt-8 pb-4">
-        <div class="hero-big text-4xl sm:text-6xl">{{ form.title | upper }}</div>
+        <div class="flex items-center justify-center gap-2">
+          <div class="hero-big text-4xl sm:text-6xl truncate">{{ form.title | upper }}</div>
+        </div>
         {% if form.status == 'draft' %}
         <div class="mx-auto max-w-lg mt-3">
           <div class="bg-yellow-50 border border-yellow-300 text-yellow-900 rounded-md px-4 py-3 text-sm">
@@ -65,7 +67,11 @@
         </div>
         {% endif %}
         <div class="hero-sub text-sm sm:text-base mt-2">
-          {{ formatted_date }}
+          {% if is_timeslot_form and timeslot_range_display %}
+            {{ timeslot_range_display }}
+          {% else %}
+            {{ formatted_date }}
+          {% endif %}
           {% if formatted_start_time or formatted_end_time %}
             • {% if formatted_start_time and formatted_end_time %}{{ formatted_start_time }}–{{ formatted_end_time }}{% elif formatted_start_time %}{{ formatted_start_time }}{% else %}{{ formatted_end_time }}{% endif %}
           {% endif %}
@@ -75,6 +81,13 @@
             • {{ form.location }}
           {% endif %}
         </div>
+
+        {% if form.status == 'published' %}
+        <div class="mt-3">
+          <button type="button" onclick="shareFormLink()" class="text-xs tracking-wider uppercase text-[#0f1e2e] bg-[#c9a227] hover:brightness-105 border-0 rounded-xl py-2 px-3 font-bold">Share</button>
+          <span id="share-copied" class="ml-2 text-xs text-[#d6c79e] hidden">Link copied</span>
+        </div>
+        {% endif %}
       </div>
 
       {% if form.description %}
@@ -86,7 +99,7 @@
       {% endif %}
 
       <!-- Form card -->
-      <div class="card p-6 sm:p-8 mx-2 sm:mx-8 my-6" x-data="submitForm()" data-draft-mode="{{ 'true' if form.status == 'draft' else 'false' }}">
+      <div class="card p-6 sm:p-8 mx-2 sm:mx-8 my-6" x-data="submitForm()" data-draft-mode="{{ 'true' if form.status == 'draft' else 'false' }}" data-is-timeslot="{{ 'true' if is_timeslot_form else 'false' }}">
         <h2 class="text-xl font-semibold mb-4">RSVP For Golu</h2>
 
         {% if form.status == 'draft' %}
@@ -95,6 +108,34 @@
         </div>
         {% endif %}
         <form @submit.prevent="submitForm($event)" x-show="!submitted" class="space-y-6">
+          {% if is_timeslot_form %}
+          <!-- Timeslot Selection -->
+          <div>
+            <div class="about-title text-xs mb-2">Available Timeslots</div>
+            {% if timeslots_grouped and timeslots_grouped|length > 0 %}
+              <div class="space-y-3">
+                {% for day, slots in timeslots_grouped.items() %}
+                  <div class="rounded-lg p-3" style="background:rgba(255,255,255,0.7); border:1px solid rgba(141,127,99,.5)">
+                    <div class="text-sm font-semibold text-[var(--navy)] mb-2">{{ day }}</div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {% for slot in slots %}
+                        <label class="flex items-center gap-2 text-sm {% if form.status == 'draft' or slot.full %}opacity-60 cursor-not-allowed{% endif %}">
+                          <input type="checkbox" name="timeslot_ids" value="{{ slot.id }}" class="w-4 h-4 border-2 border-[#8d7f63] rounded" {% if form.status == 'draft' or slot.full %}disabled{% endif %}>
+                          <span>{{ slot.start }} – {{ slot.end }}</span>
+                          {% if slot.full %}
+                            <span class="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded" style="background:rgba(141,127,99,.15); border:1px solid rgba(141,127,99,.35); color:#5b5240">Full</span>
+                          {% endif %}
+                        </label>
+                      {% endfor %}
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="text-xs text-neutral-700 rounded-md p-2" style="background:rgba(255,255,255,.6); border:1px solid rgba(141,127,99,.35)">No timeslots are currently available.</div>
+            {% endif %}
+          </div>
+          {% endif %}
           <!-- Name -->
           <div>
             <label for="name" class="block text-sm font-medium mb-2">Full Name *</label>
@@ -188,6 +229,16 @@
 
   <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   <script>
+    function shareFormLink(){
+      const url = window.location.href;
+      if (navigator.share){ try { navigator.share({ title: document.title, url }); return; } catch(_){} }
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url).then(() => {
+          const n = document.getElementById('share-copied');
+          if (n){ n.classList.remove('hidden'); setTimeout(() => n.classList.add('hidden'), 1500); }
+        });
+      }
+    }
     function submitForm() {
       return {
         init() {
@@ -222,6 +273,16 @@
           if (!email && !phone){
             this.error = 'Please provide either an email address or phone number.';
             this.submitting = false; return;
+          }
+
+          // If this is a timeslot form, require at least one timeslot selection
+          const isTimeslot = this.$el.dataset.isTimeslot === 'true';
+          if (isTimeslot){
+            const selected = formData.getAll('timeslot_ids');
+            if (selected.length === 0){
+              this.error = 'Please select at least one timeslot.';
+              this.submitting = false; return;
+            }
           }
           try{
             const response = await fetch(`/form/{{ url_slug }}`, { method:'POST', body: formData });

@@ -72,6 +72,7 @@ async def serve_registration_form(
     # Timeslots: determine if this is a timeslot form and fetch available slots
     is_timeslot_form = False
     timeslots_grouped: dict[str, list[dict]] = {}
+    timeslot_range_display: str | None = None
     try:
         # Check if any timeslots exist for this form
         any_slot = db.exec(
@@ -82,9 +83,9 @@ async def serve_registration_form(
         if is_timeslot_form:
             tz = ZoneInfo(form.time_zone) if form.time_zone else ZoneInfo("UTC")
             ts_service = TimeslotService(db)
-            available = ts_service.list_available(form.id)
-            # Group by local date string
-            for slot in available:
+            upcoming = ts_service.list_upcoming(form.id)
+            # Group by local date string and mark full slots
+            for slot in upcoming:
                 local_start = slot.start_at.astimezone(tz)
                 local_end = slot.end_at.astimezone(tz)
                 key = local_start.strftime("%A, %B %d, %Y")
@@ -92,8 +93,34 @@ async def serve_registration_form(
                     "id": str(slot.id),
                     "start": local_start.strftime("%I:%M %p").lstrip("0"),
                     "end": local_end.strftime("%I:%M %p").lstrip("0"),
+                    "full": bool(
+                        (slot.capacity is not None)
+                        and (slot.booked_count is not None)
+                        and (slot.booked_count >= slot.capacity)
+                    ),
                 }
                 timeslots_grouped.setdefault(key, []).append(entry)
+
+            # Build a friendly date range header for timeslot forms with slots
+            if upcoming:
+                earliest_local = min(s.start_at for s in upcoming).astimezone(tz)
+                latest_local = max(s.end_at for s in upcoming).astimezone(tz)
+
+                def _fmt_range(a, b):
+                    # a, b are local datetimes
+                    ad, bd = a.date(), b.date()
+                    if ad == bd:
+                        return a.strftime("%B %d, %Y")
+                    if ad.year == bd.year:
+                        if ad.month == bd.month:
+                            # Same month, same year: "Sep 26–30, 2025"
+                            return f"{a.strftime('%B')} {ad.day}–{bd.day}, {ad.year}"
+                        # Same year different months: "Sep 26 – Oct 10, 2025"
+                        return f"{a.strftime('%B')} {ad.day} – {b.strftime('%B')} {bd.day}, {ad.year}"
+                    # Different years: "Dec 29, 2025 – Jan 03, 2026"
+                    return f"{a.strftime('%B')} {ad.day}, {ad.year} – {b.strftime('%B')} {bd.day}, {bd.year}"
+
+                timeslot_range_display = _fmt_range(earliest_local, latest_local)
     except Exception:
         # If any error occurs in timeslot handling, fall back to standard form
         is_timeslot_form = False
@@ -111,6 +138,7 @@ async def serve_registration_form(
             "google_maps_url": google_maps_url,
             "is_timeslot_form": is_timeslot_form,
             "timeslots_grouped": timeslots_grouped,
+            "timeslot_range_display": timeslot_range_display,
         },
     )
 
