@@ -17,6 +17,7 @@ from datetime import date, datetime, timezone
 import pytest
 
 from ez_scheduler.models import SignupForm
+from ez_scheduler.models.timeslot import Timeslot
 from ez_scheduler.services import TimeslotSchedule, TimeslotService
 
 
@@ -249,3 +250,128 @@ def test_cap_enforcement(
     with pytest.raises(ValueError) as exc:
         svc.generate_slots(form.id, spec)
     assert "exceeding the limit" in str(exc.value)
+
+
+# -------------------------
+# MR-TS-9: Add/Remove Schedules
+# -------------------------
+
+
+def test_add_schedule_idempotent_counts(
+    signup_service, timeslot_service: TimeslotService
+):
+    form = _create_form(signup_service, tz="UTC")
+    svc = timeslot_service
+
+    monday = date(2025, 10, 6)
+    spec = TimeslotSchedule(
+        days_of_week=["monday"],
+        window_start="10:00",
+        window_end="13:00",
+        slot_minutes=60,
+        weeks_ahead=1,
+        start_from_date=monday,
+        capacity_per_slot=1,
+        time_zone="UTC",
+    )
+    # Initial generation: 10:00, 11:00, 12:00
+    gen = svc.generate_slots(form.id, spec)
+    assert len(gen.created) == 3
+
+    # Add again via add_schedule -> should skip all 3 as existing
+    add_res = svc.add_schedule(form.id, spec)
+    assert add_res.added_count == 0
+    assert add_res.skipped_existing == 3
+
+
+def test_remove_schedule_by_weekday_and_window(
+    signup_service, timeslot_service: TimeslotService
+):
+    form = _create_form(signup_service, tz="UTC")
+    svc = timeslot_service
+
+    monday = date(2025, 10, 6)
+    spec = TimeslotSchedule(
+        days_of_week=["monday"],
+        window_start="10:00",
+        window_end="13:00",
+        slot_minutes=60,
+        weeks_ahead=1,
+        start_from_date=monday,
+        capacity_per_slot=1,
+        time_zone="UTC",
+    )
+    svc.generate_slots(form.id, spec)
+
+    # Remove only the first hour using window [10:00, 11:00)
+    remove_spec = TimeslotService.TimeslotRemoveSpec(
+        days_of_week=["monday"],
+        window_start="10:00",
+        window_end="11:00",
+        weeks_ahead=1,
+        start_from_date=monday,
+        time_zone="UTC",
+    )
+    res = svc.remove_schedule(form.id, remove_spec)
+    assert res.removed_count == 1
+    assert res.skipped_booked == 0
+
+    # Remaining should be 11:00 and 12:00
+    remaining = svc.list_upcoming(
+        form.id, now=datetime(2025, 10, 6, 9, 0, tzinfo=timezone.utc)
+    )
+    starts = [s.start_at for s in remaining]
+    assert starts == [
+        datetime(2025, 10, 6, 11, 0, tzinfo=timezone.utc),
+        datetime(2025, 10, 6, 12, 0, tzinfo=timezone.utc),
+    ]
+
+
+def test_remove_schedule_skips_booked(
+    signup_service, timeslot_service: TimeslotService
+):
+    form = _create_form(signup_service, tz="UTC")
+    svc = timeslot_service
+
+    monday = date(2025, 10, 6)
+    spec = TimeslotSchedule(
+        days_of_week=["monday"],
+        window_start="10:00",
+        window_end="13:00",
+        slot_minutes=60,
+        weeks_ahead=1,
+        start_from_date=monday,
+        capacity_per_slot=1,
+        time_zone="UTC",
+    )
+    gen = svc.generate_slots(form.id, spec)
+
+    # Mark the 11:00 slot as booked (simulate a booking)
+    eleven = next(
+        s
+        for s in gen.created
+        if s.start_at == datetime(2025, 10, 6, 11, 0, tzinfo=timezone.utc)
+    )
+    eleven.booked_count = 1
+    # Persist the change
+    svc.db.add(eleven)
+    svc.db.commit()
+
+    # Remove all Monday slots that week (no window)
+    remove_spec = TimeslotService.TimeslotRemoveSpec(
+        days_of_week=["monday"],
+        weeks_ahead=1,
+        start_from_date=monday,
+        time_zone="UTC",
+    )
+    res = svc.remove_schedule(form.id, remove_spec)
+    # Two unbooked removed; one booked skipped
+    assert res.removed_count == 2
+    assert res.skipped_booked == 1
+
+    # Only the booked 11:00 should remain
+    remaining = svc.list_upcoming(
+        form.id, now=datetime(2025, 10, 6, 9, 0, tzinfo=timezone.utc)
+    )
+    assert len(remaining) == 1
+    assert remaining[0].start_at == datetime(2025, 10, 6, 11, 0, tzinfo=timezone.utc)
