@@ -92,12 +92,12 @@ If the user asks for bookable timeslots (e.g., "between 5–9pm on Mondays and W
   - weeks_ahead: integer (1–12)
   - start_from_date: optional ISO date (YYYY-MM-DD); if omitted, assume today
   - capacity_per_slot: optional integer (default is unlimited if omitted)
-  - time_zone: optional IANA TZ name (e.g., "America/New_York"); if omitted, the app defaults will apply
 
 Notes:
 - Only include `timeslot_schedule` when the user intends a schedule of bookable times.
 - Do not include conflicting single start/end times for the form when a schedule is present.
 - If the user does NOT specify a limit per slot, set `is_complete=false` and ask: "Do you want to limit how many people can book each timeslot, or keep it unlimited?"
+ - Do not include a time zone; the system derives it from the event location when needed.
 
 STANDARD FORM FIELDS (always included):
 - name: Full name (required)
@@ -226,8 +226,7 @@ RESPONSE FORMAT (return exactly this structure):
             "slot_minutes": 60,
             "weeks_ahead": 2,
             "start_from_date": "2025-10-06",
-            "capacity_per_slot": 1,
-            "time_zone": "America/New_York"
+            "capacity_per_slot": 1
         }} or null,
         "custom_fields": [
             {{
