@@ -562,16 +562,8 @@ async def _create_form(
         if not signup_form.updated_at:
             signup_form.updated_at = datetime.now(timezone.utc)
 
-        # If a timeslot schedule specified a time_zone, apply it to the form
-        if form_data.timeslot_schedule and isinstance(
-            form_data.timeslot_schedule, dict
-        ):
-            tz = form_data.timeslot_schedule.get("time_zone")
-            if tz:
-                try:
-                    signup_form.time_zone = str(tz)
-                except Exception:
-                    pass
+        # Intentionally ignore any time_zone provided by LLM/users.
+        # The canonical timezone should come from the event location (not user-specified).
 
         # Add signup form to session and flush to get the ID in database
         db_session.add(signup_form)
@@ -606,6 +598,10 @@ async def _create_form(
             try:
                 # Build TimeslotSchedule model (coerce date string if provided)
                 sched_dict = dict(form_data.timeslot_schedule)
+                # Do not allow LLM/user-provided time_zone; derive timezone from location elsewhere.
+                if "time_zone" in sched_dict:
+                    logger.info("Ignoring user-provided time_zone in timeslot_schedule")
+                    sched_dict.pop("time_zone", None)
                 sfd = sched_dict.get("start_from_date")
                 if sfd:
                     try:
