@@ -109,6 +109,31 @@
         </div>
         {% endif %}
         <form @submit.prevent="submitForm($event)" x-show="!submitted" class="space-y-6">
+          {% if is_timeslot_form %}
+          <!-- Timeslot Selection -->
+          <div>
+            <div class="about-title text-xs mb-2">Available Timeslots</div>
+            {% if timeslots_grouped and timeslots_grouped|length > 0 %}
+              <div class="space-y-3">
+                {% for day, slots in timeslots_grouped.items() %}
+                  <div class="rounded-lg p-3" style="background:rgba(255,255,255,0.7); border:1px solid rgba(141,127,99,.5)">
+                    <div class="text-sm font-semibold text-[var(--navy)] mb-2">{{ day }}</div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {% for slot in slots %}
+                        <label class="flex items-center gap-2 text-sm">
+                          <input type="checkbox" name="timeslot_ids" value="{{ slot.id }}" class="w-4 h-4 border-2 border-[#8d7f63] rounded" {% if form.status == 'draft' %}disabled{% endif %}>
+                          <span>{{ slot.start }} – {{ slot.end }}</span>
+                        </label>
+                      {% endfor %}
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="text-xs text-neutral-700 rounded-md p-2" style="background:rgba(255,255,255,.6); border:1px solid rgba(141,127,99,.35)">No timeslots are currently available.</div>
+            {% endif %}
+          </div>
+          {% endif %}
           <!-- Name -->
           <div>
             <label for="name" class="block text-sm font-medium mb-2">Full Name *</label>
