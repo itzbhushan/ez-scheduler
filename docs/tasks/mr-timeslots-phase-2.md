@@ -4,15 +4,18 @@ Last updated: 2025-09-24
 
 ---
 
-## MR-TS-8: Performance & Safeguards (internal)
+## MR-TS-8: Query Plan Sanity + Index Cleanup (internal)
 
 - DB
-  - Add/adjust supporting indexes (e.g., partial indexes) for `list_available` queries if needed.
-  - If unique `(form_id, start_at, end_at)` was not present initially, add a validating migration to fail on duplicates (but we target including it in MR-TS-1 to avoid cleanup).
+  - Keep a single canonical composite index: `idx_timeslots_form_start (form_id, start_at)`.
+  - Drop redundant `idx_timeslots_availability` when it duplicates the same columns (with or without a partial predicate). Partial availability indexes are avoided because `capacity` can be `NULL` (unlimited) and the public UI now renders full slots; `list_upcoming` benefits from the canonical index directly.
+  - Unique `(form_id, start_at, end_at)` already present from MR‑TS‑1.
 - Model
-  - Ensure SQLModel reflects any index/constraint updates.
+  - No changes needed; SQLModel already matches constraints and canonical index.
 - Acceptance
-  - Query plans are efficient for listing slots by form/date; no behavior changes.
+  - `EXPLAIN` shows index scans on `(form_id, start_at)` for upcoming/available queries.
+  - No duplicates possible due to the unique constraint.
+  - No behavior changes (internal only).
 
 ## MR-TS-9: TimeslotService — Add/Remove Schedules (internal)
 
