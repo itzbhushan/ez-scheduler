@@ -81,6 +81,14 @@ class FormExtractionSchema(BaseModel):
         ),
     )
 
+    # Optional timeslot mutations for draft updates (MR-TS-10)
+    timeslot_mutations: Optional[dict] = Field(
+        default=None,
+        description=(
+            "For updates, an object with optional 'add': [TimeslotSchedule], and 'remove': [TimeslotRemoveSpec]."
+        ),
+    )
+
 
 class ConversationResponse(BaseModel):
     """Schema for conversation responses"""
@@ -359,12 +367,80 @@ Custom Fields:
         form_field_service.delete_fields_not_in(form.id, keep_names)
         form_field_service.db.commit()
 
-    # 7) Final response
+    # 7) Timeslot mutations (draft-only)
+    summary_lines: list[str] = []
+    try:
+        if form.status == FormStatus.DRAFT and getattr(
+            extracted, "timeslot_mutations", None
+        ):
+            ts_service = TimeslotService(signup_form_service.db)
+            mut = (
+                extracted.timeslot_mutations
+                if isinstance(extracted.timeslot_mutations, dict)
+                else extracted.timeslot_mutations
+            )
+
+            # Handle adds
+            add_total = add_skipped = 0
+            for spec in mut.get("add") or []:
+                try:
+                    sched_dict = dict(spec)
+                except Exception:
+                    sched_dict = spec
+                sfd = sched_dict.get("start_from_date")
+                if sfd:
+                    try:
+                        sched_dict["start_from_date"] = date.fromisoformat(sfd)
+                    except Exception:
+                        sched_dict.pop("start_from_date", None)
+                schedule = TimeslotSchedule(**sched_dict)
+                add_res = ts_service.add_schedule(form.id, schedule)
+                add_total += add_res.added_count
+                add_skipped += add_res.skipped_existing
+
+            # Handle removes
+            rem_total = rem_skipped = 0
+            for spec in mut.get("remove") or []:
+                try:
+                    rem_dict = dict(spec)
+                except Exception:
+                    rem_dict = spec
+                # Parse date strings if present
+                for key in ("start_from_date", "end_date"):
+                    if rem_dict.get(key):
+                        try:
+                            rem_dict[key] = date.fromisoformat(rem_dict[key])
+                        except Exception:
+                            rem_dict.pop(key, None)
+                remove_spec = TimeslotService.TimeslotRemoveSpec(**rem_dict)
+                rem_res = ts_service.remove_schedule(form.id, remove_spec)
+                rem_total += rem_res.removed_count
+                rem_skipped += rem_res.skipped_booked
+
+            if add_total or (add_skipped):
+                summary_lines.append(
+                    f"Timeslots added: {add_total} (skipped existing: {add_skipped})"
+                )
+            if rem_total or rem_skipped:
+                summary_lines.append(
+                    f"Timeslots removed: {rem_total} (skipped booked: {rem_skipped})"
+                )
+        elif getattr(extracted, "timeslot_mutations", None):
+            summary_lines.append(
+                "Timeslot edits can only be applied while the form is in draft."
+            )
+    except Exception as e:
+        logger.warning(f"Failed to apply timeslot mutations: {e}")
+
+    # 8) Final response
     preview_url = f"{config['app_base_url']}/form/{form.url_slug}"
-    return (
+    base = (
         "Your draft has been updated. Review it in preview mode here: "
         f"{preview_url}. When you're ready, say 'publish the form'."
     )
+    if summary_lines:
+        return base + "\n\n" + "\n".join(summary_lines)
+    return base
 
 
 async def generate_form_id(llm_client: LLMClient, title: str, event_date: str) -> str:

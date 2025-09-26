@@ -97,7 +97,19 @@ Notes:
 - Only include `timeslot_schedule` when the user intends a schedule of bookable times.
 - Do not include conflicting single start/end times for the form when a schedule is present.
 - If the user does NOT specify a limit per slot, set `is_complete=false` and ask: "Do you want to limit how many people can book each timeslot, or keep it unlimited?"
- - Do not include a time zone; the system derives it from the event location when needed.
+- Do not include a time zone; the system derives it from the event location when needed.
+
+UPDATE TIMESLOTS:
+If the user asks to add or remove timeslot schedules on an existing draft, include a `timeslot_mutations` object in extracted_data with:
+  - add: array of schedules (same shape as timeslot_schedule above)
+  - remove: array of removal specs with fields:
+      - days_of_week: ["monday", ...] (required)
+      - window_start: "HH:MM" (optional)
+      - window_end: "HH:MM" (optional; must be provided if window_start is provided)
+      - weeks_ahead: integer 1–12 OR end_date: "YYYY-MM-DD"
+      - start_from_date: "YYYY-MM-DD" (optional)
+      - time_zone: optional IANA tz; otherwise inferred from the form
+Keep mutations minimal and precise. When unsure about exact ranges, prefer small, explicit windows over broad destructive changes.
 
 STANDARD FORM FIELDS (always included):
 - name: Full name (required)
@@ -227,6 +239,30 @@ RESPONSE FORMAT (return exactly this structure):
             "weeks_ahead": 2,
             "start_from_date": "2025-10-06",
             "capacity_per_slot": 1
+        }} or null,
+        "timeslot_mutations": {{
+            "add": [
+                {{
+                    "days_of_week": ["monday", "wednesday"],
+                    "window_start": "17:00",
+                    "window_end": "21:00",
+                    "slot_minutes": 60,
+                    "weeks_ahead": 2,
+                    "start_from_date": "2025-10-06",
+                    "capacity_per_slot": 1,
+                    "time_zone": null
+                }}
+            ],
+            "remove": [
+                {{
+                    "days_of_week": ["friday"],
+                    "window_start": "17:00",
+                    "window_end": "19:00",
+                    "weeks_ahead": 1,
+                    "start_from_date": "2025-10-06",
+                    "time_zone": null
+                }}
+            ]
         }} or null,
         "custom_fields": [
             {{
@@ -610,7 +646,6 @@ Response: {{
     "explanation": "Counts total people attending workshop using guest_count as total people (including registrant), only including yes RSVPs or non-RSVP forms"
 }}"""
 
-# Timeslot analytics addendum (MR-TS-6)
 SQL_GENERATOR_PROMPT += """
 
 TIMESLOT ANALYTICS (for forms with bookable timeslots):

@@ -63,6 +63,38 @@ Last updated: 2025-09-24
   - All tests pass; no duplicates on repeated adds.
   - Concurrency test: simulate 10 bookings against a single last slot; only 1 success.
 
+### Planned Test Additions (nice-to-have, can be added later)
+
+- RemoveSpec validation
+  - Missing/partial window (only start or only end) → 422/validation error
+  - Invalid ordering (start >= end) → validation error
+  - No range bound (neither weeks_ahead nor end_date) → validation error
+  - Invalid/unknown time zone → validation error
+
+- UI: Full slots visible but disabled
+  - Create a slot with capacity 1, book it, GET public form
+  - Assert the corresponding checkbox is disabled and “Full” chip is shown
+  - Do the same for the themed template if enabled
+
+- Header date range
+  - For timeslot forms, header shows range derived from earliest→latest slot
+  - Cover: same-day, same-month multi-day, cross-month, cross-year (1 case is sufficient initially)
+
+- list_upcoming semantics
+  - Includes full slots; excludes past; sorted by start_at asc
+  - Mix unlimited (NULL capacity) and limited; ensure both appear
+
+- Non-draft mutation guard
+  - Provide timeslot_mutations when form is published → no changes applied; response includes guidance that mutations apply only in draft
+
+- Update fallback (optional)
+  - If the LLM returns only timeslot_schedule in an update (no mutations), treat it as an add-only operation (or explicitly assert no-op if we keep current behavior). Decide and lock in; add a test accordingly.
+
+- MCP multi-day update scenario
+  - Create initial Mon–Fri 10–11am for 2 weeks
+  - Update: remove all Thursdays and add Saturdays 16:00–17:00 for 2 weeks
+  - Publish and verify (via list_upcoming and public GET) that Thu is absent; Sat 16:00 present; weekdays except Thu remain
+
 ---
 
 See `docs/timeslot_signup_plan.md` for design details.
