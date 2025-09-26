@@ -14,7 +14,27 @@
     <div class="max-w-2xl mx-auto py-8 px-4">
         <!-- Header -->
         <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <h1 class="text-3xl font-bold text-gray-900 mb-2">{{ form.title }}</h1>
+            <div class="flex items-start justify-between">
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2 mb-2">
+                        <h1 class="text-3xl font-bold text-gray-900 truncate">{{ form.title }}</h1>
+                        {% if form.status == 'draft' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">Preview</span>
+                        {% elif form.status == 'published' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">Published</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if form.status == 'published' %}
+                <div class="flex items-center gap-2 ml-4">
+                    <button type="button" onclick="shareFormLink()" class="inline-flex items-center gap-1 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-md">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M16 6l-4-4m0 0L8 6m4-4v12"/></svg>
+                        Share
+                    </button>
+                    <span id="share-copied" class="text-xs text-green-700 hidden">Link copied</span>
+                </div>
+                {% endif %}
+            </div>
             {% if form.status == 'draft' %}
             <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4" role="alert">
                 <p class="text-sm text-yellow-800">
@@ -70,7 +90,7 @@
         {% endif %}
 
         <!-- Registration Form -->
-        <div class="bg-white rounded-lg shadow-sm p-6" x-data="submitForm()" data-draft-mode="{{ 'true' if form.status == 'draft' else 'false' }}">
+        <div class="bg-white rounded-lg shadow-sm p-6" x-data="submitForm()" data-draft-mode="{{ 'true' if form.status == 'draft' else 'false' }}" data-is-timeslot="{{ 'true' if is_timeslot_form else 'false' }}">
             <h2 class="text-xl font-semibold text-gray-900 mb-6">Sign Up</h2>
 
             <!-- Preview notice under heading -->
@@ -306,6 +326,18 @@
     </div>
 
     <script>
+        function shareFormLink() {
+            const url = window.location.href;
+            if (navigator.share) {
+                try { navigator.share({ title: document.title, url }); return; } catch (e) { /* fallback to clipboard */ }
+            }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(() => {
+                    const n = document.getElementById('share-copied');
+                    if (n) { n.classList.remove('hidden'); setTimeout(() => n.classList.add('hidden'), 1500); }
+                });
+            }
+        }
         function submitForm() {
             return {
                 init() {
@@ -351,14 +383,15 @@
                     }
 
                     // If this is a timeslot form, require at least one timeslot selection
-                    {% if is_timeslot_form %}
-                    const selectedSlots = formData.getAll('timeslot_ids');
-                    if (selectedSlots.length === 0) {
-                        this.error = 'Please select at least one timeslot.';
-                        this.submitting = false;
-                        return;
+                    const isTimeslot = this.$el.dataset.isTimeslot === 'true';
+                    if (isTimeslot) {
+                        const selectedSlots = formData.getAll('timeslot_ids');
+                        if (selectedSlots.length === 0) {
+                            this.error = 'Please select at least one timeslot.';
+                            this.submitting = false;
+                            return;
+                        }
                     }
-                    {% endif %}
 
                     try {
                         const response = await fetch(`/form/{{ url_slug }}`, {
