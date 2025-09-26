@@ -72,7 +72,11 @@
         </div>
         {% endif %}
         <div class="hero-sub text-sm sm:text-base mt-2">
-          {{ formatted_date }}
+          {% if is_timeslot_form and timeslot_range_display %}
+            {{ timeslot_range_display }}
+          {% else %}
+            {{ formatted_date }}
+          {% endif %}
           {% if formatted_start_time or formatted_end_time %}
             • {% if formatted_start_time and formatted_end_time %}{{ formatted_start_time }}–{{ formatted_end_time }}{% elif formatted_start_time %}{{ formatted_start_time }}{% else %}{{ formatted_end_time }}{% endif %}
           {% endif %}
