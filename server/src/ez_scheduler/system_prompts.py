@@ -97,7 +97,19 @@ Notes:
 - Only include `timeslot_schedule` when the user intends a schedule of bookable times.
 - Do not include conflicting single start/end times for the form when a schedule is present.
 - If the user does NOT specify a limit per slot, set `is_complete=false` and ask: "Do you want to limit how many people can book each timeslot, or keep it unlimited?"
- - Do not include a time zone; the system derives it from the event location when needed.
+- Do not include a time zone; the system derives it from the event location when needed.
+
+UPDATE TIMESLOTS:
+If the user asks to add or remove timeslot schedules on an existing draft, include a `timeslot_mutations` object in extracted_data with:
+  - add: array of schedules (same shape as timeslot_schedule above)
+  - remove: array of removal specs with fields:
+      - days_of_week: ["monday", ...] (required)
+      - window_start: "HH:MM" (optional)
+      - window_end: "HH:MM" (optional; must be provided if window_start is provided)
+      - weeks_ahead: integer 1–12 OR end_date: "YYYY-MM-DD"
+      - start_from_date: "YYYY-MM-DD" (optional)
+      - time_zone: optional IANA tz; otherwise inferred from the form
+Keep mutations minimal and precise. When unsure about exact ranges, prefer small, explicit windows over broad destructive changes.
 
 STANDARD FORM FIELDS (always included):
 - name: Full name (required)
@@ -227,6 +239,30 @@ RESPONSE FORMAT (return exactly this structure):
             "weeks_ahead": 2,
             "start_from_date": "2025-10-06",
             "capacity_per_slot": 1
+        }} or null,
+        "timeslot_mutations": {{
+            "add": [
+                {{
+                    "days_of_week": ["monday", "wednesday"],
+                    "window_start": "17:00",
+                    "window_end": "21:00",
+                    "slot_minutes": 60,
+                    "weeks_ahead": 2,
+                    "start_from_date": "2025-10-06",
+                    "capacity_per_slot": 1,
+                    "time_zone": null
+                }}
+            ],
+            "remove": [
+                {{
+                    "days_of_week": ["friday"],
+                    "window_start": "17:00",
+                    "window_end": "19:00",
+                    "weeks_ahead": 1,
+                    "start_from_date": "2025-10-06",
+                    "time_zone": null
+                }}
+            ]
         }} or null,
         "custom_fields": [
             {{
@@ -608,10 +644,7 @@ Response: {{
     "sql_query": "SELECT sf.title, COUNT(r.id) as registration_count, COALESCE(SUM((r.additional_data->>'guest_count')::integer), COUNT(r.id)) as total_attendance FROM signup_forms sf LEFT JOIN registrations r ON sf.id = r.form_id WHERE sf.user_id = :user_id AND sf.title ILIKE '%workshop%' AND (r.additional_data->>'rsvp_response' = 'yes' OR r.additional_data->>'rsvp_response' IS NULL) GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
     "parameters": {{"user_id": "current_user"}},
     "explanation": "Counts total people attending workshop using guest_count as total people (including registrant), only including yes RSVPs or non-RSVP forms"
-}}"""
-
-# Timeslot analytics addendum (MR-TS-6)
-SQL_GENERATOR_PROMPT += """
+}}
 
 TIMESLOT ANALYTICS (for forms with bookable timeslots):
 - Tables:
@@ -629,18 +662,18 @@ Always filter by sf.user_id = :user_id.
 
 Example requests and responses:
 Request: "Show total slots, booked slots, and fill rate for my coaching sessions"
-Response: {
+Response: {{
     "sql_query": "SELECT sf.title, COUNT(ts.id) AS total_slots, COUNT(CASE WHEN ts.booked_count > 0 THEN 1 END) AS booked_slots, ROUND(100.0 * COUNT(CASE WHEN ts.booked_count > 0 THEN 1 END) / NULLIF(COUNT(ts.id), 0), 1) AS fill_rate_percent FROM signup_forms sf LEFT JOIN timeslots ts ON ts.form_id = sf.id WHERE sf.user_id = :user_id AND sf.title ILIKE '%coaching%' GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
-    "parameters": {"user_id": "current_user"},
+    "parameters": {{"user_id": "current_user"}},
     "explanation": "Summarizes total slots, booked slots, and fill rate for matching forms"
-}
+}}
 
 Request: "How many bookings were made across timeslots for my tutoring form?"
-Response: {
+Response: {{
     "sql_query": "SELECT sf.title, COUNT(rt.id) AS booking_count FROM signup_forms sf LEFT JOIN timeslots ts ON ts.form_id = sf.id LEFT JOIN registration_timeslots rt ON rt.timeslot_id = ts.id WHERE sf.user_id = :user_id AND sf.title ILIKE '%tutoring%' GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
-    "parameters": {"user_id": "current_user"},
+    "parameters": {{"user_id": "current_user"}},
     "explanation": "Counts total timeslot bookings per form"
-}
+}}
 """
 
 # Analytics response formatting system prompt

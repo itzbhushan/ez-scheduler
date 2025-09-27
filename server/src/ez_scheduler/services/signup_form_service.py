@@ -3,12 +3,14 @@
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterable, Optional
 
 from sqlmodel import Session, select
 
 from ez_scheduler.auth.models import User
 from ez_scheduler.models.signup_form import FormStatus, SignupForm
+from ez_scheduler.services.form_field_service import FormFieldService
+from ez_scheduler.services.timeslot_service import TimeslotSchedule, TimeslotService
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +140,52 @@ class SignupFormService:
                 "success": False,
                 "error": f"Failed to update signup form: {str(e)}",
             }
+
+    def create_signup_form_with_details(
+        self,
+        signup_form: SignupForm,
+        custom_fields: Iterable[Dict[str, Any]] | None = None,
+        timeslot_schedule: TimeslotSchedule | None = None,
+    ) -> SignupForm:
+        """Persist a signup form along with optional fields and timeslots."""
+
+        try:
+            if not signup_form.id:
+                signup_form.id = uuid.uuid4()
+            if not signup_form.created_at:
+                signup_form.created_at = datetime.now(timezone.utc)
+            if not signup_form.updated_at:
+                signup_form.updated_at = datetime.now(timezone.utc)
+
+            self.db.add(signup_form)
+            self.db.flush()
+
+            if custom_fields:
+                field_service = FormFieldService(self.db)
+                field_service.create_form_fields(signup_form.id, list(custom_fields))
+
+            if timeslot_schedule:
+                try:
+                    TimeslotService(self.db).generate_slots(
+                        signup_form.id, timeslot_schedule
+                    )
+                except Exception as exc:  # pragma: no cover - defensive
+                    logger.warning(
+                        "Failed to generate timeslots from schedule: %s", exc
+                    )
+
+            self.db.commit()
+            self.db.refresh(signup_form)
+            return signup_form
+
+        except Exception as exc:  # pragma: no cover - defensive
+            self.db.rollback()
+            logger.error(
+                "Error creating signup form with details %s: %s",
+                signup_form.id,
+                exc,
+            )
+            raise
 
     def _can_transition(self, old: FormStatus, new: FormStatus) -> bool:
         """Validate legal status transitions.
