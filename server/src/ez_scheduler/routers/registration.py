@@ -32,6 +32,7 @@ logging.basicConfig(level=getattr(logging, config["log_level"]))
 logger = logging.getLogger(__name__)
 
 
+@router.get("/forms/{url_slug}")
 @router.get("/form/{url_slug}")
 async def serve_registration_form(
     request: Request,
