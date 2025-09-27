@@ -50,6 +50,38 @@ class ButtonConfiguration(BaseModel):
     )
 
 
+class TimeslotScheduleSchema(BaseModel):
+    """Schema describing timeslot generation requests from the LLM."""
+
+    days_of_week: List[str]
+    window_start: str
+    window_end: str
+    slot_minutes: int
+    weeks_ahead: int = Field(ge=1, le=12)
+    start_from_date: Optional[str] = None
+    capacity_per_slot: Optional[int] = Field(default=None)
+    time_zone: Optional[str] = None
+
+
+class TimeslotRemoveSpecSchema(BaseModel):
+    """Schema describing timeslot removal requests from the LLM."""
+
+    days_of_week: List[str]
+    window_start: Optional[str] = None
+    window_end: Optional[str] = None
+    weeks_ahead: Optional[int] = Field(default=None, ge=1, le=12)
+    end_date: Optional[str] = None
+    start_from_date: Optional[str] = None
+    time_zone: Optional[str] = None
+
+
+class TimeslotMutationsSchema(BaseModel):
+    """Schema bundling add/remove timeslot operations."""
+
+    add: List[TimeslotScheduleSchema] = Field(default_factory=list)
+    remove: List[TimeslotRemoveSpecSchema] = Field(default_factory=list)
+
+
 class FormExtractionSchema(BaseModel):
     """Schema for form extraction from user instructions"""
 
@@ -74,7 +106,7 @@ class FormExtractionSchema(BaseModel):
     form_url: Optional[str] = Field(None, description="Generated form URL")
     form_id: Optional[str] = Field(None, description="Database form ID")
     # Optional timeslot schedule for bookable slots
-    timeslot_schedule: Optional[dict] = Field(
+    timeslot_schedule: Optional[TimeslotScheduleSchema] = Field(
         default=None,
         description=(
             "If present, describes a schedule for generating timeslots: {days_of_week, window_start, window_end, slot_minutes, weeks_ahead, start_from_date, capacity_per_slot}"
@@ -82,7 +114,7 @@ class FormExtractionSchema(BaseModel):
     )
 
     # Optional timeslot mutations for draft updates (MR-TS-10)
-    timeslot_mutations: Optional[dict] = Field(
+    timeslot_mutations: Optional[TimeslotMutationsSchema] = Field(
         default=None,
         description=(
             "For updates, an object with optional 'add': [TimeslotSchedule], and 'remove': [TimeslotRemoveSpec]."
@@ -369,55 +401,90 @@ Custom Fields:
 
     # 7) Timeslot mutations (draft-only)
     summary_lines: list[str] = []
+    mut_payload = getattr(extracted, "timeslot_mutations", None)
     try:
-        if form.status == FormStatus.DRAFT and getattr(
-            extracted, "timeslot_mutations", None
-        ):
+        if form.status == FormStatus.DRAFT and mut_payload:
             ts_service = TimeslotService(signup_form_service.db)
-            mut = (
-                extracted.timeslot_mutations
-                if isinstance(extracted.timeslot_mutations, dict)
-                else extracted.timeslot_mutations
-            )
+            if hasattr(mut_payload, "add"):
+                add_specs = mut_payload.add or []
+                remove_specs = mut_payload.remove or []
+            else:
+                add_specs = mut_payload.get("add", []) or []
+                remove_specs = mut_payload.get("remove", []) or []
 
-            # Handle adds
             add_total = add_skipped = 0
-            for spec in mut.get("add") or []:
-                try:
-                    sched_dict = dict(spec)
-                except Exception:
-                    sched_dict = spec
-                sfd = sched_dict.get("start_from_date")
+            for spec in add_specs:
+                base_dict = (
+                    spec.model_dump() if hasattr(spec, "model_dump") else dict(spec)
+                )
+                sfd = base_dict.get("start_from_date")
                 if sfd:
                     try:
-                        sched_dict["start_from_date"] = date.fromisoformat(sfd)
-                    except Exception:
-                        sched_dict.pop("start_from_date", None)
-                schedule = TimeslotSchedule(**sched_dict)
-                add_res = ts_service.add_schedule(form.id, schedule)
+                        base_dict["start_from_date"] = date.fromisoformat(sfd)
+                    except ValueError:
+                        logger.debug(
+                            "Ignoring invalid start_from_date '%s' in add spec %s",
+                            sfd,
+                            spec,
+                        )
+                        base_dict.pop("start_from_date", None)
+                try:
+                    schedule = TimeslotSchedule(**base_dict)
+                except (TypeError, ValueError) as exc:
+                    logger.warning(
+                        "Skipping invalid timeslot add spec %s: %s", spec, exc
+                    )
+                    continue
+                try:
+                    add_res = ts_service.add_schedule(form.id, schedule)
+                except ValueError as exc:
+                    logger.warning(
+                        "Failed to add timeslot schedule %s: %s",
+                        schedule.model_dump(),
+                        exc,
+                    )
+                    continue
                 add_total += add_res.added_count
                 add_skipped += add_res.skipped_existing
 
-            # Handle removes
             rem_total = rem_skipped = 0
-            for spec in mut.get("remove") or []:
-                try:
-                    rem_dict = dict(spec)
-                except Exception:
-                    rem_dict = spec
-                # Parse date strings if present
+            for spec in remove_specs:
+                base_dict = (
+                    spec.model_dump() if hasattr(spec, "model_dump") else dict(spec)
+                )
                 for key in ("start_from_date", "end_date"):
-                    if rem_dict.get(key):
+                    value = base_dict.get(key)
+                    if value:
                         try:
-                            rem_dict[key] = date.fromisoformat(rem_dict[key])
-                        except Exception:
-                            rem_dict.pop(key, None)
-                remove_spec = TimeslotService.TimeslotRemoveSpec(**rem_dict)
-                rem_res = ts_service.remove_schedule(form.id, remove_spec)
+                            base_dict[key] = date.fromisoformat(value)
+                        except ValueError:
+                            logger.debug(
+                                "Ignoring invalid %s '%s' in remove spec %s",
+                                key,
+                                value,
+                                spec,
+                            )
+                            base_dict.pop(key, None)
+                try:
+                    remove_spec = TimeslotService.TimeslotRemoveSpec(**base_dict)
+                except (TypeError, ValueError) as exc:
+                    logger.warning(
+                        "Skipping invalid timeslot remove spec %s: %s", spec, exc
+                    )
+                    continue
+                try:
+                    rem_res = ts_service.remove_schedule(form.id, remove_spec)
+                except ValueError as exc:
+                    logger.warning(
+                        "Failed to remove timeslot schedule %s: %s",
+                        remove_spec.model_dump(),
+                        exc,
+                    )
+                    continue
                 rem_total += rem_res.removed_count
                 rem_skipped += rem_res.skipped_booked
 
-            if add_total or (add_skipped):
+            if add_total or add_skipped:
                 summary_lines.append(
                     f"Timeslots added: {add_total} (skipped existing: {add_skipped})"
                 )
@@ -425,12 +492,12 @@ Custom Fields:
                 summary_lines.append(
                     f"Timeslots removed: {rem_total} (skipped booked: {rem_skipped})"
                 )
-        elif getattr(extracted, "timeslot_mutations", None):
+        elif mut_payload:
             summary_lines.append(
                 "Timeslot edits can only be applied while the form is in draft."
             )
-    except Exception as e:
-        logger.warning(f"Failed to apply timeslot mutations: {e}")
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Failed to apply timeslot mutations: %s", exc)
 
     # 8) Final response
     preview_url = f"{config['app_base_url']}/form/{form.url_slug}"
@@ -625,85 +692,53 @@ async def _create_form(
         ),
     )
 
-    # Create form and custom fields in a single transaction
-    try:
-        # Use the database session directly for transaction control
-        db_session = signup_form_service.db
+    custom_fields_data = [
+        {
+            "field_name": field.field_name,
+            "field_type": field.field_type,
+            "label": field.label,
+            "placeholder": field.placeholder,
+            "is_required": field.is_required,
+            "options": field.options,
+            "field_order": field.field_order if field.field_order is not None else i,
+        }
+        for i, field in enumerate(form_data.custom_fields)
+    ]
 
-        # Set form ID and timestamps
-        if not signup_form.id:
-            signup_form.id = uuid.uuid4()
-        if not signup_form.created_at:
-            signup_form.created_at = datetime.now(timezone.utc)
-        if not signup_form.updated_at:
-            signup_form.updated_at = datetime.now(timezone.utc)
-
-        # Timezone is not set at creation time; it will derive from location in future flows if needed.
-
-        # Add signup form to session and flush to get the ID in database
-        db_session.add(signup_form)
-        db_session.flush()  # This writes the form to DB but doesn't commit the transaction
-
-        # Create custom fields if any
-        if form_data.custom_fields:
-            form_field_service = FormFieldService(db_session)
-
-            # Convert CustomFieldSchema objects to dictionaries
-            custom_fields_data = [
-                {
-                    "field_name": field.field_name,
-                    "field_type": field.field_type,
-                    "label": field.label,
-                    "placeholder": field.placeholder,
-                    "is_required": field.is_required,
-                    "options": field.options,
-                    "field_order": (
-                        field.field_order if field.field_order is not None else i
-                    ),
-                }
-                for i, field in enumerate(form_data.custom_fields)
-            ]
-
-            form_field_service.create_form_fields(signup_form.id, custom_fields_data)
-
-        # If a timeslot schedule is present, generate slots now (same transaction)
-        if form_data.timeslot_schedule and isinstance(
-            form_data.timeslot_schedule, dict
-        ):
+    timeslot_schedule = None
+    if form_data.timeslot_schedule:
+        sched_dict = form_data.timeslot_schedule.model_dump()
+        sfd = sched_dict.get("start_from_date")
+        if sfd:
             try:
-                # Build TimeslotSchedule model (coerce date string if provided)
-                sched_dict = dict(form_data.timeslot_schedule)
-                sfd = sched_dict.get("start_from_date")
-                if sfd:
-                    try:
-                        # Accept YYYY-MM-DD
-                        sched_dict["start_from_date"] = date.fromisoformat(sfd)
-                    except Exception:
-                        # If parsing fails, drop to let service default to today
-                        sched_dict.pop("start_from_date", None)
+                sched_dict["start_from_date"] = date.fromisoformat(sfd)
+            except ValueError:
+                sched_dict.pop("start_from_date", None)
+        try:
+            timeslot_schedule = TimeslotSchedule(**sched_dict)
+        except (TypeError, ValueError) as exc:
+            logger.warning(
+                "Failed to parse timeslot schedule %s: %s",
+                form_data.timeslot_schedule,
+                exc,
+            )
 
-                schedule = TimeslotSchedule(**sched_dict)
-                ts_service = TimeslotService(db_session)
-                ts_service.generate_slots(signup_form.id, schedule)
-            except Exception as e:
-                logger.warning(
-                    f"Failed to generate timeslots from schedule: {e}. Continue without timeslots."
-                )
-
-        # Commit the entire transaction
-        db_session.commit()
-        db_session.refresh(signup_form)
-
-        logger.info(
-            f"Created signup form {signup_form.id} with {len(form_data.custom_fields)} custom fields"
+    try:
+        signup_form = signup_form_service.create_signup_form_with_details(
+            signup_form,
+            custom_fields=custom_fields_data,
+            timeslot_schedule=timeslot_schedule,
         )
-
-    except Exception as e:
-        db_session.rollback()
-        logger.error(f"Error creating form with custom fields: {e}")
+    except Exception as exc:  # pragma: no cover - defensive
         raise Exception(
-            f"I encountered an error creating your form: {str(e)}. Please try again."
-        )
+            f"I encountered an error creating your form: {str(exc)}. Please try again."
+        ) from exc
+
+    logger.info(
+        "Created signup form %s with %d custom fields",
+        signup_form.id,
+        len(form_data.custom_fields),
+    )
 
     # Set form URL and ID in the FormData
     form_data.form_url = f"{config['app_base_url']}/form/{url_slug}"

@@ -644,9 +644,7 @@ Response: {{
     "sql_query": "SELECT sf.title, COUNT(r.id) as registration_count, COALESCE(SUM((r.additional_data->>'guest_count')::integer), COUNT(r.id)) as total_attendance FROM signup_forms sf LEFT JOIN registrations r ON sf.id = r.form_id WHERE sf.user_id = :user_id AND sf.title ILIKE '%workshop%' AND (r.additional_data->>'rsvp_response' = 'yes' OR r.additional_data->>'rsvp_response' IS NULL) GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
     "parameters": {{"user_id": "current_user"}},
     "explanation": "Counts total people attending workshop using guest_count as total people (including registrant), only including yes RSVPs or non-RSVP forms"
-}}"""
-
-SQL_GENERATOR_PROMPT += """
+}}
 
 TIMESLOT ANALYTICS (for forms with bookable timeslots):
 - Tables:
@@ -664,18 +662,18 @@ Always filter by sf.user_id = :user_id.
 
 Example requests and responses:
 Request: "Show total slots, booked slots, and fill rate for my coaching sessions"
-Response: {
+Response: {{
     "sql_query": "SELECT sf.title, COUNT(ts.id) AS total_slots, COUNT(CASE WHEN ts.booked_count > 0 THEN 1 END) AS booked_slots, ROUND(100.0 * COUNT(CASE WHEN ts.booked_count > 0 THEN 1 END) / NULLIF(COUNT(ts.id), 0), 1) AS fill_rate_percent FROM signup_forms sf LEFT JOIN timeslots ts ON ts.form_id = sf.id WHERE sf.user_id = :user_id AND sf.title ILIKE '%coaching%' GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
-    "parameters": {"user_id": "current_user"},
+    "parameters": {{"user_id": "current_user"}},
     "explanation": "Summarizes total slots, booked slots, and fill rate for matching forms"
-}
+}}
 
 Request: "How many bookings were made across timeslots for my tutoring form?"
-Response: {
+Response: {{
     "sql_query": "SELECT sf.title, COUNT(rt.id) AS booking_count FROM signup_forms sf LEFT JOIN timeslots ts ON ts.form_id = sf.id LEFT JOIN registration_timeslots rt ON rt.timeslot_id = ts.id WHERE sf.user_id = :user_id AND sf.title ILIKE '%tutoring%' GROUP BY sf.id, sf.title ORDER BY sf.created_at DESC",
-    "parameters": {"user_id": "current_user"},
+    "parameters": {{"user_id": "current_user"}},
     "explanation": "Counts total timeslot bookings per form"
-}
+}}
 """
 
 # Analytics response formatting system prompt
