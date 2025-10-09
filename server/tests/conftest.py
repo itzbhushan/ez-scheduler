@@ -10,10 +10,12 @@ import uuid
 from pathlib import Path
 
 import pytest
+import redis
 from fastapi.testclient import TestClient
 from fastmcp.client import Client, StreamableHttpTransport
 from sqlmodel import Session, create_engine
 from testcontainers.postgres import PostgresContainer
+from testcontainers.redis import RedisContainer
 
 from ez_scheduler.auth.dependencies import get_current_user
 from ez_scheduler.auth.models import User
@@ -41,7 +43,7 @@ def verify_test_requirements():
 
 
 @pytest.fixture(scope="session", autouse=True)
-async def mcp_server_process(postgres_container):
+async def mcp_server_process(postgres_container, redis_container):
     """Start the HTTP MCP server once for the entire test session"""
     env = os.environ.copy()
     env["MCP_PORT"] = str(test_config["mcp_port"])  # Use test config port
@@ -51,6 +53,12 @@ async def mcp_server_process(postgres_container):
     # Ensure the MCP server uses the same database as the test
     database_url = postgres_container.get_connection_url()
     env["DATABASE_URL"] = database_url
+
+    # Ensure the MCP server uses the same Redis as the test
+    host = redis_container.get_container_host_ip()
+    port = redis_container.get_exposed_port(6379)
+    redis_url = f"redis://{host}:{port}/0"
+    env["REDIS_URL"] = redis_url
 
     # Start the HTTP server process
     process = subprocess.Popen(
@@ -88,6 +96,19 @@ async def _wait_for_server(url: str, timeout: int = 30):
         await asyncio.sleep(0.5)
 
     raise TimeoutError(f"Server at {url} did not become ready within {timeout} seconds")
+
+
+@pytest.fixture(scope="session")
+def redis_container():
+    """Create a Redis test container for the test session"""
+    with RedisContainer("redis:7-alpine") as redis_cont:
+        # Build Redis URL from container
+        host = redis_cont.get_container_host_ip()
+        port = redis_cont.get_exposed_port(6379)
+        redis_url = f"redis://{host}:{port}/0"
+        os.environ["REDIS_URL"] = redis_url
+
+        yield redis_cont
 
 
 @pytest.fixture(scope="session")
@@ -137,6 +158,28 @@ def _run_migrations(database_url: str):
     except Exception as e:
         logger.error(f"Error running migrations: {e}")
         raise
+
+
+@pytest.fixture
+def redis_url(redis_container):
+    """Redis URL for testing from container."""
+    host = redis_container.get_container_host_ip()
+    port = redis_container.get_exposed_port(6379)
+    return f"redis://{host}:{port}/0"
+
+
+@pytest.fixture
+def redis_client(redis_url):
+    """Create Redis client for testing."""
+    return redis.from_url(redis_url, decode_responses=True)
+
+
+@pytest.fixture
+def clean_redis(redis_client):
+    """Clean up Redis after each test."""
+    yield
+    # Clean up all test keys
+    redis_client.flushdb()
 
 
 @pytest.fixture(scope="session")

@@ -1,35 +1,14 @@
 import json
 
 import pytest
-import redis
 
 from ez_scheduler.services.form_state_manager import FormStateManager
-
-
-@pytest.fixture
-def redis_url():
-    """Redis URL for testing."""
-    return "redis://localhost:6379/1"  # Use DB 1 for tests
-
-
-@pytest.fixture
-def redis_client(redis_url):
-    """Create Redis client for testing."""
-    return redis.from_url(redis_url, decode_responses=True)
 
 
 @pytest.fixture
 def form_state_manager(redis_client):
     """Create FormStateManager instance for testing."""
     return FormStateManager(redis_client=redis_client, ttl_seconds=1800)
-
-
-@pytest.fixture
-def clean_redis(form_state_manager):
-    """Clean up Redis after each test."""
-    yield
-    # Clean up all test keys
-    form_state_manager.redis_client.flushdb()
 
 
 def test_get_state_new_thread(form_state_manager, clean_redis):

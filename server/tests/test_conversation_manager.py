@@ -1,21 +1,8 @@
 import time
 
 import pytest
-import redis
 
 from ez_scheduler.services.conversation_manager import ConversationManager
-
-
-@pytest.fixture
-def redis_url():
-    """Redis URL for testing."""
-    return "redis://localhost:6379/1"  # Use DB 1 for tests
-
-
-@pytest.fixture
-def redis_client(redis_url):
-    """Create Redis client for testing."""
-    return redis.from_url(redis_url, decode_responses=True)
 
 
 @pytest.fixture
@@ -27,14 +14,6 @@ def conversation_manager(redis_client, redis_url):
         ttl_seconds=1800,
         max_messages_per_thread=20,
     )
-
-
-@pytest.fixture
-def clean_redis(conversation_manager):
-    """Clean up Redis after each test."""
-    yield
-    # Clean up all test keys
-    conversation_manager.redis_client.flushdb()
 
 
 def test_get_or_create_thread_new_user(conversation_manager, clean_redis):
