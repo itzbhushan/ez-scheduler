@@ -37,23 +37,28 @@ jobs:
 
   deploy-staging:
     runs-on: ubuntu-latest
+    container: ghcr.io/railwayapp/cli:latest
     timeout-minutes: 10
     # Deploy to staging ONLY on pull requests, after linting passes
     if: github.event_name == 'pull_request'
     needs: lint
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install Railway CLI
-      run: npm install -g @railway/cli@4.6.3
-
     - name: Deploy to Railway Staging
-      run: railway up --detach --service ez-scheduler
-      env:
-        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
+      run: railway up --detach --service ez-scheduler --environment staging
       working-directory: ./server
 
+  verify-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'pull_request'
+    needs: deploy-staging
+
+    steps:
     - name: Verify Staging Deployment
       run: |
         echo "Waiting for staging deployment to be ready..."
@@ -73,22 +78,27 @@ jobs:
 
   deploy-production:
     runs-on: ubuntu-latest
+    container: ghcr.io/railwayapp/cli:latest
     timeout-minutes: 10
     # Only deploy to production when code is pushed to main branch
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install Railway CLI
-      run: npm install -g @railway/cli@4.6.3
-
     - name: Deploy to Railway Production
-      run: railway up --detach --service ez-scheduler
-      env:
-        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
+      run: railway up --detach --service ez-scheduler --environment prod
       working-directory: ./server
 
+  verify-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: deploy-production
+
+    steps:
     - name: Verify Production Deployment
       run: |
         echo "Waiting for production deployment to be ready..."
