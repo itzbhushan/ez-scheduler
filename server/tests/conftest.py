@@ -55,8 +55,10 @@ async def mcp_server_process(postgres_container, redis_container):
     env["DATABASE_URL"] = database_url
 
     # Ensure the MCP server uses the same Redis as the test
-    host = redis_container.get_container_host_ip()
-    port = redis_container.get_exposed_port(6379)
+    client = redis_container.get_client()
+    conn_kwargs = client.connection_pool.connection_kwargs
+    host = conn_kwargs["host"]
+    port = conn_kwargs["port"]
     redis_url = f"redis://{host}:{port}/0"
     env["REDIS_URL"] = redis_url
 
@@ -102,9 +104,11 @@ async def _wait_for_server(url: str, timeout: int = 30):
 def redis_container():
     """Create a Redis test container for the test session"""
     with RedisContainer("redis:7-alpine") as redis_cont:
-        # Build Redis URL from container
-        host = redis_cont.get_container_host_ip()
-        port = redis_cont.get_exposed_port(6379)
+        # Get Redis client to extract connection info (avoids hardcoded port)
+        client = redis_cont.get_client()
+        conn_kwargs = client.connection_pool.connection_kwargs
+        host = conn_kwargs["host"]
+        port = conn_kwargs["port"]
         redis_url = f"redis://{host}:{port}/0"
         os.environ["REDIS_URL"] = redis_url
 
@@ -163,8 +167,10 @@ def _run_migrations(database_url: str):
 @pytest.fixture
 def redis_url(redis_container):
     """Redis URL for testing from container."""
-    host = redis_container.get_container_host_ip()
-    port = redis_container.get_exposed_port(6379)
+    client = redis_container.get_client()
+    conn_kwargs = client.connection_pool.connection_kwargs
+    host = conn_kwargs["host"]
+    port = conn_kwargs["port"]
     return f"redis://{host}:{port}/0"
 
 
