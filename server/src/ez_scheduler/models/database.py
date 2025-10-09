@@ -24,8 +24,15 @@ engine = create_engine(DATABASE_URL, echo=os.getenv("DEBUG", "false").lower() ==
 # Redis URL from config
 REDIS_URL = config["redis_url"]
 
-# Create Redis client (singleton)
-redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+# Create Redis client (singleton) with connection pool configuration
+redis_client = redis.from_url(
+    REDIS_URL,
+    decode_responses=True,
+    max_connections=20,  # Max connections in pool
+    socket_connect_timeout=5,  # Connection timeout in seconds
+    socket_keepalive=True,  # Enable TCP keepalive
+    retry_on_timeout=True,  # Retry on timeout
+)
 
 
 def get_db():
