@@ -52,6 +52,13 @@ jobs:
       run: railway up --detach --service ez-scheduler --environment staging
       working-directory: ./server
 
+  verify-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'pull_request'
+    needs: deploy-staging
+
+    steps:
     - name: Verify Staging Deployment
       run: |
         echo "Waiting for staging deployment to be ready..."
@@ -85,6 +92,13 @@ jobs:
       run: railway up --detach --service ez-scheduler --environment prod
       working-directory: ./server
 
+  verify-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: deploy-production
+
+    steps:
     - name: Verify Production Deployment
       run: |
         echo "Waiting for production deployment to be ready..."
