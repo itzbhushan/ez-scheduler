@@ -163,48 +163,40 @@ def test_update_state_button_config_merge(form_state_manager, clean_redis):
     assert result["button_config"]["secondary_button_text"] == "RSVP No"
 
 
-def test_is_complete_missing_fields(form_state_manager, clean_redis):
-    """Test completeness validation with missing fields."""
-    # Missing event_date
-    state1 = {
+def test_is_complete_field_storage(form_state_manager, clean_redis):
+    """Test that is_complete field is stored and retrieved correctly."""
+    thread_id = "test_thread_complete"
+
+    # Set is_complete to False explicitly
+    updates1 = {
         "title": "Test",
-        "event_date": None,
-        "location": "Location",
-        "description": "Description",
-        "button_config": {
-            "button_type": "rsvp_yes_no",
-            "primary_button_text": "Yes",
-        },
+        "is_complete": False,
     }
-    assert form_state_manager.is_complete(state1) is False
+    result1 = form_state_manager.update_state(thread_id, updates1)
+    assert result1["is_complete"] is False
 
-    # Missing button_config
-    state2 = {
-        "title": "Test",
-        "event_date": "2024-12-15",
-        "location": "Location",
-        "description": "Description",
-        "button_config": None,
+    # Set is_complete to True explicitly
+    updates2 = {
+        "is_complete": True,
     }
-    assert form_state_manager.is_complete(state2) is False
+    result2 = form_state_manager.update_state(thread_id, updates2)
+    assert result2["is_complete"] is True
 
-    # Empty title
-    state3 = {
-        "title": "   ",
-        "event_date": "2024-12-15",
-        "location": "Location",
-        "description": "Description",
-        "button_config": {
-            "button_type": "rsvp_yes_no",
-            "primary_button_text": "Yes",
-        },
-    }
-    assert form_state_manager.is_complete(state3) is False
+    # Verify it persists
+    state = form_state_manager.get_state(thread_id)
+    assert state["is_complete"] is True
 
 
-def test_is_complete_all_present(form_state_manager, clean_redis):
-    """Test completeness validation with all required fields."""
-    state = {
+def test_is_complete_defaults_to_false(form_state_manager, clean_redis):
+    """Test that is_complete defaults to False for new state."""
+    thread_id = "test_thread_default"
+
+    # Get new state - should default to False
+    state = form_state_manager.get_state(thread_id)
+    assert state["is_complete"] is False
+
+    # Update without setting is_complete - should remain False
+    updates = {
         "title": "Test Event",
         "event_date": "2024-12-15",
         "location": "Test Location",
@@ -214,7 +206,8 @@ def test_is_complete_all_present(form_state_manager, clean_redis):
             "primary_button_text": "RSVP Yes",
         },
     }
-    assert form_state_manager.is_complete(state) is True
+    result = form_state_manager.update_state(thread_id, updates)
+    assert result["is_complete"] is False
 
 
 def test_clear_state(form_state_manager, clean_redis):
@@ -289,16 +282,16 @@ def test_form_id_tracking(form_state_manager, clean_redis):
     assert state["form_id"] == "uuid-123-456"
 
 
-def test_completeness_auto_update(form_state_manager, clean_redis):
-    """Test that is_complete is automatically updated."""
-    thread_id = "test_thread_auto"
+def test_is_complete_explicit_control(form_state_manager, clean_redis):
+    """Test that is_complete is controlled by explicit updates (LLM decides)."""
+    thread_id = "test_thread_explicit"
 
-    # Incomplete state
+    # Initially False
     form_state_manager.update_state(thread_id, {"title": "Test"})
     state = form_state_manager.get_state(thread_id)
     assert state["is_complete"] is False
 
-    # Complete state
+    # Even with all fields, is_complete remains False unless explicitly set
     complete_updates = {
         "title": "Test Event",
         "event_date": "2024-12-15",
@@ -310,6 +303,11 @@ def test_completeness_auto_update(form_state_manager, clean_redis):
         },
     }
     form_state_manager.update_state(thread_id, complete_updates)
+    state = form_state_manager.get_state(thread_id)
+    assert state["is_complete"] is False
+
+    # Only becomes True when explicitly set (by LLM)
+    form_state_manager.update_state(thread_id, {"is_complete": True})
     state = form_state_manager.get_state(thread_id)
     assert state["is_complete"] is True
 
