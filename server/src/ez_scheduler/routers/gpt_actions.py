@@ -10,17 +10,21 @@ from pydantic import BaseModel, Field
 from ez_scheduler.auth.dependencies import User, get_current_user
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.backends.postgres_client import PostgresClient
-from ez_scheduler.models.database import get_db
+from ez_scheduler.config import config
+from ez_scheduler.models.database import get_db, get_redis
 from ez_scheduler.models.signup_form import FormStatus
 from ez_scheduler.routers.request_validator import (
     resolve_form_or_ask,
     validate_publish_allowed,
 )
+from ez_scheduler.services.conversation_manager import ConversationManager
 from ez_scheduler.services.form_field_service import FormFieldService
+from ez_scheduler.services.form_state_manager import FormStateManager
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.postgres_service import get_postgres_client
 from ez_scheduler.services.signup_form_service import SignupFormService
 from ez_scheduler.tools.create_form import create_form_handler, update_form_handler
+from ez_scheduler.tools.create_or_update_form import CreateOrUpdateFormTool
 from ez_scheduler.tools.get_form_analytics import get_form_analytics_handler
 
 router = APIRouter(prefix="/gpt", tags=["GPT Actions"])
@@ -42,6 +46,16 @@ class GPTAnalyticsRequest(BaseModel):
         description="Natural language query about form analytics",
         json_schema_extra={
             "example": "How many people have registered for the birthday party?"
+        },
+    )
+
+
+class GPTConversationRequest(BaseModel):
+    message: str = Field(
+        ...,
+        description="Conversational message for form creation or updates",
+        json_schema_extra={
+            "example": "I want to create a form for my birthday party on December 15th"
         },
     )
 
@@ -236,4 +250,67 @@ async def gpt_analytics(
         analytics_query=request.query,
         postgres_client=postgres_client,
     )
+    return GPTResponse(response=response_text)
+
+
+@router.post(
+    "/create-or-update-form",
+    summary="Create or Update Form (Conversational)",
+    response_model=GPTResponse,
+)
+async def gpt_create_or_update_form(
+    request: GPTConversationRequest,
+    user: User = Depends(get_current_user),
+    db_session=Depends(get_db),
+    llm_client: LLMClient = Depends(get_llm_client),
+    redis_client=Depends(get_redis),
+) -> GPTResponse:
+    """
+    Unified conversational endpoint for creating or updating forms.
+
+    This endpoint manages stateful conversations for form creation and updates:
+    - Automatically detects active conversations for the user
+    - Maintains conversation context in Redis (30-minute window)
+    - Creates new draft forms when conversation is complete
+    - Updates existing drafts when form_id is present in conversation state
+    - Seamlessly handles multi-turn conversations
+
+    The endpoint is stateless from the client's perspective - no thread_id management needed.
+    All conversation state is managed server-side using Redis.
+
+    Example conversation flow:
+    1. User: "Create a birthday party form"
+    2. Assistant: "When is the party?"
+    3. User: "December 15th at 6 PM"
+    4. Assistant: "Where will it be held?"
+    5. User: "Central Park"
+    6. Assistant: "Great! I've created your draft form..."
+
+    Once a form is created, the user can continue modifying it:
+    7. User: "Change the time to 7 PM"
+    8. Assistant: "Perfect! I've updated your draft..."
+    """
+    # Initialize services
+    signup_form_service = SignupFormService(db_session)
+    form_field_service = FormFieldService(db_session)
+
+    # Initialize conversation and state managers
+    redis_url = config["redis_url"]
+    conversation_manager = ConversationManager(
+        redis_client=redis_client, redis_url=redis_url, ttl_seconds=1800
+    )
+    form_state_manager = FormStateManager(redis_client=redis_client, ttl_seconds=1800)
+
+    # Initialize the tool
+    tool = CreateOrUpdateFormTool(
+        llm_client=llm_client,
+        conversation_manager=conversation_manager,
+        form_state_manager=form_state_manager,
+        signup_form_service=signup_form_service,
+        form_field_service=form_field_service,
+    )
+
+    # Execute the conversation
+    response_text = await tool.execute(user=user, message=request.message)
+
     return GPTResponse(response=response_text)
