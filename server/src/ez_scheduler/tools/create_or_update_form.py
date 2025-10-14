@@ -109,7 +109,7 @@ class CreateOrUpdateFormTool:
                         logger.error(f"Failed to update draft {form_id_str}: {e}")
                         return f"I encountered an error updating your form: {str(e)}. Please try again."
                 else:
-                    # CREATE new draft
+                    # CREATE new draft (keep thread alive for updates)
                     logger.info(f"Creating new draft for thread {thread_id}")
                     try:
                         return await self._create_draft_form(
@@ -298,7 +298,11 @@ class CreateOrUpdateFormTool:
         if existing_form.user_id != user.user_id:
             raise ValueError("You don't have permission to update this form")
 
-        # Verify form is still a draft
+        # Verify form is still a draft (only drafts can be updated)
+        if existing_form.status == FormStatus.PUBLISHED:
+            raise ValueError(
+                "Published forms cannot be updated. Please create a new form or unpublish this one first."
+            )
         if existing_form.status == FormStatus.ARCHIVED:
             raise ValueError("Archived forms cannot be updated")
 

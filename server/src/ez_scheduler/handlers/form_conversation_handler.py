@@ -476,7 +476,10 @@ RESPONSE MUST START WITH {{ and END WITH }}"""
             f"LLM is_complete: {is_complete}, extracted fields: {list(extracted_data.keys())}"
         )
 
-        # Step 8: Merge extracted data with current state
+        # Step 8: Add is_complete to extracted data so it's stored in Redis
+        extracted_data["is_complete"] = is_complete
+
+        # Step 9: Merge extracted data with current state
         updated_state = self.form_state_manager.update_state(thread_id, extracted_data)
 
         # Step 9: Update conversation history
