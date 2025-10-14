@@ -644,3 +644,123 @@ def test_gpt_prevent_incomplete_form_publish(authenticated_client, signup_servic
     except Exception as e:
         logger.error(f"❌ Incomplete form publish test failed: {e}")
         raise
+
+
+def test_gpt_remove_custom_fields(
+    authenticated_client, signup_service, form_field_service
+):
+    """Test that custom fields can be removed from a draft form"""
+    client, user = authenticated_client
+
+    try:
+        # Step 1: Create a form with custom fields
+        response1 = client.post(
+            "/gpt/create-or-update-form",
+            json={
+                "message": "Create a form for Workshop on Feb 20, 2026 at 123 Main St, Building A. Add custom fields: dietary_restrictions, t_shirt_size, and experience_level"
+            },
+        )
+        assert response1.status_code == 200
+        result1 = response1.json()["response"]
+        logger.info(f"Create form response: {result1}")
+
+        # May need follow-ups to complete form creation
+        url_pattern = r"form/([a-zA-Z0-9-]+)"
+        match = re.search(url_pattern, result1)
+
+        follow_ups = [
+            "Yes, add those three custom fields",
+            "That's perfect, create it",
+            "Just create the form as is",
+        ]
+        for i, follow_up in enumerate(follow_ups):
+            if not match:
+                response = client.post(
+                    "/gpt/create-or-update-form",
+                    json={"message": follow_up},
+                )
+                assert response.status_code == 200
+                result1 = response.json()["response"]
+                match = re.search(url_pattern, result1)
+                logger.info(f"Follow-up {i+1} response: {result1}")
+                if not match and i == len(follow_ups) - 1:
+                    assert (
+                        False
+                    ), f"Form not created after {len(follow_ups)} follow-ups: {result1}"
+
+        url_slug = match.group(1)
+        logger.info(f"Form created with slug: {url_slug}")
+
+        # Verify form has custom fields
+        form = signup_service.get_form_by_url_slug(url_slug)
+        assert form is not None
+        assert form.status == FormStatus.DRAFT
+
+        custom_fields = form_field_service.get_fields_by_form_id(form.id)
+        field_names = [f.field_name for f in custom_fields]
+        logger.info(f"Initial custom fields: {field_names}")
+
+        assert (
+            len(custom_fields) >= 2
+        ), f"Expected at least 2 custom fields, got {len(custom_fields)}: {field_names}"
+
+        # Step 2: Remove one of the custom fields
+        response2 = client.post(
+            "/gpt/create-or-update-form",
+            json={"message": "Remove the t_shirt_size field"},
+        )
+        assert response2.status_code == 200
+        result2 = response2.json()["response"]
+        logger.info(f"Remove field response: {result2}")
+
+        # Step 3: Verify the field was removed
+        updated_custom_fields = form_field_service.get_fields_by_form_id(form.id)
+        updated_field_names = [f.field_name for f in updated_custom_fields]
+        logger.info(f"Updated custom fields after removal: {updated_field_names}")
+
+        # t_shirt_size should be removed
+        assert (
+            "t_shirt_size" not in updated_field_names
+        ), f"t_shirt_size should have been removed. Got fields: {updated_field_names}"
+        assert len(updated_custom_fields) < len(
+            custom_fields
+        ), f"Field count should decrease. Before: {len(custom_fields)}, After: {len(updated_custom_fields)}"
+
+        logger.info("✅ Field removal verified")
+
+        # Step 4: Add a new different field
+        response3 = client.post(
+            "/gpt/create-or-update-form",
+            json={"message": "Add a new field for parking_pass as a yes/no question"},
+        )
+        assert response3.status_code == 200
+        result3 = response3.json()["response"]
+        logger.info(f"Add new field response: {result3}")
+
+        # Step 5: Verify all fields are present (2 old + 1 new = 3 total)
+        final_custom_fields = form_field_service.get_fields_by_form_id(form.id)
+        final_field_names = [f.field_name for f in final_custom_fields]
+        logger.info(f"Final custom fields after adding new: {final_field_names}")
+
+        # Should have dietary_restrictions, experience_level, and parking_pass
+        assert (
+            "dietary_restrictions" in final_field_names
+        ), f"dietary_restrictions should still be present. Got: {final_field_names}"
+        assert (
+            "experience_level" in final_field_names
+        ), f"experience_level should still be present. Got: {final_field_names}"
+        assert (
+            "parking_pass" in final_field_names
+        ), f"parking_pass should have been added. Got: {final_field_names}"
+        assert (
+            "t_shirt_size" not in final_field_names
+        ), f"t_shirt_size should still be removed. Got: {final_field_names}"
+        assert (
+            len(final_custom_fields) == 3
+        ), f"Should have exactly 3 fields. Got {len(final_custom_fields)}: {final_field_names}"
+
+        logger.info("✅ Custom field removal and addition test passed")
+
+    except Exception as e:
+        logger.error(f"❌ Custom field removal test failed: {e}")
+        raise

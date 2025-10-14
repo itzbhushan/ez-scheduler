@@ -499,6 +499,13 @@ RESPONSE MUST START WITH {{ and END WITH }}"""
             f"LLM is_complete: {is_complete}, extracted fields: {list(extracted_data.keys())}"
         )
 
+        # Debug: Log custom_fields if present
+        if "custom_fields" in extracted_data:
+            field_names = [
+                f.get("field_name") for f in extracted_data.get("custom_fields", [])
+            ]
+            logger.info(f"LLM returned custom_fields: {field_names}")
+
         # Step 8: Add is_complete to extracted data so it's stored in Redis
         extracted_data["is_complete"] = is_complete
 

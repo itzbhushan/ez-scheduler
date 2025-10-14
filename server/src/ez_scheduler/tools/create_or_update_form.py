@@ -354,6 +354,10 @@ class CreateOrUpdateFormTool:
         # Update custom fields (authoritative list - replaces existing)
         if "custom_fields" in form_state:
             custom_fields = form_state["custom_fields"]
+            logger.info(
+                f"Updating custom fields for form {form_id}, fields from state: {[f.get('field_name') for f in custom_fields]}"
+            )
+
             custom_fields_data = [
                 {
                     "field_name": field.get("field_name"),
@@ -370,8 +374,13 @@ class CreateOrUpdateFormTool:
             # Upsert fields and remove any not in the list
             self.form_field_service.upsert_form_fields(form_id, custom_fields_data)
             keep_names = [cf.get("field_name") for cf in custom_fields_data]
-            self.form_field_service.delete_fields_not_in(form_id, keep_names)
+            logger.info(f"Keeping fields: {keep_names}, deleting others")
+            deleted_count = self.form_field_service.delete_fields_not_in(
+                form_id, keep_names
+            )
+            logger.info(f"Deleted {deleted_count} fields")
             self.form_field_service.db.commit()
+            logger.info(f"Committed custom field changes for form {form_id}")
 
         # Handle timeslot updates for drafts only
         timeslot_summary = []

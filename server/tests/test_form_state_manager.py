@@ -66,45 +66,8 @@ def test_update_state_simple_fields(form_state_manager, clean_redis):
     assert result["event_date"] is None  # Unchanged
 
 
-def test_update_state_custom_fields_merge(form_state_manager, clean_redis):
-    """Test merging custom fields by field_name."""
-    thread_id = "test_thread_custom"
-
-    # Add first custom field
-    updates1 = {
-        "custom_fields": [
-            {
-                "field_name": "guest_count",
-                "field_type": "number",
-                "label": "Number of guests",
-                "is_required": True,
-            }
-        ]
-    }
-    form_state_manager.update_state(thread_id, updates1)
-
-    # Add second custom field
-    updates2 = {
-        "custom_fields": [
-            {
-                "field_name": "dietary_restrictions",
-                "field_type": "text",
-                "label": "Dietary Restrictions",
-                "is_required": False,
-            }
-        ]
-    }
-    result = form_state_manager.update_state(thread_id, updates2)
-
-    # Should have both fields
-    assert len(result["custom_fields"]) == 2
-    field_names = {f["field_name"] for f in result["custom_fields"]}
-    assert "guest_count" in field_names
-    assert "dietary_restrictions" in field_names
-
-
 def test_update_state_custom_fields_overwrite(form_state_manager, clean_redis):
-    """Test updating existing custom field."""
+    """Test that custom_fields uses authoritative list replacement (not merge)."""
     thread_id = "test_thread_overwrite"
 
     # Add custom field

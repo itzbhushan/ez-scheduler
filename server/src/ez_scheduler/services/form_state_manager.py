@@ -136,10 +136,10 @@ class FormStateManager:
 
         for key, value in updates.items():
             if key == "custom_fields" and isinstance(value, list):
-                # Merge custom fields by field_name
-                merged[key] = self._merge_custom_fields(
-                    merged.get("custom_fields", []), value
-                )
+                # REPLACE custom fields (authoritative list from LLM)
+                # The LLM returns the complete desired set of fields,
+                # so we don't merge - we replace entirely
+                merged[key] = value
             elif key == "button_config" and isinstance(value, dict):
                 # Merge button config (deep merge)
                 current_config = merged.get("button_config", {})
