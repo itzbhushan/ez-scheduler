@@ -107,6 +107,16 @@ CUSTOM FIELD GUIDELINES:
 4. NEVER auto-add custom fields without confirmation
 5. Only create form after user confirms custom field preferences
 
+UPDATING CUSTOM FIELDS (when form already exists):
+When user wants to add/remove/modify fields:
+- ALWAYS return the COMPLETE custom_fields array in extracted_data
+- To REMOVE a field: omit it from the custom_fields array
+- To ADD a field: include it in the custom_fields array
+- To MODIFY a field: include the updated version in the array
+- Example: If form has [field_a, field_b, field_c] and user says "remove field_b",
+  return custom_fields: [field_a, field_c]
+- NEVER return an empty custom_fields array unless user explicitly wants NO custom fields
+
 BUTTON CONFIGURATION (always determine for complete forms):
 Analyze event context to determine button type:
 
@@ -440,9 +450,22 @@ RESPONSE MUST START WITH {{ and END WITH }}"""
         # Step 3: Build messages array (history + new message)
         messages = history + [{"role": "user", "content": user_message}]
 
-        # Step 4: Inject current date into system prompt
+        # Step 4: Inject current date and form state into system prompt
         current_date = datetime.now().strftime("%Y-%m-%d")
         system_prompt = self.FORM_BUILDER_PROMPT.format(current_date=current_date)
+
+        # Step 4b: If form exists (has custom_fields or form_id), include current state
+        if current_state.get("custom_fields") or current_state.get("form_id"):
+            state_context = f"\n\nCURRENT FORM STATE:\n"
+            if current_state.get("title"):
+                state_context += f"Title: {current_state['title']}\n"
+            if current_state.get("custom_fields"):
+                state_context += f"Existing Custom Fields: {json.dumps(current_state['custom_fields'], indent=2)}\n"
+            if current_state.get("form_id"):
+                state_context += f"Form ID: {current_state['form_id']} (this form is already created)\n"
+
+            state_context += "\nWhen user requests field changes, return the COMPLETE custom_fields array with modifications applied."
+            system_prompt += state_context
 
         # Step 5: Call LLM with conversation context
         try:
