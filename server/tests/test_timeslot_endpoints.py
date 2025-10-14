@@ -8,8 +8,8 @@ import pytest
 from ez_scheduler.models.signup_form import FormStatus, SignupForm
 from ez_scheduler.services import TimeslotSchedule, TimeslotService
 
-# Fixed reference Monday date for deterministic scheduling
-TEST_MONDAY = date(2025, 10, 6)
+# Fixed reference Monday date for deterministic scheduling (future date)
+TEST_MONDAY = date(2026, 10, 5)
 
 
 def _create_published_form(
@@ -31,7 +31,6 @@ def _create_published_form(
 
 
 class TestTimeslotEndpoints:
-    @pytest.mark.skip(reason="Flaky test, fix later")
     async def test_get_form_shows_timeslots(
         self, signup_service, timeslot_service: TimeslotService, authenticated_client
     ):
