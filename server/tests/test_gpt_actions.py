@@ -480,7 +480,7 @@ def test_gpt_create_second_form_after_publish(authenticated_client, signup_servi
         # Verify they are different forms
         assert (
             form1.id != form2.id
-        ), "After publishing, next form should be NEW (not update of published)"
+        ), "After publishing, next form should be NEW, but got same form ID"
         assert (
             "conference" in form1.title.lower()
         ), f"First form title should mention conference: {form1.title}"
