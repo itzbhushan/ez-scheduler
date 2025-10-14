@@ -98,6 +98,7 @@ class UpdateFormRequest(FormMutateRequest):
     summary="Create Signup Form",
     response_model=GPTResponse,
     openapi_extra={"x-openai-isConsequential": False},
+    include_in_schema=False,
 )
 async def gpt_create_form(
     request: GPTFormRequest,
@@ -126,7 +127,6 @@ async def gpt_create_form(
     "/publish-form",
     summary="Publish a draft form",
     response_model=GPTResponse,
-    openapi_extra={"x-openai-isConsequential": True},
 )
 async def gpt_publish_form(
     request: FormMutateRequest,
@@ -205,6 +205,7 @@ async def gpt_archive_form(
     summary="Update a draft form (core fields and custom fields)",
     response_model=GPTResponse,
     openapi_extra={"x-openai-isConsequential": True},
+    include_in_schema=False,
 )
 async def gpt_update_form(
     request: UpdateFormRequest,
@@ -278,17 +279,6 @@ async def gpt_create_or_update_form(
     The endpoint is stateless from the client's perspective - no thread_id management needed.
     All conversation state is managed server-side using Redis.
 
-    Example conversation flow:
-    1. User: "Create a birthday party form"
-    2. Assistant: "When is the party?"
-    3. User: "December 15th at 6 PM"
-    4. Assistant: "Where will it be held?"
-    5. User: "Central Park"
-    6. Assistant: "Great! I've created your draft form..."
-
-    Once a form is created, the user can continue modifying it:
-    7. User: "Change the time to 7 PM"
-    8. Assistant: "Perfect! I've updated your draft..."
     """
     # Initialize services
     signup_form_service = SignupFormService(db_session)
