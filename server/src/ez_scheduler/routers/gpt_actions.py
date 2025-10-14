@@ -269,16 +269,9 @@ async def gpt_create_or_update_form(
     """
     Unified conversational endpoint for creating or updating forms.
 
-    This endpoint manages stateful conversations for form creation and updates:
-    - Automatically detects active conversations for the user
-    - Maintains conversation context in Redis (30-minute window)
+    - Automatically detects active or new conversations for the user
     - Creates new draft forms when conversation is complete
-    - Updates existing drafts when form_id is present in conversation state
     - Seamlessly handles multi-turn conversations
-
-    The endpoint is stateless from the client's perspective - no thread_id management needed.
-    All conversation state is managed server-side using Redis.
-
     """
     # Initialize services
     signup_form_service = SignupFormService(db_session)
