@@ -27,7 +27,7 @@ async def test_custom_fields_wedding_workflow(
             "create_or_update_form",
             {
                 "user_id": test_user_id,
-                "message": "Create a signup form for Sarah and Michael's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown.",
+                "message": "Create a signup form for Sarah and Michael's Wedding Reception on June 15th, 2024 from 12-5pm at Downtown Hyatt, San Jose, CA.",
             },
         )
 
@@ -74,7 +74,7 @@ async def test_custom_fields_wedding_workflow(
         assert created_form is not None, "Form should exist in database"
         assert created_form.title and "sarah" in created_form.title.lower()
         assert created_form.event_date == date(2024, 6, 15)
-        assert "grand ballroom" in created_form.location.lower()
+        assert "hyatt" in created_form.location.lower()
         assert created_form.user_id == test_user_id
 
         # Step 4: Verify custom fields were created using service
