@@ -94,7 +94,7 @@ def test_gpt_create_form_timeslots(
 
     description = (
         "Create a signup form for 1-1 soccer coaching between 17:00 and 21:00 on Mondays and Wednesdays "
-        "with 60 minute slots for the next 2 weeks. Start from 2025-10-06. Location is City Park field. "
+        "with 60 minute slots for the next 2 weeks. Start from 2026-10-05. Location is City Park field. "
         "Only one person can book per timeslot. No need to collect any additional information."
     )
 

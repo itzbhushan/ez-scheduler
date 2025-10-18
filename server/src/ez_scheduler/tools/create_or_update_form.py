@@ -223,16 +223,28 @@ class CreateOrUpdateFormTool:
         if form_state.get("timeslot_schedule"):
             try:
                 schedule_dict = dict(form_state["timeslot_schedule"])
-                # Convert start_from_date string to date object if present
-                if schedule_dict.get("start_from_date"):
-                    try:
-                        schedule_dict["start_from_date"] = date.fromisoformat(
-                            schedule_dict["start_from_date"]
-                        )
-                    except ValueError:
-                        schedule_dict.pop("start_from_date", None)
 
-                timeslot_schedule = TimeslotSchedule(**schedule_dict)
+                # Validate capacity_per_slot is an integer (not a dict)
+                if "capacity_per_slot" in schedule_dict:
+                    capacity = schedule_dict["capacity_per_slot"]
+                    if not isinstance(capacity, (int, type(None))):
+                        logger.warning(
+                            f"Invalid capacity_per_slot type: {type(capacity)}. "
+                            f"All slots must have the same capacity. Skipping timeslot creation."
+                        )
+                        schedule_dict = None
+
+                if schedule_dict:
+                    # Convert start_from_date string to date object if present
+                    if schedule_dict.get("start_from_date"):
+                        try:
+                            schedule_dict["start_from_date"] = date.fromisoformat(
+                                schedule_dict["start_from_date"]
+                            )
+                        except ValueError:
+                            schedule_dict.pop("start_from_date", None)
+
+                    timeslot_schedule = TimeslotSchedule(**schedule_dict)
             except (TypeError, ValueError) as e:
                 logger.warning(f"Failed to parse timeslot_schedule: {e}")
 
@@ -391,22 +403,116 @@ class CreateOrUpdateFormTool:
                 ts_service = TimeslotService(self.signup_form_service.db)
                 schedule_dict = dict(form_state["timeslot_schedule"])
 
-                # Convert start_from_date if present
-                if schedule_dict.get("start_from_date"):
-                    try:
-                        schedule_dict["start_from_date"] = date.fromisoformat(
-                            schedule_dict["start_from_date"]
+                # Validate capacity_per_slot is an integer (not a dict)
+                if "capacity_per_slot" in schedule_dict:
+                    capacity = schedule_dict["capacity_per_slot"]
+                    if not isinstance(capacity, (int, type(None))):
+                        logger.warning(
+                            f"Invalid capacity_per_slot type: {type(capacity)}. "
+                            f"All slots must have the same capacity. Skipping timeslot update."
                         )
-                    except ValueError:
-                        schedule_dict.pop("start_from_date", None)
+                        timeslot_summary.append(
+                            "Note: All timeslots must have the same capacity. Please specify a single capacity value for all slots."
+                        )
+                        # Skip timeslot update but continue with form update
+                        schedule_dict = None
 
-                schedule = TimeslotSchedule(**schedule_dict)
-                result = ts_service.add_schedule(form_id, schedule)
-                timeslot_summary.append(
-                    f"Timeslots: {result.added_count} added ({result.skipped_existing} existing)"
-                )
+                if schedule_dict:
+                    # Convert start_from_date if present
+                    if schedule_dict.get("start_from_date"):
+                        try:
+                            schedule_dict["start_from_date"] = date.fromisoformat(
+                                schedule_dict["start_from_date"]
+                            )
+                        except ValueError:
+                            schedule_dict.pop("start_from_date", None)
+
+                    schedule = TimeslotSchedule(**schedule_dict)
+                    result = ts_service.add_schedule(form_id, schedule)
+                    timeslot_summary.append(
+                        f"Timeslots: {result.added_count} added ({result.skipped_existing} existing)"
+                    )
             except Exception as e:
                 logger.warning(f"Failed to update timeslots: {e}")
+
+        # Handle timeslot mutations (add/remove) for drafts only
+        if existing_form.status == FormStatus.DRAFT and form_state.get(
+            "timeslot_mutations"
+        ):
+            try:
+                ts_service = TimeslotService(self.signup_form_service.db)
+                mutations = form_state["timeslot_mutations"]
+                logger.info(f"Processing timeslot_mutations: {mutations}")
+
+                # Process removals first
+                if mutations.get("remove"):
+                    for remove_spec_dict in mutations["remove"]:
+                        try:
+                            # Convert start_from_date if present
+                            if remove_spec_dict.get("start_from_date"):
+                                try:
+                                    remove_spec_dict["start_from_date"] = (
+                                        date.fromisoformat(
+                                            remove_spec_dict["start_from_date"]
+                                        )
+                                    )
+                                except ValueError:
+                                    remove_spec_dict.pop("start_from_date", None)
+
+                            remove_spec = TimeslotService.TimeslotRemoveSpec(
+                                **remove_spec_dict
+                            )
+                            logger.info(
+                                f"Calling remove_schedule with spec: {remove_spec}"
+                            )
+                            rem_result = ts_service.remove_schedule(
+                                form_id, remove_spec
+                            )
+                            logger.info(
+                                f"Removal result: removed_count={rem_result.removed_count}"
+                            )
+                            if rem_result.removed_count > 0:
+                                timeslot_summary.append(
+                                    f"Removed: {rem_result.removed_count} timeslots"
+                                )
+                        except Exception as e:
+                            logger.warning(f"Failed to remove timeslots: {e}")
+
+                # Process additions
+                if mutations.get("add"):
+                    for add_spec_dict in mutations["add"]:
+                        try:
+                            # Validate capacity_per_slot
+                            if "capacity_per_slot" in add_spec_dict:
+                                capacity = add_spec_dict["capacity_per_slot"]
+                                if not isinstance(capacity, (int, type(None))):
+                                    logger.warning(
+                                        f"Invalid capacity_per_slot in mutation add: {type(capacity)}"
+                                    )
+                                    continue
+
+                            # Convert start_from_date if present
+                            if add_spec_dict.get("start_from_date"):
+                                try:
+                                    add_spec_dict["start_from_date"] = (
+                                        date.fromisoformat(
+                                            add_spec_dict["start_from_date"]
+                                        )
+                                    )
+                                except ValueError:
+                                    add_spec_dict.pop("start_from_date", None)
+
+                            add_schedule = TimeslotSchedule(**add_spec_dict)
+                            add_result = ts_service.add_schedule(form_id, add_schedule)
+                            if add_result.added_count > 0:
+                                timeslot_summary.append(
+                                    f"Added: {add_result.added_count} timeslots ({add_result.skipped_existing} existing)"
+                                )
+                        except Exception as e:
+                            logger.warning(f"Failed to add timeslots: {e}")
+
+            except Exception as e:
+                logger.warning(f"Failed to process timeslot mutations: {e}")
 
         # Generate preview URL
         preview_url = f"{config['app_base_url']}/form/{existing_form.url_slug}"

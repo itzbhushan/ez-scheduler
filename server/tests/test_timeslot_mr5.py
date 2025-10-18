@@ -22,7 +22,7 @@ async def test_internal_create_form_with_schedule(
 
     data = FormExtractionSchema(
         title="Soccer Coaching",
-        event_date="2025-10-01",
+        event_date="2026-10-01",
         location="City Park",
         description="1-1 coaching program",
         button_config=None,
@@ -33,7 +33,7 @@ async def test_internal_create_form_with_schedule(
             "window_end": "21:00",
             "slot_minutes": 60,
             "weeks_ahead": 2,
-            "start_from_date": "2025-10-06",
+            "start_from_date": "2026-10-05",
             "capacity_per_slot": 1,
             "time_zone": "UTC",
         },

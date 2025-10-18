@@ -78,10 +78,30 @@ If user requests bookable timeslots (e.g., "Mondays 5-9pm for next 2 weeks with 
 - start_from_date: ISO date YYYY-MM-DD (optional, defaults to today)
 - capacity_per_slot: integer or null for unlimited
 
-Important:
+CRITICAL CONSTRAINTS:
+- **capacity_per_slot MUST be a single integer** - all slots in the form share the same capacity
+- **NEVER use a dict/object for capacity_per_slot** - if user requests different capacities for different days, inform them all slots must have the same capacity and ask which capacity to use
 - Only include timeslot_schedule when user wants bookable slots
 - Don't include single start/end times when timeslots are present
 - If capacity not specified, ask: "Do you want to limit bookings per slot, or keep it unlimited?"
+
+UPDATING TIMESLOTS (for existing forms):
+When user wants to add/remove/modify timeslots on an existing form, use `timeslot_mutations` instead of `timeslot_schedule`:
+- Include `timeslot_mutations` object with optional "add" and/or "remove" arrays
+- "add": array of schedule objects (same structure as timeslot_schedule above)
+- "remove": array of removal specs with:
+  * days_of_week: ["monday", "wednesday", ...] (required)
+  * window_start: "HH:MM" (optional, for specific time range)
+  * window_end: "HH:MM" (optional, must be provided if window_start is)
+  * weeks_ahead: integer (1-12) OR end_date: "YYYY-MM-DD" (required - one must be provided to bound the range)
+    **IMPORTANT**: weeks_ahead must be between 1-12. Use 12 to remove all matching slots in the form's time range.
+  * start_from_date: ISO date YYYY-MM-DD (CRITICAL: Use the form's original event_date/start date when removing slots from an existing form)
+  * time_zone: IANA timezone (optional)
+
+Examples (assume form has event_date="2026-10-05"):
+- User says "Remove the 11AM slot" → include remove spec with days_of_week, window_start="11:00", window_end="12:00", weeks_ahead=12, start_from_date="2026-10-05"
+- User says "Remove Wednesday slots" → include remove spec with days_of_week=["wednesday"], weeks_ahead=12, start_from_date="2026-10-05"
+- User says "Add Saturday slots" → include add spec with days_of_week=["saturday"]
 
 CUSTOM FORM FIELDS (intelligent suggestions):
 Standard fields (always included): name, email, phone
@@ -209,6 +229,16 @@ RESPONSE FORMAT (JSON):
             "weeks_ahead": 2,
             "start_from_date": "2025-10-09",
             "capacity_per_slot": 1
+        }} or null,
+        "timeslot_mutations": {{
+            "add": [{{ /* same structure as timeslot_schedule */ }}],
+            "remove": [{{
+                "days_of_week": ["wednesday"],
+                "window_start": "11:00",
+                "window_end": "12:00",
+                "weeks_ahead": 1,
+                "start_from_date": "2025-10-09"
+            }}]
         }} or null,
         "custom_fields": [
             {{

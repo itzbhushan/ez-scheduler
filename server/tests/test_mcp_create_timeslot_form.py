@@ -29,7 +29,7 @@ async def test_mcp_create_timeslot_form(
     # Use explicit schedule (UTC) for deterministic counts: 4 slots/day * 2 days/week * 2 weeks = 16
     initial_request = (
         "Create a signup form for 1-1 soccer coaching between 17:00 and 21:00 on Mondays and Wednesdays "
-        "with 60 minute slots for the next 2 weeks, starting 2025-10-06. Time zone UTC. "
+        "with 60 minute slots for the next 2 weeks, starting 2026-10-05. Time zone UTC. "
         "Location is City Park field. Keep fields to name, email, and phone. Limit 1 registration per slot."
     )
 
@@ -113,7 +113,7 @@ async def test_mcp_create_timeslot_form_capacity_two(
     # Explicit capacity 2 for deterministic behavior
     initial_request = (
         "Create a signup form for beginner yoga classes between 17:00 and 21:00 on Mondays and Wednesdays "
-        "with 60 minute slots for the next 2 weeks, starting 2025-10-06. Time zone UTC. "
+        "with 60 minute slots for the next 2 weeks, starting 2026-10-05. Time zone UTC. "
         "Location is Community Center. Keep fields to name, email, and phone. Limit 2 registration per slot."
     )
 
