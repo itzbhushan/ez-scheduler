@@ -1,8 +1,8 @@
 """MCP tool test for updating timeslots on a draft (MR-TS-10).
 
-This follows the style of the existing MCP tests and uses the MCP update_form
-tool to request timeslot changes, then verifies results through the public
-endpoint after publishing.
+This follows the style of the existing MCP tests and uses the MCP create_or_update_form
+tool to request timeslot changes in a conversational flow, then verifies results through
+the public endpoint after publishing.
 """
 
 import uuid
@@ -34,10 +34,10 @@ async def test_mcp_update_timeslots_remove_and_add(
     async with Client(mcp_client) as client:
         tools = await client.list_tools()
         assert any(
-            t.name == "create_form" for t in tools
-        ), "create_form tool should exist"
+            t.name == "create_or_update_form" for t in tools
+        ), "create_or_update_form tool should exist"
         create_res = await client.call_tool(
-            "create_form", {"user_id": user_id, "initial_request": initial_request}
+            "create_or_update_form", {"user_id": user_id, "message": initial_request}
         )
 
     # Verify draft exists and 10 weekday slots were generated (Mon–Fri across 2 weeks)
@@ -46,21 +46,16 @@ async def test_mcp_update_timeslots_remove_and_add(
     avail_for_count = timeslot_service.list_available(form.id)
     assert len(avail_for_count) == 10, "After creation, should have 10 available slots"
 
-    # Ask MCP update_form to remove [10:00, 11:00) and add [13:00, 14:00)
-    # The prompt has been updated to support timeslot_mutations in updates.
-    update_description = (
-        "Update the existing draft form: remove all Thursdays "
-        "add Saturdays from 16:00 to 17:00 instead for those 2 weeks."
-        "Keep everything else the same."
-    )
+    # Ask MCP create_or_update_form to remove all Thursdays and add Saturdays
+    # The conversational tool automatically detects the active thread and updates the form
+    update_message = "Remove all Thursdays and add Saturdays from 16:00 to 17:00 instead for those 2 weeks."
 
     async with Client(mcp_client) as client:
         update_res = await client.call_tool(
-            "update_form",
+            "create_or_update_form",
             {
                 "user_id": user_id,
-                "update_description": update_description,
-                "url_slug": form.url_slug,
+                "message": update_message,
             },
         )
 

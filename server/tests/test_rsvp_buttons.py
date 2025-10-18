@@ -18,25 +18,25 @@ async def test_end_to_end_rsvp_via_mcp(
     async with Client(mcp_client) as mcp:
         # Create wedding reception form that should trigger RSVP buttons
         form_response = await mcp.call_tool(
-            "create_form",
+            "create_or_update_form",
             {
                 "user_id": test_user.user_id,
-                "initial_request": "Create a form for Sarah and Michael's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown. This is an intimate celebration with dinner and dancing. I need RSVP yes/no buttons and want to collect guest count and meal preferences (Chicken, Beef, Vegetarian). No additional information is needed.",
+                "message": "Create a form for Sarah and Michael's Wedding Reception on June 15th, 2024 at Grand Ballroom, 123 Main Street. This is an intimate celebration with dinner and dancing. I need RSVP yes/no buttons and want to collect guest count and meal preferences (Chicken, Beef, Vegetarian). No additional information is needed.",
             },
         )
 
         response_text = form_response.content[0].text.lower()
 
-        # If LLM asks for more info, provide it
+        # If LLM asks for more info, provide it in the same conversation
         if "form/" not in response_text and (
             "additional" in response_text or "custom" in response_text
         ):
             # LLM is asking for more details, provide them
             form_response = await mcp.call_tool(
-                "create_form",
+                "create_or_update_form",
                 {
                     "user_id": test_user.user_id,
-                    "initial_request": "Create a form for Sarah and Michael's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown. Yes, include guest count and meal preferences with options: Chicken, Beef, Vegetarian, Vegan.",
+                    "message": "Yes, include guest count and meal preferences with options: Chicken, Beef, Vegetarian, Vegan.",
                 },
             )
 
@@ -132,13 +132,14 @@ async def test_end_to_end_rsvp_via_mcp(
     assert no_registration.additional_data is not None
     assert no_registration.additional_data.get("rsvp_response") == "no"
 
-    # Test 7: Test single submit form creation via MCP
+    # Test 7: Test single submit form creation via MCP (use different user to avoid thread collision)
+    conference_user_id = "auth0|conference_organizer_999"
     async with Client(mcp_client) as mcp:
         conference_response = await mcp.call_tool(
-            "create_form",
+            "create_or_update_form",
             {
-                "user_id": test_user.user_id,
-                "initial_request": "Create a form for Tech Conference 2024 on September 20th at Convention Center. Keep it simple - just basic registration info, no custom fields needed.",
+                "user_id": conference_user_id,
+                "message": "Create a form for Tech Conference 2024 on September 20th, 2026 at Convention Center, 456 Tech Boulevard from 9am to 5pm. Keep it simple - just basic registration info, no custom fields needed.",
             },
         )
 

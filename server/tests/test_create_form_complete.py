@@ -21,12 +21,12 @@ async def test_create_form_simple_meeting(mcp_client, signup_service):
 
     try:
         async with Client(mcp_client) as client:
-            # Call the create_form tool with a simple meeting (shouldn't ask about custom fields)
+            # Call the create_or_update_form tool with a simple meeting (shouldn't ask about custom fields)
             result = await client.call_tool(
-                "create_form",
+                "create_or_update_form",
                 {
                     "user_id": test_user_id,
-                    "initial_request": "Create a signup form for Team Stand-up Meeting on September 20th, 2024 at Conference Room A. The meeting ends at 10:00 AM. Quick daily standup meeting.",
+                    "message": "Create a signup form for Team Stand-up Meeting on September 20th, 2024 at Conference Room A. The meeting ends at 10:00 AM. Quick daily standup meeting.",
                 },
             )
 
@@ -95,12 +95,12 @@ async def test_create_form_with_start_and_end_time(mcp_client, signup_service):
 
     try:
         async with Client(mcp_client) as client:
-            # Call the create_form tool with both start and end time
+            # Call the create_or_update_form tool with both start and end time
             result = await client.call_tool(
-                "create_form",
+                "create_or_update_form",
                 {
                     "user_id": test_user_id,
-                    "initial_request": "Create a signup form for Python Workshop on October 10th, 2024 at Tech Hub from 9:00 AM to 4:30 PM. We're teaching Python programming fundamentals with hands-on coding exercises. Do not ask for any additional details from registering users.",
+                    "message": "Create a signup form for Python Workshop on October 10th, 2024 at Tech Hub from 9:00 AM to 4:30 PM. We're teaching Python programming fundamentals with hands-on coding exercises. Do not ask for any additional details from registering users.",
                 },
             )
 

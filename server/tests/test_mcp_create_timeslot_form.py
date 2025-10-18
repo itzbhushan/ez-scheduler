@@ -1,6 +1,6 @@
 """MCP tool test for creating a timeslot-based form (MR-TS-5).
 
-Note: This test exercises the MCP create_form tool end-to-end and thus
+Note: This test exercises the MCP create_or_update_form tool end-to-end and thus
 depends on the LLM to extract a timeslot_schedule. It is skipped by default
 in CI unless the environment provides a working LLM key and stable behavior.
 """
@@ -36,9 +36,9 @@ async def test_mcp_create_timeslot_form(
     # Call MCP tool
     async with Client(mcp_client) as client:
         tools = await client.list_tools()
-        assert any(t.name == "create_form" for t in tools)
+        assert any(t.name == "create_or_update_form" for t in tools)
         result = await client.call_tool(
-            "create_form", {"user_id": user_id, "initial_request": initial_request}
+            "create_or_update_form", {"user_id": user_id, "message": initial_request}
         )
 
     # Normalize string result for sanity check
@@ -119,9 +119,9 @@ async def test_mcp_create_timeslot_form_capacity_two(
 
     async with Client(mcp_client) as client:
         tools = await client.list_tools()
-        assert any(t.name == "create_form" for t in tools)
+        assert any(t.name == "create_or_update_form" for t in tools)
         result = await client.call_tool(
-            "create_form", {"user_id": user_id, "initial_request": initial_request}
+            "create_or_update_form", {"user_id": user_id, "message": initial_request}
         )
 
     msg = (

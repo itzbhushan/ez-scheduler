@@ -6,16 +6,19 @@ from fastmcp import FastMCP
 from ez_scheduler.auth.models import User
 from ez_scheduler.backends.postgres_client import PostgresClient
 from ez_scheduler.config import config
-from ez_scheduler.models.database import get_db
+from ez_scheduler.models.database import get_db, get_redis
 from ez_scheduler.models.signup_form import FormStatus
 from ez_scheduler.routers.request_validator import (
     resolve_form_or_ask,
     validate_publish_allowed,
 )
+from ez_scheduler.services.conversation_manager import ConversationManager
 from ez_scheduler.services.form_field_service import FormFieldService
+from ez_scheduler.services.form_state_manager import FormStateManager
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.signup_form_service import SignupFormService
 from ez_scheduler.tools.create_form import create_form_handler, update_form_handler
+from ez_scheduler.tools.create_or_update_form import CreateOrUpdateFormTool
 from ez_scheduler.tools.get_form_analytics import get_form_analytics_handler
 
 # Configure logging
@@ -31,6 +34,8 @@ mcp = FastMCP("ez-scheduler")
 @mcp.tool()
 async def create_form(user_id: str, initial_request: str) -> str:
     """
+    [DEPRECATED] Use create_or_update_form instead for conversational form building.
+
     Initiates form creation conversation.
 
     Args:
@@ -94,7 +99,9 @@ async def update_form(
     url_slug: str | None = None,
     title_contains: str | None = None,
 ) -> str:
-    """Update a draft form using natural language.
+    """[DEPRECATED] Use create_or_update_form instead for conversational form building.
+
+    Update a draft form using natural language.
 
     - Resolution order: `form_id → url_slug → title_contains (drafts) → latest draft`.
     - Permissions: Only the form owner may update; archived forms are not editable.
@@ -258,6 +265,76 @@ async def archive_form(
             db_session.close()
     except Exception as e:
         return f"Error archiving form: {str(e)}"
+
+
+@mcp.tool()
+async def create_or_update_form(user_id: str, message: str) -> str:
+    """Create or update a form through natural conversation.
+
+    This unified tool manages conversational form building:
+    - Automatically detects active conversation threads
+    - Maintains conversation history and form state in Redis
+    - Auto-creates new drafts or updates existing ones based on context
+    - Supports multi-turn conversations for gathering form requirements
+
+    Use this for all form creation and update conversations. The tool will:
+    - Remember previous exchanges (30-minute window)
+    - Ask follow-up questions to gather missing information
+    - Automatically create a draft when all required fields are collected
+    - Update the same draft if user continues the conversation with changes
+
+    Args:
+        user_id: Auth0 user identifier (e.g., "auth0|123")
+        message: User's natural language message (e.g., "Create a birthday party form")
+
+    Returns:
+        Natural language response continuing the conversation or confirming form creation
+
+    Examples:
+        create_or_update_form(user_id="auth0|abc", message="Create a form for my birthday party")
+        create_or_update_form(user_id="auth0|abc", message="It's on December 15th at Central Park")
+        create_or_update_form(user_id="auth0|abc", message="Actually, change the date to December 20th")
+    """
+    llm_client = get_llm_client()
+    user = User(user_id=user_id, claims={})
+
+    try:
+        db_session = next(get_db())
+        try:
+            # Initialize services
+            signup_form_service = SignupFormService(db_session)
+            form_field_service = FormFieldService(db_session)
+
+            # Initialize Redis-backed managers
+            redis_client = get_redis()
+            redis_url = config["redis_url"]
+
+            conversation_manager = ConversationManager(
+                redis_client=redis_client,
+                redis_url=redis_url,
+                ttl_seconds=1800,  # 30 minutes
+            )
+            form_state_manager = FormStateManager(
+                redis_client=redis_client, ttl_seconds=1800
+            )
+
+            # Initialize tool
+            tool = CreateOrUpdateFormTool(
+                llm_client=llm_client,
+                conversation_manager=conversation_manager,
+                form_state_manager=form_state_manager,
+                signup_form_service=signup_form_service,
+                form_field_service=form_field_service,
+            )
+
+            # Execute conversational flow
+            return await tool.execute(user=user, message=message)
+
+        finally:
+            db_session.close()
+    except Exception as e:
+        logger.error(f"Error in create_or_update_form: {e}")
+        return f"Error processing your request: {str(e)}"
 
 
 # Create the ASGI app from the MCP server
