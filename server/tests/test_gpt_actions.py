@@ -2,7 +2,7 @@
 
 import logging
 import re
-from datetime import date
+from datetime import date, datetime, timezone
 
 from ez_scheduler.models.signup_form import FormStatus
 from ez_scheduler.services import TimeslotService
@@ -12,110 +12,70 @@ logger = logging.getLogger(__name__)
 
 
 def test_gpt_create_form_success(authenticated_client, signup_service):
-    """Test GPT create form endpoint with complete information"""
+    """Create a form via the conversational GPT endpoint and verify it persists"""
     client, user = authenticated_client
 
-    # user already has a proper Auth0 user ID from the fixture
+    initial_message = (
+        "Create a signup form for John's Birthday Party on December 25th, 2024 at Central Park. "
+        "We're celebrating John's 30th birthday with cake, games, and fun activities. "
+        "Please include name, email, and phone fields."
+    )
 
-    try:
-        # Test the GPT create form endpoint
-        response = client.post(
-            "/gpt/create-form",
-            json={
-                "description": "Create a signup form for John's Birthday Party on December 25th, 2024 at Central Park. We're celebrating John's 30th birthday with cake, games, and fun activities. Please include name, email, and phone fields. No other fields are necessary.",
-            },
-        )
+    first_response = client.post(
+        "/gpt/create-or-update-form", json={"message": initial_message}
+    )
+    assert first_response.status_code == 200, first_response.text
 
-        logger.info(f"GPT create form response status: {response.status_code}")
-        logger.info(f"GPT create form response: {response.text}")
+    finalize_response = client.post(
+        "/gpt/create-or-update-form",
+        json={"message": "Those details look good. Please finalize the form now."},
+    )
+    assert finalize_response.status_code == 200, finalize_response.text
+    finalize_payload = finalize_response.json()
+    result_str = finalize_payload.get("response", "")
+    assert isinstance(result_str, str) and len(result_str) > 0
 
-        # Verify response status
-        assert (
-            response.status_code == 200
-        ), f"Expected 200, got {response.status_code}: {response.text}"
-
-        # Parse JSON response
-        response_json = response.json()
-        assert (
-            "response" in response_json
-        ), f"Expected 'response' field in JSON: {response_json}"
-        result_str = response_json["response"]
-
-        # Extract form URL slug from response
-        url_pattern = r"form/([a-zA-Z0-9-]+)"
-        url_match = re.search(url_pattern, result_str)
-
-        assert url_match, f"Could not find form URL pattern in response: {result_str}"
-        url_slug = url_match.group(1)
-
-        # Query database via service to verify form was created
-        created_form = signup_service.get_form_by_url_slug(url_slug)
-
-        # Verify form was created in database with correct details
-        assert (
-            created_form is not None
-        ), f"Form with slug '{url_slug}' should exist in database"
-        assert (
-            created_form.user_id == user.user_id
-        ), f"Form should belong to test user {user.user_id}"
-        assert (
-            "john" in created_form.title.lower()
-        ), f"Title '{created_form.title}' should contain 'John'"
-        assert (
-            "birthday" in created_form.title.lower()
-        ), f"Title '{created_form.title}' should contain 'birthday'"
-        assert created_form.event_date == date(
-            2024, 12, 25
-        ), f"Event date should be December 25, 2024 but was {created_form.event_date}"
-        assert (
-            "central park" in created_form.location.lower()
-        ), f"Location '{created_form.location}' should contain 'Central Park'"
-        assert (
-            "birthday" in created_form.description.lower()
-        ), f"Description should mention birthday"
-        assert (
-            created_form.status == FormStatus.DRAFT
-        ), "Form should be created in draft status"
-
-        logger.info(
-            f"✅ GPT form creation test passed - Form {url_slug} created successfully"
-        )
-
-    except Exception as e:
-        logger.error(f"❌ GPT form creation test failed: {e}")
-        raise
+    created_form = signup_service.get_latest_draft_form_for_user(user.user_id)
+    assert created_form is not None, "Expected a draft form to be created"
+    assert created_form.user_id == user.user_id
+    assert "john" in created_form.title.lower()
+    assert "birthday" in created_form.title.lower()
+    assert created_form.event_date == date(2024, 12, 25)
+    assert "central park" in created_form.location.lower()
+    assert "birthday" in created_form.description.lower()
+    assert created_form.status == FormStatus.DRAFT
 
 
 def test_gpt_create_form_timeslots(
     authenticated_client, signup_service, timeslot_service: TimeslotService
 ):
-    """Create a timeslot-based form and verify slots are generated."""
+    """Create a timeslot-based form via the conversational endpoint."""
     client, user = authenticated_client
 
-    description = (
+    initial_message = (
         "Create a signup form for 1-1 soccer coaching between 17:00 and 21:00 on Mondays and Wednesdays "
-        "with 60 minute slots for the next 2 weeks. Start from 2026-10-05. Location is City Park field. "
-        "Only one person can book per timeslot. No need to collect any additional information."
+        "with 60 minute slots for the next 2 weeks starting 2026-10-05. The location is City Park field and "
+        "limit one registration per slot."
     )
 
-    response = client.post("/gpt/create-form", json={"description": description})
+    first_response = client.post(
+        "/gpt/create-or-update-form", json={"message": initial_message}
+    )
+    assert first_response.status_code == 200, first_response.text
 
-    assert response.status_code == 200, response.text
-    result_str = response.json()["response"]
-    url_match = __import__("re").search(r"form/([a-zA-Z0-9-]+)", result_str)
-    assert url_match, f"No form URL found in: {result_str}"
-    url_slug = url_match.group(1)
+    finalize_response = client.post(
+        "/gpt/create-or-update-form",
+        json={"message": "Great, finalize that soccer coaching form for me."},
+    )
+    assert finalize_response.status_code == 200, finalize_response.text
 
-    # Fetch created form
-    form = signup_service.get_form_by_url_slug(url_slug)
+    form = signup_service.get_latest_draft_form_for_user(user.user_id)
     assert form is not None
 
-    # Expect 4 slots/day * 2 days/week * 2 weeks = 16
-    slots = timeslot_service.list_available(form.id)
-    # The list_available filters by now; ensure at least non-zero
-    # Instead, query all slots in range via service's DB (fallback): count >= 1
-    # But ideally, availability should show many if future-dated
-    assert len(slots) >= 1
+    avail_for_count = timeslot_service.list_available(
+        form.id, now=datetime(2025, 10, 1, 12, 0, tzinfo=timezone.utc)
+    )
+    assert len(avail_for_count) == 16
 
 
 def test_gpt_analytics_success(authenticated_client):
@@ -172,16 +132,14 @@ def test_gpt_endpoints_require_authentication():
     client = TestClient(app)
 
     try:
-        # Test create-form endpoint without authentication
+        # Test conversational endpoint without authentication
         response = client.post(
-            "/gpt/create-form",
-            json={"description": "Test form without auth"},
+            "/gpt/create-or-update-form",
+            json={"message": "Test form without auth"},
         )
 
         assert response.status_code == 403, f"Expected 403, got {response.status_code}"
-        assert (
-            "Not authenticated" in response.text
-        ), f"Expected 'Not authenticated' in response: {response.text}"
+        assert "Not authenticated" in response.text
 
         # Test analytics endpoint without authentication
         response = client.post(
@@ -205,37 +163,30 @@ def test_gpt_endpoints_require_authentication():
 
 def test_draft_form_analytics_exclusion(authenticated_client, signup_service):
     """Test that newly created forms are in draft state and excluded from published form analytics"""
-    client, _ = authenticated_client
+    client, user = authenticated_client
 
     try:
-        # Create a new form which should be in draft state by default
+        # Create a new form via the conversational endpoint
+        initial_message = "Create a signup form for Test Event on December 30th, 2025 at Test Venue with basic registration."
         response = client.post(
-            "/gpt/create-form",
-            json={
-                "description": "Create a signup form for Test Event on December 30th, 2025 at Test Venue. Just need basic registration."
-            },
+            "/gpt/create-or-update-form", json={"message": initial_message}
         )
+        assert response.status_code == 200, response.text
 
-        logger.info(f"Draft form creation response status: {response.status_code}")
-        assert (
-            response.status_code == 200
-        ), f"Expected 200, got {response.status_code}: {response.text}"
+        finalize_response = client.post(
+            "/gpt/create-or-update-form",
+            json={"message": "Great, finalize that form."},
+        )
+        assert finalize_response.status_code == 200, finalize_response.text
 
-        # Extract form URL slug from response
-        response_json = response.json()
-        result_str = response_json["response"]
-        url_pattern = r"form/([a-zA-Z0-9-]+)"
-        url_match = re.search(url_pattern, result_str)
-        assert url_match, f"Could not find form URL pattern in response: {result_str}"
-        url_slug = url_match.group(1)
+        created_form = signup_service.get_latest_draft_form_for_user(user.user_id)
+        assert created_form is not None, "Expected draft form to exist"
 
         # 1. Verify form is in draft state using get_form_by_url_slug
-        created_form = signup_service.get_form_by_url_slug(url_slug)
-        assert created_form is not None, f"Form with slug '{url_slug}' should exist"
         assert (
             created_form.status == FormStatus.DRAFT
         ), f"Form should be in DRAFT state, but was {created_form.status}"
-        logger.info(f"✅ Form {url_slug} is correctly in DRAFT state")
+        logger.info(f"✅ Form {created_form.url_slug} is correctly in DRAFT state")
 
         # 2. Test published forms count (should be 0)
         published_response = client.post(

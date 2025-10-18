@@ -37,48 +37,38 @@ class TestMCPServerConnection:
                 assert tools is not None, "Should receive tools list"
                 assert len(tools) > 0, "Should have at least one tool"
 
-                # Verify create_form tool exists
+                # Verify key tools exist
                 tool_names = [tool.name for tool in tools]
-                assert (
-                    "create_form" in tool_names,
-                    "update_form" in tool_names,
-                    "publish_form" in tool_names,
-                    "archive_form" in tool_names,
-                ), "create, update, publish and archive tools should be available"
+                assert "create_or_update_form" in tool_names
+                assert "publish_form" in tool_names
+                assert "archive_form" in tool_names
+                assert "get_form_analytics" in tool_names
 
         except Exception as e:
             pytest.fail(f"Failed to connect to MCP server: {e}")
 
     @pytest.mark.asyncio
     async def test_tool_schema_validation(self, mcp_client):
-        """Test that the create_form tool has proper schema"""
+        """Test that the unified form tool exposes the expected schema"""
         try:
             async with Client(mcp_client) as client:
                 tools = await client.list_tools()
-                create_form_tool = next(
-                    (tool for tool in tools if tool.name == "create_form"), None
+                unified_tool = next(
+                    (tool for tool in tools if tool.name == "create_or_update_form"),
+                    None,
                 )
 
-                assert create_form_tool is not None, "create_form tool should exist"
                 assert (
-                    create_form_tool.description is not None
-                ), "Tool should have description"
-                assert (
-                    "form creation" in create_form_tool.description.lower()
-                ), "Description should mention form creation"
+                    unified_tool is not None
+                ), "create_or_update_form tool should exist"
+                assert unified_tool.description, "Tool should have description"
+                assert "conversational" in unified_tool.description.lower()
 
-                # Check input schema if available
-                if (
-                    hasattr(create_form_tool, "inputSchema")
-                    and create_form_tool.inputSchema
-                ):
-                    schema = create_form_tool.inputSchema
-                    assert "user_id" in str(
-                        schema
-                    ), "Schema should include user_id parameter"
-                    assert "initial_request" in str(
-                        schema
-                    ), "Schema should include initial_request parameter"
+                if hasattr(unified_tool, "inputSchema") and unified_tool.inputSchema:
+                    schema = unified_tool.inputSchema
+                    schema_str = str(schema)
+                    assert "user_id" in schema_str
+                    assert "message" in schema_str
 
         except Exception as e:
             pytest.fail(f"Failed to validate tool schema: {e}")
