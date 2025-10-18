@@ -150,63 +150,93 @@ async def update_form(
 
 # New MCP tool: publish_form
 @mcp.tool()
-async def publish_form(
-    user_id: str,
-    form_id: str | None = None,
-    url_slug: str | None = None,
-    title_contains: str | None = None,
-) -> str:
-    """Publish a draft form so it accepts registrations.
+async def publish_form(user_id: str) -> str:
+    """Publish the draft form from the active conversational context.
 
-    - Resolution order: `form_id → url_slug → title_contains (drafts) → latest draft`.
-    - Permissions: Only the form owner may publish; archived forms cannot be published.
-    - Idempotent: If already published, returns a no-op message.
+    This mirrors the `/gpt/publish-form` endpoint by:
+    - Locating the active conversation thread in Redis
+    - Ensuring the draft is complete before publishing
+    - Verifying ownership and archived status
+    - Clearing the conversation history on success
 
     Args:
         user_id: Auth0 user identifier (e.g., "auth0|123").
-        form_id: Optional UUID of the target form.
-        url_slug: Optional URL slug of the target form.
-        title_contains: Optional substring to match a single draft title.
 
     Returns:
         Text message describing the result.
     """
-    # Create User for the handler
     user = User(user_id=user_id, claims={})
     try:
         db_session = next(get_db())
+        redis_client = get_redis()
         try:
             signup_form_service = SignupFormService(db_session)
-
-            # Resolve target form using shared helper
-            form = resolve_form_or_ask(
-                signup_form_service,
-                user,
-                form_id=form_id,
-                url_slug=url_slug,
-                title_contains=title_contains,
-                fallback_latest=True,
+            form_state_manager = FormStateManager(
+                redis_client=redis_client, ttl_seconds=1800
             )
-            if not form:
-                return "Form not found"
 
-            # Status/ownership checks
+            active_thread_key = f"active_thread:{user.user_id}"
+            thread_id = redis_client.get(active_thread_key)
+            if not thread_id:
+                return "No active form conversation found. Please create a form first before publishing."
+
+            if isinstance(thread_id, bytes):
+                thread_id = thread_id.decode("utf-8")
+
+            form_state = form_state_manager.get_state(thread_id) or {}
+            form_id_str = form_state.get("form_id")
+            if not form_id_str:
+                return "No form has been created in this conversation yet. Please complete the form creation first."
+
+            if not form_state.get("is_complete", False):
+                return (
+                    "This form cannot be published yet. It's missing required information. "
+                    "Please provide all necessary details (title, date, location, description) before publishing."
+                )
+
+            try:
+                form = signup_form_service.get_form_by_id(UUID(form_id_str))
+            except Exception as fetch_error:
+                logger.error(f"Failed to get form {form_id_str}: {fetch_error}")
+                form = None
+
+            if not form:
+                return "Form not found. It may have been deleted."
+
             err = validate_publish_allowed(form, user)
             if err:
+                if err == "You do not own this form":
+                    return "You don't have permission to publish this form."
                 return err
-            if form.status == FormStatus.PUBLISHED:
-                return "This form is already published"
 
-            # Update status to published
+            if form.status == FormStatus.PUBLISHED:
+                return "This form is already published."
+
             result = signup_form_service.update_signup_form(
                 form.id, {"status": FormStatus.PUBLISHED}
             )
             if not result.get("success"):
-                return f"Publish failed: {result.get('error', 'unknown error')}"
-            return "Form published successfully"
+                return f"Failed to publish form: {result.get('error', 'Unknown error')}"
+
+            redis_url = config["redis_url"]
+            conversation_manager = ConversationManager(
+                redis_client=redis_client, redis_url=redis_url, ttl_seconds=1800
+            )
+            try:
+                conversation_manager.clear_history(thread_id)
+                logger.info(
+                    f"Cleared conversation thread after publishing form {form.id}"
+                )
+            except Exception as clear_error:
+                logger.warning(
+                    f"Failed to clear conversation thread after publish {form.id}: {clear_error}"
+                )
+
+            return "Form published successfully!"
         finally:
             db_session.close()
     except Exception as e:
+        logger.error(f"Error publishing form for user {user.user_id}: {e}")
         return f"Error publishing form: {str(e)}"
 
 

@@ -313,6 +313,7 @@ async def gpt_analytics(
 @router.post(
     "/create-or-update-form",
     summary="Create or Update Form (Conversational)",
+    openapi_extra={"x-openai-isConsequential": True},
     response_model=GPTResponse,
 )
 async def gpt_create_or_update_form(

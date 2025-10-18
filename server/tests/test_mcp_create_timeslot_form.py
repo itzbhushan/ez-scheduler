@@ -34,6 +34,7 @@ async def test_mcp_create_timeslot_form(
     )
 
     # Call MCP tool
+    draft_form = None
     async with Client(mcp_client) as client:
         tools = await client.list_tools()
         assert any(t.name == "create_or_update_form" for t in tools)
@@ -41,17 +42,45 @@ async def test_mcp_create_timeslot_form(
             "create_or_update_form", {"user_id": user_id, "message": initial_request}
         )
 
-    # Normalize string result for sanity check
-    message = (
-        result
-        if isinstance(result, str)
-        else getattr(result, "data", None) or str(result)
-    )
-    assert isinstance(message, str) and len(message) > 0
+        # Normalize string result for sanity check
+        message = (
+            result
+            if isinstance(result, str)
+            else getattr(result, "data", None) or str(result)
+        )
+        assert isinstance(message, str) and len(message) > 0
 
-    # Verify a draft form exists
-    form = signup_service.get_latest_draft_form_for_user(user_id)
-    assert form is not None, "Expected a draft form to be created via MCP"
+        # Confirm completeness so the publish tool has the form in context
+        finalize_result = await client.call_tool(
+            "create_or_update_form",
+            {
+                "user_id": user_id,
+                "message": "Thanks, that covers everything. Save the form now so I can publish it.",
+            },
+        )
+        finalize_message = (
+            finalize_result
+            if isinstance(finalize_result, str)
+            else getattr(finalize_result, "data", None) or str(finalize_result)
+        )
+        assert isinstance(finalize_message, str) and len(finalize_message) > 0
+
+        draft_form = signup_service.get_latest_draft_form_for_user(user_id)
+        assert draft_form is not None, "Expected a draft form to be created via MCP"
+
+        # Publish through MCP tool to mirror production flow
+        publish_result = await client.call_tool("publish_form", {"user_id": user_id})
+        publish_message = (
+            publish_result
+            if isinstance(publish_result, str)
+            else getattr(publish_result, "data", None) or str(publish_result)
+        )
+        assert publish_message == "Form published successfully!"
+
+    # Verify the form has been published
+    assert draft_form is not None
+    form = signup_service.reload_form(draft_form.id)
+    assert form is not None, "Expected the form to be persisted via MCP"
 
     # Verify expected number of timeslots generated (16 total for the schedule above)
     # Use a fixed 'now' before the schedule start so all are considered available
@@ -62,13 +91,7 @@ async def test_mcp_create_timeslot_form(
         len(avail_for_count) == 16
     ), f"Expected 16 slots, found {len(avail_for_count)}"
 
-    # publish the form. MCP "publish_form" tool isn't working here. So using service directly.
-    # TODO: Debug why "publish_form" and "update_form" tools are failing.
-    signup_service.update_signup_form(form.id, {"status": FormStatus.PUBLISHED})
-
-    # Refresh and ensure published
-    form = signup_service.get_form_by_url_slug(form.url_slug)
-    assert form is not None and form.status == FormStatus.PUBLISHED
+    assert form.status == FormStatus.PUBLISHED
 
     # Book a couple of timeslots via public POST and verify they are no longer available
     avail = timeslot_service.list_available(form.id)
@@ -117,6 +140,7 @@ async def test_mcp_create_timeslot_form_capacity_two(
         "Location is Community Center. Keep fields to name, email, and phone. Limit 2 registration per slot."
     )
 
+    draft_form = None
     async with Client(mcp_client) as client:
         tools = await client.list_tools()
         assert any(t.name == "create_or_update_form" for t in tools)
@@ -124,14 +148,40 @@ async def test_mcp_create_timeslot_form_capacity_two(
             "create_or_update_form", {"user_id": user_id, "message": initial_request}
         )
 
-    msg = (
-        result
-        if isinstance(result, str)
-        else getattr(result, "data", None) or str(result)
-    )
-    assert isinstance(msg, str) and len(msg) > 0
+        msg = (
+            result
+            if isinstance(result, str)
+            else getattr(result, "data", None) or str(result)
+        )
+        assert isinstance(msg, str) and len(msg) > 0
 
-    form = signup_service.get_latest_draft_form_for_user(user_id)
+        finalize_result = await client.call_tool(
+            "create_or_update_form",
+            {
+                "user_id": user_id,
+                "message": "Looks good. Please finalize this form so I can publish it.",
+            },
+        )
+        finalize_message = (
+            finalize_result
+            if isinstance(finalize_result, str)
+            else getattr(finalize_result, "data", None) or str(finalize_result)
+        )
+        assert isinstance(finalize_message, str) and len(finalize_message) > 0
+
+        draft_form = signup_service.get_latest_draft_form_for_user(user_id)
+        assert draft_form is not None
+
+        publish_result = await client.call_tool("publish_form", {"user_id": user_id})
+        publish_message = (
+            publish_result
+            if isinstance(publish_result, str)
+            else getattr(publish_result, "data", None) or str(publish_result)
+        )
+        assert publish_message == "Form published successfully!"
+
+    assert draft_form is not None
+    form = signup_service.reload_form(draft_form.id)
     assert form is not None
 
     # 16 slots available before the schedule, same as above
@@ -140,10 +190,7 @@ async def test_mcp_create_timeslot_form_capacity_two(
     )
     assert len(avail_for_count) == 16
 
-    # Publish via service
-    signup_service.update_signup_form(form.id, {"status": FormStatus.PUBLISHED})
-    form = signup_service.get_form_by_url_slug(form.url_slug)
-    assert form is not None and form.status == FormStatus.PUBLISHED
+    assert form.status == FormStatus.PUBLISHED
 
     # Choose a slot and book twice successfully, third attempt should fail
     avail = timeslot_service.list_available(form.id)
