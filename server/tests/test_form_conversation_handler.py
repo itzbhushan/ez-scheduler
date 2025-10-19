@@ -431,7 +431,7 @@ async def test_timeslot_based_reservation(handler, mock_current_user, clean_redi
     response2 = await handler.process_message(
         user=test_user,
         thread_id=thread_id,
-        user_message="March 25th, 2025 at 123 Main Street Suite 500, 30-minute slots from 9am to 5pm",
+        user_message="March 25th, 2025 at 123 Main Street Suite 500, 30-minute slots starting at 9am and ending at 5pm, with a lunch break from 12pm to 1pm",
     )
 
     # Should extract date, location, and timeslot info
@@ -505,6 +505,19 @@ async def test_timeslot_based_reservation(handler, mock_current_user, clean_redi
     is_5pm = end_str.startswith("17:") or end_str.startswith("5:") or "17:00" in end_str
     assert is_5pm, f"End time should be 5pm/17:00, got {window_end}"
 
+    # Verify lunch break is excluded
+    if timeslot_schedule.get("excluded_windows"):
+        excluded_windows = timeslot_schedule["excluded_windows"]
+        assert (
+            len(excluded_windows) > 0
+        ), "Should have at least one excluded window for lunch"
+        # Check if any excluded window covers noon (12:00)
+        has_noon_break = any(
+            "12" in str(window.get("start", "")) or "12" in str(window.get("end", ""))
+            for window in excluded_windows
+        )
+        assert has_noon_break, "Should have excluded window for lunch break around noon"
+
     # Verify capacity if it was set (LLM may or may not ask about capacity)
     capacity = timeslot_schedule.get("capacity_per_slot")
     if capacity is not None:
@@ -519,16 +532,28 @@ async def test_timeslot_based_reservation(handler, mock_current_user, clean_redi
     assert response1.is_complete is False
     assert response2.is_complete is False
 
-    # If still asking about additional fields, answer again
+    # If still asking about additional fields or capacity, answer again
     if not response4.is_complete and (
         "collect" in response4.response_text.lower()
         or "information" in response4.response_text.lower()
         or "specific" in response4.response_text.lower()
+        or "capacity" in response4.response_text.lower()
+        or "limit" in response4.response_text.lower()
+        or "person" in response4.response_text.lower()
     ):
+        # Answer based on what's being asked
+        if (
+            "capacity" in response4.response_text.lower()
+            or "limit" in response4.response_text.lower()
+        ):
+            answer = "One person per slot please"
+        else:
+            answer = "Just basic contact details, no additional fields"
+
         response5 = await handler.process_message(
             user=test_user,
             thread_id=thread_id,
-            user_message="Just basic contact details, no additional fields",
+            user_message=answer,
         )
         # After answering all questions, form should be complete
         assert (

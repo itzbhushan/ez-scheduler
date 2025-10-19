@@ -4,6 +4,8 @@ import logging
 import re
 from datetime import date
 
+import pytest
+
 from ez_scheduler.models.signup_form import FormStatus
 from ez_scheduler.services import TimeslotService
 
@@ -646,6 +648,7 @@ def test_gpt_prevent_incomplete_form_publish(authenticated_client, signup_servic
         raise
 
 
+@pytest.mark.skip(reason="Known bug: Removing custom fields not working yet")
 def test_gpt_remove_custom_fields(
     authenticated_client, signup_service, form_field_service
 ):

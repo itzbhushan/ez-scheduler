@@ -78,30 +78,10 @@ If user requests bookable timeslots (e.g., "Mondays 5-9pm for next 2 weeks with 
 - start_from_date: ISO date YYYY-MM-DD (optional, defaults to today)
 - capacity_per_slot: integer or null for unlimited
 
-CRITICAL CONSTRAINTS:
-- **capacity_per_slot MUST be a single integer** - all slots in the form share the same capacity
-- **NEVER use a dict/object for capacity_per_slot** - if user requests different capacities for different days, inform them all slots must have the same capacity and ask which capacity to use
+Important:
 - Only include timeslot_schedule when user wants bookable slots
 - Don't include single start/end times when timeslots are present
 - If capacity not specified, ask: "Do you want to limit bookings per slot, or keep it unlimited?"
-
-UPDATING TIMESLOTS (for existing forms):
-When user wants to add/remove/modify timeslots on an existing form, use `timeslot_mutations` instead of `timeslot_schedule`:
-- Include `timeslot_mutations` object with optional "add" and/or "remove" arrays
-- "add": array of schedule objects (same structure as timeslot_schedule above)
-- "remove": array of removal specs with:
-  * days_of_week: ["monday", "wednesday", ...] (required)
-  * window_start: "HH:MM" (optional, for specific time range)
-  * window_end: "HH:MM" (optional, must be provided if window_start is)
-  * weeks_ahead: integer (1-12) OR end_date: "YYYY-MM-DD" (required - one must be provided to bound the range)
-    **IMPORTANT**: weeks_ahead must be between 1-12. Use 12 to remove all matching slots in the form's time range.
-  * start_from_date: ISO date YYYY-MM-DD (CRITICAL: Use the form's original event_date/start date when removing slots from an existing form)
-  * time_zone: IANA timezone (optional)
-
-Examples (assume form has event_date="2026-10-05"):
-- User says "Remove the 11AM slot" → include remove spec with days_of_week, window_start="11:00", window_end="12:00", weeks_ahead=12, start_from_date="2026-10-05"
-- User says "Remove Wednesday slots" → include remove spec with days_of_week=["wednesday"], weeks_ahead=12, start_from_date="2026-10-05"
-- User says "Add Saturday slots" → include add spec with days_of_week=["saturday"]
 
 CUSTOM FORM FIELDS (intelligent suggestions):
 Standard fields (always included): name, email, phone
@@ -126,16 +106,6 @@ CUSTOM FIELD GUIDELINES:
 3. For events needing custom fields, ASK: "Would you like to collect [suggestions]? Or keep it simple?"
 4. NEVER auto-add custom fields without confirmation
 5. Only create form after user confirms custom field preferences
-
-UPDATING CUSTOM FIELDS (when form already exists):
-When user wants to add/remove/modify fields:
-- ALWAYS return the COMPLETE custom_fields array in extracted_data
-- To REMOVE a field: omit it from the custom_fields array
-- To ADD a field: include it in the custom_fields array
-- To MODIFY a field: include the updated version in the array
-- Example: If form has [field_a, field_b, field_c] and user says "remove field_b",
-  return custom_fields: [field_a, field_c]
-- NEVER return an empty custom_fields array unless user explicitly wants NO custom fields
 
 BUTTON CONFIGURATION (always determine for complete forms):
 Analyze event context to determine button type:
@@ -229,16 +199,6 @@ RESPONSE FORMAT (JSON):
             "weeks_ahead": 2,
             "start_from_date": "2025-10-09",
             "capacity_per_slot": 1
-        }} or null,
-        "timeslot_mutations": {{
-            "add": [{{ /* same structure as timeslot_schedule */ }}],
-            "remove": [{{
-                "days_of_week": ["wednesday"],
-                "window_start": "11:00",
-                "window_end": "12:00",
-                "weeks_ahead": 1,
-                "start_from_date": "2025-10-09"
-            }}]
         }} or null,
         "custom_fields": [
             {{
@@ -480,22 +440,9 @@ RESPONSE MUST START WITH {{ and END WITH }}"""
         # Step 3: Build messages array (history + new message)
         messages = history + [{"role": "user", "content": user_message}]
 
-        # Step 4: Inject current date and form state into system prompt
+        # Step 4: Inject current date into system prompt
         current_date = datetime.now().strftime("%Y-%m-%d")
         system_prompt = self.FORM_BUILDER_PROMPT.format(current_date=current_date)
-
-        # Step 4b: If form exists (has custom_fields or form_id), include current state
-        if current_state.get("custom_fields") or current_state.get("form_id"):
-            state_context = f"\n\nCURRENT FORM STATE:\n"
-            if current_state.get("title"):
-                state_context += f"Title: {current_state['title']}\n"
-            if current_state.get("custom_fields"):
-                state_context += f"Existing Custom Fields: {json.dumps(current_state['custom_fields'], indent=2)}\n"
-            if current_state.get("form_id"):
-                state_context += f"Form ID: {current_state['form_id']} (this form is already created)\n"
-
-            state_context += "\nWhen user requests field changes, return the COMPLETE custom_fields array with modifications applied."
-            system_prompt += state_context
 
         # Step 5: Call LLM with conversation context
         try:
@@ -529,17 +476,7 @@ RESPONSE MUST START WITH {{ and END WITH }}"""
             f"LLM is_complete: {is_complete}, extracted fields: {list(extracted_data.keys())}"
         )
 
-        # Debug: Log custom_fields if present
-        if "custom_fields" in extracted_data:
-            field_names = [
-                f.get("field_name") for f in extracted_data.get("custom_fields", [])
-            ]
-            logger.info(f"LLM returned custom_fields: {field_names}")
-
-        # Step 8: Add is_complete to extracted data so it's stored in Redis
-        extracted_data["is_complete"] = is_complete
-
-        # Step 9: Merge extracted data with current state
+        # Step 8: Merge extracted data with current state
         updated_state = self.form_state_manager.update_state(thread_id, extracted_data)
 
         # Step 9: Update conversation history
