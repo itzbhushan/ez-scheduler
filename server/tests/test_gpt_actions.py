@@ -281,3 +281,116 @@ def test_draft_form_analytics_exclusion(authenticated_client, signup_service):
     except Exception as e:
         logger.error(f"❌ Draft form analytics exclusion test failed: {e}")
         raise
+
+
+def test_gpt_conversational_form_creation(authenticated_client, signup_service):
+    """Test the new conversational create-or-update-form endpoint with multi-turn conversation"""
+    client, user = authenticated_client
+
+    try:
+        # Turn 1: Start conversation
+        response1 = client.post(
+            "/gpt/create-or-update-form",
+            json={"message": "Create a form for my birthday party"},
+        )
+
+        logger.info(f"Turn 1 response status: {response1.status_code}")
+        logger.info(f"Turn 1 response: {response1.text}")
+
+        assert (
+            response1.status_code == 200
+        ), f"Expected 200, got {response1.status_code}: {response1.text}"
+
+        response1_json = response1.json()
+        assert "response" in response1_json
+        result1 = response1_json["response"]
+
+        # Expect a question about event details (could be about date, name, or other details)
+        # LLM might ask about whose birthday, when, where, etc.
+        assert any(
+            keyword in result1.lower()
+            for keyword in ["when", "date", "whose", "who", "where", "location"]
+        ), f"Expected follow-up question, got: {result1}"
+        logger.info(f"✅ Turn 1: Got expected follow-up question: {result1}")
+
+        # Turn 2: Provide name
+        response2 = client.post(
+            "/gpt/create-or-update-form",
+            json={"message": "It's for Sarah"},
+        )
+
+        assert response2.status_code == 200
+        response2_json = response2.json()
+        result2 = response2_json["response"]
+
+        logger.info(f"Turn 2 response: {result2}")
+
+        # Turn 3: Provide date and location
+        response3 = client.post(
+            "/gpt/create-or-update-form",
+            json={"message": "December 15th, 2025 at Central Park, 6-10pm"},
+        )
+
+        assert response3.status_code == 200
+        response3_json = response3.json()
+        result3 = response3_json["response"]
+
+        logger.info(f"Turn 3 response: {result3}")
+
+        # Turn 4: Complete the conversation
+        response4 = client.post(
+            "/gpt/create-or-update-form",
+            json={"message": "Just keep it simple, no custom fields needed"},
+        )
+
+        assert response4.status_code == 200
+        response4_json = response4.json()
+        result4 = response4_json["response"]
+
+        logger.info(f"Turn 4 response: {result4}")
+
+        # Should have created the form
+        url_pattern = r"form/([a-zA-Z0-9-]+)"
+        url_match = re.search(url_pattern, result4)
+
+        assert url_match, f"Expected form URL in response, got: {result4}"
+        url_slug = url_match.group(1)
+
+        # Verify form was created
+        created_form = signup_service.get_form_by_url_slug(url_slug)
+        assert created_form is not None, f"Form with slug '{url_slug}' should exist"
+        assert created_form.user_id == user.user_id
+        assert (
+            "birthday" in created_form.title.lower()
+            or "sarah" in created_form.title.lower()
+        )
+        assert created_form.event_date == date(2025, 12, 15)
+        assert "central park" in created_form.location.lower()
+        assert created_form.status == FormStatus.DRAFT
+
+        logger.info(
+            f"✅ Conversational form creation test passed - Form {url_slug} created"
+        )
+
+        # Turn 5: Update the form (change time)
+        response5 = client.post(
+            "/gpt/create-or-update-form",
+            json={"message": "Change the time to 7-11pm"},
+        )
+
+        assert response5.status_code == 200
+        response5_json = response5.json()
+        result5 = response5_json["response"]
+
+        logger.info(f"Turn 5 (update) response: {result5}")
+
+        # Verify the update message
+        assert (
+            "updated" in result5.lower() or "perfect" in result5.lower()
+        ), f"Expected update confirmation, got: {result5}"
+
+        logger.info("✅ Conversational form update test passed")
+
+    except Exception as e:
+        logger.error(f"❌ Conversational form creation test failed: {e}")
+        raise
