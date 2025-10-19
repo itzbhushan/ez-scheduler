@@ -2,7 +2,8 @@ name: CI/CD Pipeline
 
 on:
   pull_request:
-    branches: [main]
+    # Deploy to staging for PRs targeting ANY branch
+    branches: ['**']
   push:
     branches: [main]
 

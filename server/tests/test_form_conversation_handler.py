@@ -532,16 +532,28 @@ async def test_timeslot_based_reservation(handler, mock_current_user, clean_redi
     assert response1.is_complete is False
     assert response2.is_complete is False
 
-    # If still asking about additional fields, answer again
+    # If still asking about additional fields or capacity, answer again
     if not response4.is_complete and (
         "collect" in response4.response_text.lower()
         or "information" in response4.response_text.lower()
         or "specific" in response4.response_text.lower()
+        or "capacity" in response4.response_text.lower()
+        or "limit" in response4.response_text.lower()
+        or "person" in response4.response_text.lower()
     ):
+        # Answer based on what's being asked
+        if (
+            "capacity" in response4.response_text.lower()
+            or "limit" in response4.response_text.lower()
+        ):
+            answer = "One person per slot please"
+        else:
+            answer = "Just basic contact details, no additional fields"
+
         response5 = await handler.process_message(
             user=test_user,
             thread_id=thread_id,
-            user_message="Just basic contact details, no additional fields",
+            user_message=answer,
         )
         # After answering all questions, form should be complete
         assert (
