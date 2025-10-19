@@ -17,6 +17,7 @@ config = {
     "anthropic_api_key": os.getenv("ANTHROPIC_API_KEY"),
     "database_url": os.getenv("DATABASE_URL"),
     "readonly_database_url": os.getenv("READ_ONLY_DATABASE_URL"),
+    "redis_url": os.getenv("REDIS_URL", "redis://localhost:6379/0"),
     "mcp_port": int(os.getenv("MCP_PORT")),
     "log_level": os.getenv("LOG_LEVEL", "INFO"),
     "app_base_url": os.getenv("APP_BASE_URL"),
