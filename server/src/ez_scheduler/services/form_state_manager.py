@@ -173,8 +173,8 @@ class FormStateManager:
             # Merge updates
             merged_state = self._merge_state(current_state, updates)
 
-            # Note: is_complete is NOT calculated here - it's determined by the LLM
-            # and passed through as part of the updates
+            # Update completeness flag
+            merged_state["is_complete"] = self.is_complete(merged_state)
 
             # Save with TTL (sliding window)
             key = self._state_key(thread_id)
@@ -185,6 +185,44 @@ class FormStateManager:
         except redis.RedisError as e:
             logger.error(f"Redis error updating state for thread {thread_id}: {e}")
             raise
+
+    def is_complete(self, state: Dict[str, Any]) -> bool:
+        """
+        Check if form state has all required fields.
+
+        Required fields:
+        - title (non-empty string)
+        - event_date (non-empty string)
+        - location (non-empty string)
+        - description (non-empty string)
+        - button_config.button_type (non-empty string)
+        - button_config.primary_button_text (non-empty string)
+
+        Args:
+            state: Form state dictionary to validate
+
+        Returns:
+            True if all required fields are present and non-empty
+        """
+        required_fields = ["title", "event_date", "location", "description"]
+
+        # Check basic required fields
+        for field in required_fields:
+            value = state.get(field)
+            if not value or (isinstance(value, str) and not value.strip()):
+                return False
+
+        # Check button_config
+        button_config = state.get("button_config", {})
+        if button_config is None:
+            return False
+
+        if not button_config.get("button_type") or not button_config.get(
+            "primary_button_text"
+        ):
+            return False
+
+        return True
 
     def clear_state(self, thread_id: str) -> None:
         """
