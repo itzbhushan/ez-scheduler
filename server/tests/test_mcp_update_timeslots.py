@@ -16,7 +16,6 @@ from ez_scheduler.services import TimeslotService
 from ez_scheduler.services.signup_form_service import SignupFormService
 
 
-@pytest.mark.skip(reason="Flaky test, fix later")
 async def test_mcp_update_timeslots_remove_and_add(
     mcp_client,
     signup_service: SignupFormService,
@@ -28,7 +27,7 @@ async def test_mcp_update_timeslots_remove_and_add(
     # Create a timeslot form via MCP covering Mon–Fri 10–11 AM for 2 weeks (UTC)
     initial_request = (
         "Create a signup form for coding mentorship between 10:00 and 11:00 from Monday to Friday"
-        "with 60 minute slots for the next 2 weeks, starting 2025-10-06. Time zone UTC. "
+        "with 60 minute slots for the next 2 weeks, starting 2026-10-05. Time zone UTC. "
         "Location is Library. Keep fields to name, email, and phone. Limit 1 registration per slot."
     )
 
@@ -72,7 +71,7 @@ async def test_mcp_update_timeslots_remove_and_add(
 
     # Verify via service list_upcoming for robustness
     upcoming = timeslot_service.list_upcoming(
-        form.id, now=datetime(2025, 10, 1, 12, 0, tzinfo=timezone.utc)
+        form.id, now=datetime(2026, 10, 1, 12, 0, tzinfo=timezone.utc)
     )
     # Avoid brittle exact counts; validate predicates instead
     pairs = [(s.start_at.weekday(), s.start_at.hour) for s in upcoming]
