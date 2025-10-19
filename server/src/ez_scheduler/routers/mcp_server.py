@@ -17,6 +17,7 @@ from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.form_state_manager import FormStateManager
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.signup_form_service import SignupFormService
+from ez_scheduler.tools.create_form import create_form_handler, update_form_handler
 from ez_scheduler.tools.create_or_update_form import CreateOrUpdateFormTool
 from ez_scheduler.tools.get_form_analytics import get_form_analytics_handler
 
@@ -27,6 +28,41 @@ logger = logging.getLogger(__name__)
 # TODO: Consider using fastapi+MCP instead of FastMCP for better integration.
 # Create MCP app
 mcp = FastMCP("ez-scheduler")
+
+
+# Register MCP tools
+@mcp.tool()
+async def create_form(user_id: str, initial_request: str) -> str:
+    """
+    [DEPRECATED] Use create_or_update_form instead for conversational form building.
+
+    Initiates form creation conversation.
+
+    Args:
+        user_id: Auth0 user identifier (required, string format like 'auth0|123')
+        initial_request: Initial form creation request
+
+    Returns:
+        Response from the form creation process
+    """
+    # Create database connections using the standard abstraction
+    llm_client = get_llm_client()
+
+    # Create User for the handler
+    user = User(user_id=user_id, claims={})
+
+    try:
+        # Use the standard database session generator
+        db_session = next(get_db())
+        try:
+            signup_form_service = SignupFormService(db_session)
+            return await create_form_handler(
+                user, initial_request, llm_client, signup_form_service
+            )
+        finally:
+            db_session.close()
+    except Exception as e:
+        return f"Error creating form: {str(e)}"
 
 
 @mcp.tool()
@@ -53,6 +89,63 @@ async def get_form_analytics(user_id: str, analytics_query: str) -> str:
         return await get_form_analytics_handler(user, analytics_query, postgres_client)
     except Exception as e:
         return f"Error processing analytics query: {str(e)}"
+
+
+@mcp.tool()
+async def update_form(
+    user_id: str,
+    update_description: str,
+    form_id: str | None = None,
+    url_slug: str | None = None,
+    title_contains: str | None = None,
+) -> str:
+    """[DEPRECATED] Use create_or_update_form instead for conversational form building.
+
+    Update a draft form using natural language.
+
+    - Resolution order: `form_id → url_slug → title_contains (drafts) → latest draft`.
+    - Permissions: Only the form owner may update; archived forms are not editable.
+    - Behavior: Delegates to the existing update handler to modify core fields
+      (title, date/time, location, description, button config) and custom fields.
+      Returns a message with the preview URL and publish guidance.
+
+    Args:
+        user_id: Auth0 user identifier (e.g., "auth0|123").
+        update_description: Natural language instructions describing the changes.
+        form_id: Optional UUID of the target form.
+        url_slug: Optional URL slug of the target form.
+        title_contains: Optional substring to match a single draft title.
+
+    Returns:
+        Text response describing the result and preview URL.
+
+    Example:
+        update_form(user_id="auth0|abc", update_description="Change title to 'Team Offsite' and add guest_count field", url_slug="team-offsite-1234")
+    """
+    llm_client = get_llm_client()
+
+    # Create User for the handler
+    user = User(user_id=user_id, claims={})
+
+    try:
+        db_session = next(get_db())
+        try:
+            signup_form_service = SignupFormService(db_session)
+            form_field_service = FormFieldService(db_session)
+            return await update_form_handler(
+                user=user,
+                update_description=update_description,
+                llm_client=llm_client,
+                signup_form_service=signup_form_service,
+                form_field_service=form_field_service,
+                form_id=form_id,
+                url_slug=url_slug,
+                title_contains=title_contains,
+            )
+        finally:
+            db_session.close()
+    except Exception as e:
+        return f"Error updating form: {str(e)}"
 
 
 # New MCP tool: publish_form

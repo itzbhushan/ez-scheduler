@@ -2,6 +2,7 @@
 
 import logging
 from datetime import date, time
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -25,10 +26,21 @@ from ez_scheduler.services.form_state_manager import FormStateManager
 from ez_scheduler.services.llm_service import get_llm_client
 from ez_scheduler.services.postgres_service import get_postgres_client
 from ez_scheduler.services.signup_form_service import SignupFormService
+from ez_scheduler.tools.create_form import create_form_handler, update_form_handler
 from ez_scheduler.tools.create_or_update_form import CreateOrUpdateFormTool
 from ez_scheduler.tools.get_form_analytics import get_form_analytics_handler
 
 router = APIRouter(prefix="/gpt", tags=["GPT Actions"])
+
+
+class GPTFormRequest(BaseModel):
+    description: str = Field(
+        ...,
+        description="Natural language description of the event form to create",
+        json_schema_extra={
+            "example": "Create a form for John's birthday party on December 15th at 6 PM at Central Park"
+        },
+    )
 
 
 class GPTAnalyticsRequest(BaseModel):
@@ -66,6 +78,52 @@ class FormMutateRequest(BaseModel):
         default=None,
         description="Publish a draft whose title contains this text (fallback)",
     )
+
+
+class CustomFieldUpdate(BaseModel):
+    field_name: str
+    field_type: str
+    label: str
+    placeholder: Optional[str] = None
+    is_required: Optional[bool] = False
+    options: Optional[List[str]] = None
+    field_order: Optional[int] = None
+
+
+class UpdateFormRequest(FormMutateRequest):
+    update_description: str = Field(
+        ..., description="Natural language description of what to change"
+    )
+
+
+@router.post(
+    "/create-form",
+    summary="Create Signup Form",
+    response_model=GPTResponse,
+    openapi_extra={"x-openai-isConsequential": False},
+    include_in_schema=False,
+)
+async def gpt_create_form(
+    request: GPTFormRequest,
+    user: User = Depends(get_current_user),
+    db_session=Depends(get_db),
+    llm_client: LLMClient = Depends(get_llm_client),
+):
+    """
+    Create a signup form using natural language description.
+
+    This endpoint wraps the existing MCP create_form tool to provide
+    REST API access for ChatGPT Custom GPTs.
+    """
+    signup_form_service = SignupFormService(db_session)
+
+    response_text = await create_form_handler(
+        user=user,
+        initial_request=request.description,
+        llm_client=llm_client,
+        signup_form_service=signup_form_service,
+    )
+    return GPTResponse(response=response_text)
 
 
 @router.post(
@@ -199,6 +257,36 @@ async def gpt_archive_form(
 
 
 @router.post(
+    "/update-form",
+    summary="Update a draft form (core fields and custom fields)",
+    response_model=GPTResponse,
+    openapi_extra={"x-openai-isConsequential": True},
+    include_in_schema=False,
+)
+async def gpt_update_form(
+    request: UpdateFormRequest,
+    user: User = Depends(get_current_user),
+    db_session=Depends(get_db),
+    llm_client: LLMClient = Depends(get_llm_client),
+):
+    """Minimal router: delegate update behavior to tool handler."""
+    signup_form_service = SignupFormService(db_session)
+    form_field_service = FormFieldService(db_session)
+
+    response_text = await update_form_handler(
+        user=user,
+        update_description=request.update_description,
+        llm_client=llm_client,
+        signup_form_service=signup_form_service,
+        form_field_service=form_field_service,
+        form_id=request.form_id,
+        url_slug=request.url_slug,
+        title_contains=request.title_contains,
+    )
+    return GPTResponse(response=response_text)
+
+
+@router.post(
     "/analytics",
     summary="Get Form Analytics",
     response_model=GPTResponse,
@@ -225,7 +313,6 @@ async def gpt_analytics(
 @router.post(
     "/create-or-update-form",
     summary="Create or Update Form (Conversational)",
-    openapi_extra={"x-openai-isConsequential": True},
     response_model=GPTResponse,
 )
 async def gpt_create_or_update_form(
