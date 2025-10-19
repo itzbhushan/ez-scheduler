@@ -183,6 +183,18 @@ class TimeslotService:
             select(func.count(Timeslot.id)).where(Timeslot.form_id == form_id)
         ).one()
 
+        # Validate capacity consistency: all slots in a form must have the same capacity
+        if existing_count > 0:
+            existing_capacity_sample = self.db.exec(
+                select(Timeslot.capacity).where(Timeslot.form_id == form_id).limit(1)
+            ).first()
+            if existing_capacity_sample != schedule.capacity_per_slot:
+                raise ValueError(
+                    f"Cannot add slots with capacity {schedule.capacity_per_slot}. "
+                    f"Existing slots have capacity {existing_capacity_sample}. "
+                    f"All slots in a form must have the same capacity."
+                )
+
         candidates: list[tuple[datetime, datetime]] = []
         d = start_date
         while d < end_date:

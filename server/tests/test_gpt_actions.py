@@ -22,9 +22,9 @@ def test_gpt_create_form_success(authenticated_client, signup_service):
     try:
         # Test the GPT create form endpoint
         response = client.post(
-            "/gpt/create-form",
+            "/gpt/create-or-update-form",
             json={
-                "description": "Create a signup form for John's Birthday Party on December 25th, 2024 at Central Park. We're celebrating John's 30th birthday with cake, games, and fun activities. Please include name, email, and phone fields. No other fields are necessary.",
+                "message": "Create a signup form for John's Birthday Party on December 25th, 2024 at Central Park. We're celebrating John's 30th birthday with cake, games, and fun activities. Please include name, email, and phone fields. No other fields are necessary.",
             },
         )
 
@@ -43,9 +43,25 @@ def test_gpt_create_form_success(authenticated_client, signup_service):
         ), f"Expected 'response' field in JSON: {response_json}"
         result_str = response_json["response"]
 
-        # Extract form URL slug from response
+        # Extract form URL slug from response - may need follow-ups for conversational flow
         url_pattern = r"form/([a-zA-Z0-9-]+)"
         url_match = re.search(url_pattern, result_str)
+
+        # Handle conversational follow-ups if LLM asks questions
+        follow_ups = [
+            "Keep it simple with just name, email, and phone",
+            "Yes, that's perfect",
+            "Create it",
+        ]
+        for follow_up in follow_ups:
+            if url_match:
+                break
+            response = client.post(
+                "/gpt/create-or-update-form",
+                json={"message": follow_up},
+            )
+            result_str = response.json()["response"]
+            url_match = re.search(url_pattern, result_str)
 
         assert url_match, f"Could not find form URL pattern in response: {result_str}"
         url_slug = url_match.group(1)
@@ -100,11 +116,24 @@ def test_gpt_create_form_timeslots(
         "Only one person can book per timeslot. No need to collect any additional information."
     )
 
-    response = client.post("/gpt/create-form", json={"description": description})
+    response = client.post("/gpt/create-or-update-form", json={"message": description})
 
     assert response.status_code == 200, response.text
     result_str = response.json()["response"]
     url_match = __import__("re").search(r"form/([a-zA-Z0-9-]+)", result_str)
+
+    # Handle conversational follow-ups if needed
+    follow_ups = ["Yes that's correct", "Looks good", "Create it"]
+    for follow_up in follow_ups:
+        if url_match:
+            break
+        response = client.post(
+            "/gpt/create-or-update-form",
+            json={"message": follow_up},
+        )
+        result_str = response.json()["response"]
+        url_match = __import__("re").search(r"form/([a-zA-Z0-9-]+)", result_str)
+
     assert url_match, f"No form URL found in: {result_str}"
     url_slug = url_match.group(1)
 
@@ -176,8 +205,8 @@ def test_gpt_endpoints_require_authentication():
     try:
         # Test create-form endpoint without authentication
         response = client.post(
-            "/gpt/create-form",
-            json={"description": "Test form without auth"},
+            "/gpt/create-or-update-form",
+            json={"message": "Test form without auth"},
         )
 
         assert response.status_code == 403, f"Expected 403, got {response.status_code}"
@@ -212,9 +241,9 @@ def test_draft_form_analytics_exclusion(authenticated_client, signup_service):
     try:
         # Create a new form which should be in draft state by default
         response = client.post(
-            "/gpt/create-form",
+            "/gpt/create-or-update-form",
             json={
-                "description": "Create a signup form for Test Event on December 30th, 2025 at Test Venue. Just need basic registration."
+                "message": "Create a signup form for Test Event on December 30th, 2025 at Test Venue. Just need basic registration."
             },
         )
 
