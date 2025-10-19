@@ -1,4 +1,4 @@
-"""Tests for MCP update_form tool"""
+"""Tests for MCP create_or_update_form tool"""
 
 import uuid
 from datetime import date
@@ -9,7 +9,7 @@ from fastmcp.client import Client
 
 @pytest.mark.skip(reason="Not sure if this test is even necessary")
 async def test_update_form_no_drafts_returns_guidance(mcp_client):
-    """Calling update_form for a user with no drafts should return guidance.
+    """Calling create_or_update_form for a user with no forms starts new conversation.
 
     This avoids LLM dependency while verifying the tool path executes.
     """
@@ -17,10 +17,10 @@ async def test_update_form_no_drafts_returns_guidance(mcp_client):
 
     async with Client(mcp_client) as client:
         result = await client.call_tool(
-            "update_form",
+            "create_or_update_form",
             {
                 "user_id": test_user_id,
-                "update_description": "Change the title to Updated Title",
+                "message": "Change the title to Updated Title",
             },
         )
 
@@ -39,12 +39,12 @@ async def test_update_form_no_drafts_returns_guidance(mcp_client):
     reason="Stuck here for a while. Lets revisit this test later. Will manually test in staging"
 )
 async def test_update_form_updates_title_and_location(mcp_client, signup_service):
-    """Create via LLM (MCP create_form), then update via LLM (MCP update_form)."""
+    """Create via LLM (MCP create_or_update_form), then update in same conversation."""
 
     user_id = f"auth0|{uuid.uuid4()}"
 
-    # Step 1: Create the form via MCP create_form (LLM-driven)
-    initial_request = (
+    # Step 1: Create the form via MCP create_or_update_form (LLM-driven)
+    initial_message = (
         "Create a signup form titled 'Original Title' for an event on "
         f"{date.today().isoformat()} at Old Venue. Keep it simple."
     )
@@ -52,10 +52,12 @@ async def test_update_form_updates_title_and_location(mcp_client, signup_service
     async with Client(mcp_client) as client:
         tools = await client.list_tools()
         tool_names = {t.name for t in tools}
-        assert "create_form" in tool_names, "create_form tool should be available"
+        assert (
+            "create_or_update_form" in tool_names
+        ), "create_or_update_form tool should be available"
 
         create_result = await client.call_tool(
-            "create_form", {"user_id": user_id, "initial_request": initial_request}
+            "create_or_update_form", {"user_id": user_id, "message": initial_message}
         )
 
     # FastMCP returns a CallToolResult; normalize to message for sanity check
@@ -70,25 +72,19 @@ async def test_update_form_updates_title_and_location(mcp_client, signup_service
     assert created_form is not None, "Form should be created in DB"
     url_slug = created_form.url_slug
 
-    # Step 2: Update the form via MCP update_form (LLM-driven)
+    # Step 2: Update the form via MCP create_or_update_form in same conversation
     new_title = "Updated MCP Title"
     new_location = "Metropolis HQ"
-    update_instruction = (
-        "Update the existing draft form per the following rules. "
-        f"Set the title EXACTLY to '{new_title}' and the location EXACTLY to '{new_location}'. "
-        "Carry forward all other fields from the current snapshot unchanged. "
-        "Respond ONLY with valid JSON matching the documented schema (ConversationResponse), and ensure "
-        "extracted_data includes the 'title' and 'location' keys set to those exact values. "
-        "Do not ask questions."
+    update_message = (
+        f"Change the title to '{new_title}' and the location to '{new_location}'."
     )
 
     async with Client(mcp_client) as client:
         update_result = await client.call_tool(
-            "update_form",
+            "create_or_update_form",
             {
                 "user_id": user_id,
-                "update_description": update_instruction,
-                "url_slug": url_slug,
+                "message": update_message,
             },
         )
 

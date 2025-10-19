@@ -24,10 +24,10 @@ async def test_custom_fields_wedding_workflow(
     async with Client(mcp_client) as client:
         # Step 1: Initial form request (should ask about custom fields)
         result1 = await client.call_tool(
-            "create_form",
+            "create_or_update_form",
             {
                 "user_id": test_user_id,
-                "initial_request": "Create a signup form for Sarah and Michael's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown.",
+                "message": "Create a signup form for Sarah and Michael's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown.",
             },
         )
 
@@ -48,12 +48,12 @@ async def test_custom_fields_wedding_workflow(
             "form/" not in result1_str
         ), "Should ask for custom fields first, not create form immediately"
 
-        # Step 2: User responds with custom field requirements (include all details since each call is stateless)
+        # Step 2: User responds with custom field requirements in the same conversation
         result2 = await client.call_tool(
-            "create_form",
+            "create_or_update_form",
             {
                 "user_id": test_user_id,
-                "initial_request": "Create a signup form for Sarah and Michael's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown. Yes, I need to know how many guests they're bringing and their meal preferences. Meal options are Chicken, Beef, Vegetarian, and Vegan. No other information is needed.",
+                "message": "Yes, I need to know how many guests they're bringing and their meal preferences. Meal options are Chicken, Beef, Vegetarian, and Vegan. No other information is needed.",
             },
         )
 
@@ -253,10 +253,10 @@ async def test_form_creation_without_custom_fields(mcp_client, mock_current_user
     async with Client(mcp_client) as client:
         # Create a simple form without custom fields
         result = await client.call_tool(
-            "create_form",
+            "create_or_update_form",
             {
                 "user_id": test_user_id,
-                "initial_request": "Create a simple signup form for Team Meeting on July 10th, 2024 at Conference Room A. Just need basic contact info.",
+                "message": "Create a simple signup form for Team Meeting on July 10th, 2024 at Conference Room A. Just need basic contact info.",
             },
         )
 
