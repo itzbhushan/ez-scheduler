@@ -94,25 +94,20 @@ class FormStateManager:
 
     def _merge_custom_fields(self, current: list, updates: list) -> list:
         """
-        Merge custom fields lists, updating by field_name.
+        Replace custom fields with the new list from LLM.
+
+        This allows the LLM to add, modify, or remove fields by simply
+        returning the complete desired list of custom fields.
 
         Args:
-            current: Current custom fields list
-            updates: New custom fields to merge
+            current: Current custom fields list (ignored)
+            updates: New custom fields to use
 
         Returns:
-            Merged custom fields list
+            The updates list as-is (complete replacement)
         """
-        # Create dict for O(1) lookup
-        merged_dict = {field["field_name"]: field for field in current}
-
-        # Update with new fields
-        for field in updates:
-            field_name = field.get("field_name")
-            if field_name:
-                merged_dict[field_name] = field
-
-        return list(merged_dict.values())
+        # Complete replacement - LLM returns the full desired list
+        return updates
 
     def _merge_state(
         self, current: Dict[str, Any], updates: Dict[str, Any]

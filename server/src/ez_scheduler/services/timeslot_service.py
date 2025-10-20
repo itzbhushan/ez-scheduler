@@ -183,6 +183,18 @@ class TimeslotService:
             select(func.count(Timeslot.id)).where(Timeslot.form_id == form_id)
         ).one()
 
+        # Validate capacity consistency: all slots in a form must have the same capacity
+        if existing_count > 0:
+            existing_capacity_sample = self.db.exec(
+                select(Timeslot.capacity).where(Timeslot.form_id == form_id).limit(1)
+            ).first()
+            if existing_capacity_sample != schedule.capacity_per_slot:
+                raise ValueError(
+                    f"Cannot add slots with capacity {schedule.capacity_per_slot}. "
+                    f"Existing slots have capacity {existing_capacity_sample}. "
+                    f"All slots in a form must have the same capacity."
+                )
+
         candidates: list[tuple[datetime, datetime]] = []
         d = start_date
         while d < end_date:
@@ -514,6 +526,32 @@ class TimeslotService:
         return TimeslotService.RemoveResult(
             removed_count=removed, skipped_booked=skipped
         )
+
+    def clear_all_unbooked(self, form_id: uuid.UUID) -> int:
+        """Remove all unbooked timeslots for a form.
+
+        This is used when regenerating timeslots based on an updated schedule.
+        Only removes slots with booked_count == 0 or NULL to preserve existing bookings.
+
+        Args:
+            form_id: The form UUID
+
+        Returns:
+            Number of timeslots deleted
+        """
+        stmt = select(Timeslot).where(
+            Timeslot.form_id == form_id,
+            (Timeslot.booked_count == 0) | (Timeslot.booked_count == None),
+        )
+        unbooked_slots = list(self.db.exec(stmt).all())
+
+        for slot in unbooked_slots:
+            self.db.delete(slot)
+
+        if unbooked_slots:
+            self.db.commit()
+
+        return len(unbooked_slots)
 
     # Booking with concurrency safety
     def book_slots(

@@ -96,10 +96,9 @@ def test_update_state_custom_fields_merge(form_state_manager, clean_redis):
     }
     result = form_state_manager.update_state(thread_id, updates2)
 
-    # Should have both fields
-    assert len(result["custom_fields"]) == 2
+    # Should have only one field
+    assert len(result["custom_fields"]) == 1
     field_names = {f["field_name"] for f in result["custom_fields"]}
-    assert "guest_count" in field_names
     assert "dietary_restrictions" in field_names
 
 

@@ -27,7 +27,7 @@ async def test_custom_fields_wedding_workflow(
             "create_or_update_form",
             {
                 "user_id": test_user_id,
-                "message": "Create a signup form for Sarah and Michael's Wedding Reception on June 15th, 2024 at Grand Ballroom downtown.",
+                "message": "Create a signup form for Sarah and Michael's Wedding Reception on June 15th, 2024 from 12-5pm at 123 Main Street, San Jose.",
             },
         )
 
@@ -63,9 +63,10 @@ async def test_custom_fields_wedding_workflow(
 
         # Should now create the form
         assert "form" in result2_str.lower()
-        url_pattern = r"form/([a-zA-Z0-9-]+)"
+        # Match both full URLs (http://localhost:8082/form/slug) and relative paths (form/slug)
+        url_pattern = r"(?:http://[^/]+)?/form/([a-zA-Z0-9-]+)"
         url_match = re.search(url_pattern, result2_str)
-        assert url_match, "Should find form URL"
+        assert url_match, f"Should find form URL in response: {result2_str}"
         url_slug = url_match.group(1)
 
         # Step 3: Verify form was created with custom fields using service
@@ -74,7 +75,7 @@ async def test_custom_fields_wedding_workflow(
         assert created_form is not None, "Form should exist in database"
         assert created_form.title and "sarah" in created_form.title.lower()
         assert created_form.event_date == date(2024, 6, 15)
-        assert "grand ballroom" in created_form.location.lower()
+        assert "san jose" in created_form.location.lower()
         assert created_form.user_id == test_user_id
 
         # Step 4: Verify custom fields were created using service

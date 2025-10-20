@@ -22,9 +22,9 @@ def test_gpt_create_form_success(authenticated_client, signup_service):
     try:
         # Test the GPT create form endpoint
         response = client.post(
-            "/gpt/create-form",
+            "/gpt/create-or-update-form",
             json={
-                "description": "Create a signup form for John's Birthday Party on December 25th, 2024 at Central Park. We're celebrating John's 30th birthday with cake, games, and fun activities. Please include name, email, and phone fields. No other fields are necessary.",
+                "message": "Create a signup form for John's Birthday Party on December 25th, 2024 at Central Park. We're celebrating John's 30th birthday with cake, games, and fun activities. Please include name, email, and phone fields. No other fields are necessary.",
             },
         )
 
@@ -43,9 +43,25 @@ def test_gpt_create_form_success(authenticated_client, signup_service):
         ), f"Expected 'response' field in JSON: {response_json}"
         result_str = response_json["response"]
 
-        # Extract form URL slug from response
+        # Extract form URL slug from response - may need follow-ups for conversational flow
         url_pattern = r"form/([a-zA-Z0-9-]+)"
         url_match = re.search(url_pattern, result_str)
+
+        # Handle conversational follow-ups if LLM asks questions
+        follow_ups = [
+            "Keep it simple with just name, email, and phone",
+            "Yes, that's perfect",
+            "Create it",
+        ]
+        for follow_up in follow_ups:
+            if url_match:
+                break
+            response = client.post(
+                "/gpt/create-or-update-form",
+                json={"message": follow_up},
+            )
+            result_str = response.json()["response"]
+            url_match = re.search(url_pattern, result_str)
 
         assert url_match, f"Could not find form URL pattern in response: {result_str}"
         url_slug = url_match.group(1)
@@ -100,11 +116,24 @@ def test_gpt_create_form_timeslots(
         "Only one person can book per timeslot. No need to collect any additional information."
     )
 
-    response = client.post("/gpt/create-form", json={"description": description})
+    response = client.post("/gpt/create-or-update-form", json={"message": description})
 
     assert response.status_code == 200, response.text
     result_str = response.json()["response"]
     url_match = __import__("re").search(r"form/([a-zA-Z0-9-]+)", result_str)
+
+    # Handle conversational follow-ups if needed
+    follow_ups = ["Yes that's correct", "Looks good", "Create it"]
+    for follow_up in follow_ups:
+        if url_match:
+            break
+        response = client.post(
+            "/gpt/create-or-update-form",
+            json={"message": follow_up},
+        )
+        result_str = response.json()["response"]
+        url_match = __import__("re").search(r"form/([a-zA-Z0-9-]+)", result_str)
+
     assert url_match, f"No form URL found in: {result_str}"
     url_slug = url_match.group(1)
 
@@ -176,8 +205,8 @@ def test_gpt_endpoints_require_authentication():
     try:
         # Test create-form endpoint without authentication
         response = client.post(
-            "/gpt/create-form",
-            json={"description": "Test form without auth"},
+            "/gpt/create-or-update-form",
+            json={"message": "Test form without auth"},
         )
 
         assert response.status_code == 403, f"Expected 403, got {response.status_code}"
@@ -212,9 +241,9 @@ def test_draft_form_analytics_exclusion(authenticated_client, signup_service):
     try:
         # Create a new form which should be in draft state by default
         response = client.post(
-            "/gpt/create-form",
+            "/gpt/create-or-update-form",
             json={
-                "description": "Create a signup form for Test Event on December 30th, 2025 at Test Venue. Just need basic registration."
+                "message": "Create a signup form for Test Event on December 30th, 2025 at Test Venue. Just need basic registration."
             },
         )
 
@@ -648,7 +677,6 @@ def test_gpt_prevent_incomplete_form_publish(authenticated_client, signup_servic
         raise
 
 
-@pytest.mark.skip(reason="Known bug: Removing custom fields not working yet")
 def test_gpt_remove_custom_fields(
     authenticated_client, signup_service, form_field_service
 ):
@@ -660,7 +688,9 @@ def test_gpt_remove_custom_fields(
         response1 = client.post(
             "/gpt/create-or-update-form",
             json={
-                "message": "Create a form for Workshop on Feb 20, 2026 at 123 Main St, Building A. Add custom fields: dietary_restrictions, t_shirt_size, and experience_level"
+                "message": "Create a form for cricket workshop registration in ABC Stadium, Sydney"
+                "next Sunday from 10am to 4pm. There is no limit on maximim participants."
+                "Including the following in the form: dietary_restrictions, t_shirt_size, and experience_level"
             },
         )
         assert response1.status_code == 200
@@ -670,26 +700,6 @@ def test_gpt_remove_custom_fields(
         # May need follow-ups to complete form creation
         url_pattern = r"form/([a-zA-Z0-9-]+)"
         match = re.search(url_pattern, result1)
-
-        follow_ups = [
-            "Yes, add those three custom fields",
-            "That's perfect, create it",
-            "Just create the form as is",
-        ]
-        for i, follow_up in enumerate(follow_ups):
-            if not match:
-                response = client.post(
-                    "/gpt/create-or-update-form",
-                    json={"message": follow_up},
-                )
-                assert response.status_code == 200
-                result1 = response.json()["response"]
-                match = re.search(url_pattern, result1)
-                logger.info(f"Follow-up {i+1} response: {result1}")
-                if not match and i == len(follow_ups) - 1:
-                    assert (
-                        False
-                    ), f"Form not created after {len(follow_ups)} follow-ups: {result1}"
 
         url_slug = match.group(1)
         logger.info(f"Form created with slug: {url_slug}")
@@ -704,8 +714,8 @@ def test_gpt_remove_custom_fields(
         logger.info(f"Initial custom fields: {field_names}")
 
         assert (
-            len(custom_fields) >= 2
-        ), f"Expected at least 2 custom fields, got {len(custom_fields)}: {field_names}"
+            len(custom_fields) == 3
+        ), f"Expected three custom fields, got {len(custom_fields)}: {field_names}"
 
         # Step 2: Remove one of the custom fields
         response2 = client.post(
