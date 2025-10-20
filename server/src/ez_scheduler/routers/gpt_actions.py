@@ -73,6 +73,7 @@ class FormMutateRequest(BaseModel):
     "/publish-form",
     summary="Publish the draft form from current conversation",
     response_model=GPTResponse,
+    openapi_extra={"x-openai-isConsequential": True},
 )
 async def gpt_publish_form(
     user: User = Depends(get_current_user),
@@ -225,8 +226,9 @@ async def gpt_analytics(
 
 @router.post(
     "/create-or-update-form",
-    summary="Create or Update Form (Conversational)",
+    summary="Create or Update Form",
     response_model=GPTResponse,
+    openapi_extra={"x-openai-isConsequential": False},
 )
 async def gpt_create_or_update_form(
     request: GPTConversationRequest,
@@ -265,4 +267,7 @@ async def gpt_create_or_update_form(
     # Execute the conversation
     response_text = await tool.execute(user=user, message=request.message)
 
+    # TODO: According to chat gpt best practices, return a JSON response
+    # instead of a human readable string. he GPT will provide its own natural
+    # language response using the returned data.
     return GPTResponse(response=response_text)
