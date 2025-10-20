@@ -19,9 +19,10 @@ EZ-Scheduler leverages a modern, scalable architecture:
 This architecture enables seamless, AI-driven event signups with real-time interaction and reliable data storage.
 
 ## AI-assisted Development
-* Less than 1% of the code was written by me. Almost all the code is written by Claude and Codex.
-* I reviewed 100% of code. When I found an issue or an anti-pattern, I asked Claude/Codex to fix it.
-    * With Claude code review github actions integrated, I had another reviewer to verify the changes.
+* Humans (I) wrote less than 1% of the code, but reviewed almost all of it (~75%).
+    * Almost all the code is written by Claude and Codex.
+    * With [Claude code review github actions](https://docs.claude.com/en/docs/claude-code/github-actions) integrated, I had another (AI) reviewer to verify the changes.
+    * When we (AI or humans) detected a bug or an anti-pattern, we asked Claude/Codex to fix it.
 * With TDD (Test-driven development), I was confident that any newly generated code didn't cause any regression.
     * Invested most of time in identifying test cases where the system could break and then ask Claude/Codex to address the missing feature/fix the bug
     * Leveraged the staging and localhost environment to give me confidence that any code deployed in prod without breaking anything from the past.
