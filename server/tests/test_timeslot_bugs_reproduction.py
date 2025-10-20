@@ -163,17 +163,26 @@ def test_bug_capacity_per_slot_not_respected(
     ), f"Capacity must be at least 1, got {consistent_capacity}"
 
 
-@pytest.mark.skip(reason="Known bug: Removing specific timeslots not working yet")
+@pytest.mark.skip(
+    reason="Feature not yet implemented: Removing specific timeslots within a window. "
+    "Current TimeslotSchedule model uses a single time window (window_start to window_end) "
+    "and cannot represent gaps like '10-11 and 12-13' (excluding 11-12). "
+    "Would require either: 1) excluded_times field, 2) multiple schedule objects, "
+    "or 3) granular slot deletion API separate from schedule regeneration."
+)
 def test_bug_removing_specific_slots_fails(
     authenticated_client, timeslot_service, signup_service
 ):
     """
-    BUG REPRODUCTION: Removing specific slots doesn't work
+    FEATURE REQUEST: Removing specific slots within a time window
 
     Scenario:
     1. Create Monday 10-13 slots (10AM, 11AM, 12PM)
     2. Remove only 11-12 slot (specific time window)
     3. Verify 10AM and 12PM slots remain, 11AM is removed
+
+    Current limitation: TimeslotSchedule uses window_start/window_end which cannot
+    represent non-contiguous time windows.
     """
     client, _ = authenticated_client
 
@@ -238,7 +247,6 @@ def test_bug_removing_specific_slots_fails(
     ), "11AM slot should be removed"
 
 
-@pytest.mark.skip(reason="Known bug: Removing specific day timeslots not working yet")
 def test_bug_removing_specific_day_keeps_others(
     authenticated_client, timeslot_service, signup_service
 ):

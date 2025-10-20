@@ -527,6 +527,32 @@ class TimeslotService:
             removed_count=removed, skipped_booked=skipped
         )
 
+    def clear_all_unbooked(self, form_id: uuid.UUID) -> int:
+        """Remove all unbooked timeslots for a form.
+
+        This is used when regenerating timeslots based on an updated schedule.
+        Only removes slots with booked_count == 0 or NULL to preserve existing bookings.
+
+        Args:
+            form_id: The form UUID
+
+        Returns:
+            Number of timeslots deleted
+        """
+        stmt = select(Timeslot).where(
+            Timeslot.form_id == form_id,
+            (Timeslot.booked_count == 0) | (Timeslot.booked_count == None),
+        )
+        unbooked_slots = list(self.db.exec(stmt).all())
+
+        for slot in unbooked_slots:
+            self.db.delete(slot)
+
+        if unbooked_slots:
+            self.db.commit()
+
+        return len(unbooked_slots)
+
     # Booking with concurrency safety
     def book_slots(
         self, registration_id: uuid.UUID, timeslot_ids: List[uuid.UUID]

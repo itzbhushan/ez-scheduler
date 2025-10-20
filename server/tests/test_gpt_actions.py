@@ -677,7 +677,6 @@ def test_gpt_prevent_incomplete_form_publish(authenticated_client, signup_servic
         raise
 
 
-@pytest.mark.skip(reason="Known bug: Removing custom fields not working yet")
 def test_gpt_remove_custom_fields(
     authenticated_client, signup_service, form_field_service
 ):
@@ -689,7 +688,9 @@ def test_gpt_remove_custom_fields(
         response1 = client.post(
             "/gpt/create-or-update-form",
             json={
-                "message": "Create a form for Workshop on Feb 20, 2026 at 123 Main St, Building A. Add custom fields: dietary_restrictions, t_shirt_size, and experience_level"
+                "message": "Create a form for cricket workshop registration in ABC Stadium, Sydney"
+                "next Sunday from 10am to 4pm. There is no limit on maximim participants."
+                "Including the following in the form: dietary_restrictions, t_shirt_size, and experience_level"
             },
         )
         assert response1.status_code == 200
@@ -699,26 +700,6 @@ def test_gpt_remove_custom_fields(
         # May need follow-ups to complete form creation
         url_pattern = r"form/([a-zA-Z0-9-]+)"
         match = re.search(url_pattern, result1)
-
-        follow_ups = [
-            "Yes, add those three custom fields",
-            "That's perfect, create it",
-            "Just create the form as is",
-        ]
-        for i, follow_up in enumerate(follow_ups):
-            if not match:
-                response = client.post(
-                    "/gpt/create-or-update-form",
-                    json={"message": follow_up},
-                )
-                assert response.status_code == 200
-                result1 = response.json()["response"]
-                match = re.search(url_pattern, result1)
-                logger.info(f"Follow-up {i+1} response: {result1}")
-                if not match and i == len(follow_ups) - 1:
-                    assert (
-                        False
-                    ), f"Form not created after {len(follow_ups)} follow-ups: {result1}"
 
         url_slug = match.group(1)
         logger.info(f"Form created with slug: {url_slug}")
@@ -733,8 +714,8 @@ def test_gpt_remove_custom_fields(
         logger.info(f"Initial custom fields: {field_names}")
 
         assert (
-            len(custom_fields) >= 2
-        ), f"Expected at least 2 custom fields, got {len(custom_fields)}: {field_names}"
+            len(custom_fields) == 3
+        ), f"Expected three custom fields, got {len(custom_fields)}: {field_names}"
 
         # Step 2: Remove one of the custom fields
         response2 = client.post(

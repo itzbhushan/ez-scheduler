@@ -388,10 +388,19 @@ class CreateOrUpdateFormTool:
                         schedule_dict.pop("start_from_date", None)
 
                 schedule = TimeslotSchedule(**schedule_dict)
+
+                # Clear existing unbooked timeslots before regenerating
+                # This ensures the schedule reflects the latest user intent
+                delete_count = ts_service.clear_all_unbooked(form_id)
+                if delete_count > 0:
+                    timeslot_summary.append(f"Removed {delete_count} old timeslots")
+                    logger.info(
+                        f"Deleted {delete_count} unbooked timeslots for form {form_id}"
+                    )
+
+                # Generate new timeslots based on updated schedule
                 result = ts_service.add_schedule(form_id, schedule)
-                timeslot_summary.append(
-                    f"Timeslots: {result.added_count} added ({result.skipped_existing} existing)"
-                )
+                timeslot_summary.append(f"Generated {result.added_count} new timeslots")
             except Exception as e:
                 logger.warning(f"Failed to update timeslots: {e}")
 
