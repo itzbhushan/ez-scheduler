@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """EZ Scheduler - Combined MCP and Web Server"""
 
-import logging
-
 import uvicorn
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastmcp import FastMCP
 
 from ez_scheduler.config import config
+from ez_scheduler.logging_config import get_logger, setup_logging
 from ez_scheduler.routers.docs import docs_router, set_app_instance
 from ez_scheduler.routers.gpt_actions import router as gpt_router
 from ez_scheduler.routers.health import health
@@ -17,9 +16,9 @@ from ez_scheduler.routers.mcp_server import mcp_app
 from ez_scheduler.routers.oauth import router as oauth_router
 from ez_scheduler.routers.registration import router as registration_router
 
-# Configure logging
-logging.basicConfig(level=getattr(logging, config["log_level"]))
-logger = logging.getLogger(__name__)
+# Configure logging (INFO -> stdout, WARNING/ERROR -> stderr)
+setup_logging()
+logger = get_logger(__name__)
 
 
 # Create FastAPI app

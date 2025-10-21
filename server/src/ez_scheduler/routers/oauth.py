@@ -1,4 +1,3 @@
-import logging
 from enum import Enum
 from typing import Annotated
 from urllib.parse import urlencode
@@ -9,12 +8,11 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from ez_scheduler.config import config
+from ez_scheduler.logging_config import get_logger
 
 router = APIRouter(prefix="/oauth", tags=["Authentication"], include_in_schema=False)
 
-# Configure logging
-logging.basicConfig(level=getattr(logging, config["log_level"]))
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ResponseType(Enum):

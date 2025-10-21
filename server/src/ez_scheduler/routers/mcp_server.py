@@ -1,4 +1,3 @@
-import logging
 from uuid import UUID
 
 from fastmcp import FastMCP
@@ -6,6 +5,7 @@ from fastmcp import FastMCP
 from ez_scheduler.auth.models import User
 from ez_scheduler.backends.postgres_client import PostgresClient
 from ez_scheduler.config import config
+from ez_scheduler.logging_config import get_logger
 from ez_scheduler.models.database import get_db, get_redis
 from ez_scheduler.models.signup_form import FormStatus
 from ez_scheduler.routers.request_validator import (
@@ -20,9 +20,7 @@ from ez_scheduler.services.signup_form_service import SignupFormService
 from ez_scheduler.tools.create_or_update_form import CreateOrUpdateFormTool
 from ez_scheduler.tools.get_form_analytics import get_form_analytics_handler
 
-# Configure logging
-logging.basicConfig(level=getattr(logging, config["log_level"]))
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # TODO: Consider using fastapi+MCP instead of FastMCP for better integration.
 # Create MCP app
