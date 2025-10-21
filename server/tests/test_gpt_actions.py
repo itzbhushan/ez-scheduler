@@ -149,48 +149,43 @@ def test_gpt_create_form_timeslots(
     assert len(slots) >= 1
 
 
-def test_gpt_analytics_success(authenticated_client):
+@pytest.mark.parametrize(
+    "query,description",
+    [
+        ("How many active forms do I have?", "Basic query"),
+        (
+            "Show my events happening this week",
+            "Date range query - tests PostgreSQL date functions",
+        ),
+        (
+            "How many forms did I create this month?",
+            "Date extraction query - tests EXTRACT functions",
+        ),
+    ],
+)
+def test_gpt_analytics_success(authenticated_client, query, description):
     """Test GPT analytics endpoint with various query types including date-based queries"""
-    client, user = authenticated_client
+    client, _ = authenticated_client
 
-    # Test queries: basic and date-based analytics queries that previously could cause errors
-    test_queries = [
-        "How many active forms do I have?",  # Basic query (always test this)
-        "Show my events happening this week",  # Date range query - tests PostgreSQL date functions
-        "How many forms did I create this month?",  # Date extraction query - tests EXTRACT functions
-    ]
+    # Test the GPT analytics endpoint
+    response = client.post("/gpt/analytics", json={"query": query})
 
-    for query in test_queries:
-        try:
-            # Test the GPT analytics endpoint
-            response = client.post("/gpt/analytics", json={"query": query})
+    logger.info(f"Analytics query '{query}' - Status: {response.status_code}")
 
-            logger.info(f"Analytics query '{query}' - Status: {response.status_code}")
+    # Verify response status (should not fail with date parameter errors)
+    assert (
+        response.status_code == 200
+    ), f"Query '{query}' failed with status {response.status_code}: {response.text}"
 
-            # Verify response status (should not fail with date parameter errors)
-            assert (
-                response.status_code == 200
-            ), f"Query '{query}' failed with status {response.status_code}: {response.text}"
+    # Verify response structure
+    response_data = response.json()
+    assert "response" in response_data, f"Query '{query}' missing 'response' field"
 
-            # Verify response structure
-            response_data = response.json()
-            assert (
-                "response" in response_data
-            ), f"Query '{query}' missing 'response' field"
+    # Verify response content
+    result_str = response_data["response"]
+    assert len(result_str) > 0, f"Analytics response for '{query}' should not be empty"
 
-            # Verify response content
-            result_str = response_data["response"]
-            assert (
-                len(result_str) > 0
-            ), f"Analytics response for '{query}' should not be empty"
-
-            logger.info(f"✅ Analytics query '{query}' succeeded")
-
-        except Exception as e:
-            logger.error(f"❌ Analytics query '{query}' failed: {e}")
-            raise
-
-    logger.info("✅ GPT analytics test passed - All query types succeeded")
+    logger.info(f"✅ Analytics query '{query}' ({description}) succeeded")
 
 
 def test_gpt_endpoints_require_authentication():

@@ -29,6 +29,43 @@ This architecture enables seamless, AI-driven event signups with real-time inter
 * Documented everything in the `docs/` directory so that I/Claude/Codex can resume development from the previous checkpoint.
   * These documents are the most interesting piece of the repo. The code and the business logic can be trivially generated if you can clearly articulate the architecture to the coding agents.
 
+## Security Architecture
+
+EZ-Scheduler implements defense-in-depth security for LLM-powered applications:
+
+### 1. Identity & Authentication
+- **Trusted Identity Provider**: Uses Auth0 for authentication and authorization
+- **JWT-based Authentication**: All API requests validated with signed JWT tokens
+- **User Isolation**: Every database entity tagged with `user_id` for data segregation
+
+### 2. Write Path Security (LLM Output → Database)
+- **Never Trust LLM Output**: All LLM-generated content passes through validation layers
+- **ORM-based Writes**: LLM outputs transformed into typed ORM objects before database writes
+- **Business Logic Validation**: Application validates all fields before persistence:
+  - Required field validation (date, location for events)
+  - Type checking and data sanitization
+  - Business rule enforcement (e.g., dates in valid range)
+- **No Direct SQL**: LLM never generates write SQL queries—all writes go through SQLAlchemy ORM
+
+### 3. Read Path Security (Database → LLM)
+- **Row-Level Security**: All read queries filtered by `user_id` (similar to PostgreSQL RLS)
+- **Multi-layer Validation**:
+  1. **SQL Content Validation**: Generated queries must reference `signup_forms` table with user_id filter
+  2. **Parameter Validation**: Queries must include `:user_id` parameter binding
+  3. **Parameter Override**: User ID forcibly set to authenticated user (prevents exfiltration)
+- **Read-Only Database User**: Analytics queries execute with read-only credentials
+  - If LLM generates write commands (INSERT/UPDATE/DELETE), operations fail at database level
+  - Additional layer of protection against prompt injection attacks
+
+### 4. Defense-in-Depth Layers
+
+**Layer 1 - Application**: Business logic validates LLM outputs
+**Layer 2 - Query Validation**: SQL queries validated for user isolation patterns
+**Layer 3 - Parameter Override**: User ID parameter forcibly overridden
+**Layer 4 - Database**: Read-only credentials prevent writes
+
+This multi-layered approach ensures that even if one security control fails, others prevent unauthorized access or data exfiltration.
+
 ## Quick Start
 
 ### Server Setup

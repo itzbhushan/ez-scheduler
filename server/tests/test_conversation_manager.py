@@ -1,21 +1,8 @@
 import time
 
 import pytest
-import redis
 
 from ez_scheduler.services.conversation_manager import ConversationManager
-
-
-@pytest.fixture
-def redis_url():
-    """Redis URL for testing."""
-    return "redis://localhost:6379/1"  # Use DB 1 for tests
-
-
-@pytest.fixture
-def redis_client(redis_url):
-    """Create Redis client for testing."""
-    return redis.from_url(redis_url, decode_responses=True)
 
 
 @pytest.fixture
