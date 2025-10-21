@@ -431,7 +431,9 @@ async def test_timeslot_based_reservation(handler, mock_current_user, clean_redi
     response2 = await handler.process_message(
         user=test_user,
         thread_id=thread_id,
-        user_message="March 25th, 2025 at 123 Main Street Suite 500, 30-minute slots starting at 9am and ending at 5pm, with a lunch break from 12pm to 1pm",
+        user_message="March 25th, 2025 at 123 Main Street Suite 500, 30-minute slots starting at"
+        "9am and ending at 5pm, with a lunch break from 12pm to 1pm."
+        "Collect only their name, email or phone.",
     )
 
     # Should extract date, location, and timeslot info

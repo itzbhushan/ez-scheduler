@@ -1,6 +1,5 @@
 """JWT utilities for authentication using authlib"""
 
-import logging
 from typing import Dict
 
 import httpx
@@ -10,10 +9,9 @@ from authlib.jose.errors import InvalidTokenError
 
 from ez_scheduler.auth.models import User
 from ez_scheduler.config import config
+from ez_scheduler.logging_config import get_logger
 
-# Configure logging
-logging.basicConfig(level=getattr(logging, config["log_level"]))
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class JWTUtils:

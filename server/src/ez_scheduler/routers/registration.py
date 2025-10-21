@@ -1,6 +1,5 @@
 """Registration form serving endpoints"""
 
-import logging
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -9,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
 from ez_scheduler.config import config
+from ez_scheduler.logging_config import get_logger
 from ez_scheduler.models.database import get_db
 from ez_scheduler.models.field_type import FieldType
 from ez_scheduler.models.signup_form import FormStatus
@@ -27,9 +27,7 @@ router = APIRouter(include_in_schema=False)
 template_dir = Path(__file__).parent.parent / "templates"
 templates = Jinja2Templates(directory=str(template_dir))
 
-# Configure logging
-logging.basicConfig(level=getattr(logging, config["log_level"]))
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @router.get("/forms/{url_slug}")
