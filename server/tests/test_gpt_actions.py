@@ -13,95 +13,73 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def test_gpt_create_form_success(authenticated_client, signup_service):
-    """Test GPT create form endpoint with complete information"""
+def test_one_shot_form_creation(authenticated_client, signup_service):
+    """When all information is provided in one message, the LLM should create a new draft form.
+    It shouldn't ask any follow ups.
+    """
     client, user = authenticated_client
 
-    # user already has a proper Auth0 user ID from the fixture
+    # Test the GPT create form endpoint
+    response = client.post(
+        "/gpt/create-or-update-form",
+        json={
+            "message": "Create a signup form for John's Birthday Party for next Sunday from 3-5pm at 123 Main Street, San Jose."
+            "Please include name, email, and phone fields and RSVP count."
+            "No other fields are necessary.",
+        },
+    )
 
-    try:
-        # Test the GPT create form endpoint
-        response = client.post(
-            "/gpt/create-or-update-form",
-            json={
-                "message": "Create a signup form for John's Birthday Party on December 25th, 2024 at Central Park. We're celebrating John's 30th birthday with cake, games, and fun activities. Please include name, email, and phone fields. No other fields are necessary.",
-            },
-        )
+    logger.info(f"GPT create form response status: {response.status_code}")
+    logger.info(f"GPT create form response: {response.text}")
 
-        logger.info(f"GPT create form response status: {response.status_code}")
-        logger.info(f"GPT create form response: {response.text}")
+    # Verify response status
+    assert (
+        response.status_code == 200
+    ), f"Expected 200, got {response.status_code}: {response.text}"
 
-        # Verify response status
-        assert (
-            response.status_code == 200
-        ), f"Expected 200, got {response.status_code}: {response.text}"
+    # Parse JSON response
+    response_json = response.json()
+    assert (
+        "response" in response_json
+    ), f"Expected 'response' field in JSON: {response_json}"
+    result_str = response_json["response"]
 
-        # Parse JSON response
-        response_json = response.json()
-        assert (
-            "response" in response_json
-        ), f"Expected 'response' field in JSON: {response_json}"
-        result_str = response_json["response"]
+    # Extract form URL slug from response - may need follow-ups for conversational flow
+    url_pattern = r"form/([a-zA-Z0-9-]+)"
+    url_match = re.search(url_pattern, result_str)
 
-        # Extract form URL slug from response - may need follow-ups for conversational flow
-        url_pattern = r"form/([a-zA-Z0-9-]+)"
-        url_match = re.search(url_pattern, result_str)
+    assert url_match, f"Could not find form URL pattern in response: {result_str}"
+    url_slug = url_match.group(1)
 
-        # Handle conversational follow-ups if LLM asks questions
-        follow_ups = [
-            "Keep it simple with just name, email, and phone",
-            "Yes, that's perfect",
-            "Create it",
-        ]
-        for follow_up in follow_ups:
-            if url_match:
-                break
-            response = client.post(
-                "/gpt/create-or-update-form",
-                json={"message": follow_up},
-            )
-            result_str = response.json()["response"]
-            url_match = re.search(url_pattern, result_str)
+    # Query database via service to verify form was created
+    created_form = signup_service.get_form_by_url_slug(url_slug)
 
-        assert url_match, f"Could not find form URL pattern in response: {result_str}"
-        url_slug = url_match.group(1)
+    # Verify form was created in database with correct details
+    assert (
+        created_form is not None
+    ), f"Form with slug '{url_slug}' should exist in database"
+    assert (
+        created_form.user_id == user.user_id
+    ), f"Form should belong to test user {user.user_id}"
+    assert (
+        "john" in created_form.title.lower()
+    ), f"Title '{created_form.title}' should contain 'John'"
+    assert (
+        "birthday" in created_form.title.lower()
+    ), f"Title '{created_form.title}' should contain 'birthday'"
+    assert (
+        "san jose" in created_form.location.lower()
+    ), f"Location '{created_form.location}' should contain 'San Jose'"
+    assert (
+        "birthday" in created_form.description.lower()
+    ), f"Description should mention birthday"
+    assert (
+        created_form.status == FormStatus.DRAFT
+    ), "Form should be created in draft status"
 
-        # Query database via service to verify form was created
-        created_form = signup_service.get_form_by_url_slug(url_slug)
-
-        # Verify form was created in database with correct details
-        assert (
-            created_form is not None
-        ), f"Form with slug '{url_slug}' should exist in database"
-        assert (
-            created_form.user_id == user.user_id
-        ), f"Form should belong to test user {user.user_id}"
-        assert (
-            "john" in created_form.title.lower()
-        ), f"Title '{created_form.title}' should contain 'John'"
-        assert (
-            "birthday" in created_form.title.lower()
-        ), f"Title '{created_form.title}' should contain 'birthday'"
-        assert created_form.event_date == date(
-            2024, 12, 25
-        ), f"Event date should be December 25, 2024 but was {created_form.event_date}"
-        assert (
-            "central park" in created_form.location.lower()
-        ), f"Location '{created_form.location}' should contain 'Central Park'"
-        assert (
-            "birthday" in created_form.description.lower()
-        ), f"Description should mention birthday"
-        assert (
-            created_form.status == FormStatus.DRAFT
-        ), "Form should be created in draft status"
-
-        logger.info(
-            f"✅ GPT form creation test passed - Form {url_slug} created successfully"
-        )
-
-    except Exception as e:
-        logger.error(f"❌ GPT form creation test failed: {e}")
-        raise
+    logger.info(
+        f"✅ GPT form creation test passed - Form {url_slug} created successfully"
+    )
 
 
 def test_gpt_create_form_timeslots(
@@ -683,9 +661,10 @@ def test_gpt_remove_custom_fields(
         response1 = client.post(
             "/gpt/create-or-update-form",
             json={
-                "message": "Create a form for cricket workshop registration in ABC Stadium, Sydney"
+                "message": "Create a form for cricket workshop registration in 456 Main St, San Francisco"
                 "next Sunday from 10am to 4pm. There is no limit on maximim participants."
-                "Including the following in the form: dietary_restrictions, t_shirt_size, and experience_level"
+                "Including the following in the form: dietary_restrictions, t_shirt_size, and experience_level."
+                "And make these fields optional."
             },
         )
         assert response1.status_code == 200

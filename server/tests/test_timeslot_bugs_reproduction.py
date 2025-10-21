@@ -29,7 +29,8 @@ def test_bug_new_dates_not_added(
     response1 = client.post(
         "/gpt/create-or-update-form",
         json={
-            "message": "Create a form for Coaching at Library on October 5, 2026. Monday from 10:00 to 11:00, 60 minute slots, 1 person per slot, timezone UTC"
+            "message": "Create a form for Coaching at Los Gatos Library for next Monday from 10:00 to 11:00"
+            ", 60 minute slots, 1 person per slot. No information except name and email is needed."
         },
     )
     assert response1.status_code == 200
@@ -38,16 +39,6 @@ def test_bug_new_dates_not_added(
     # Extract form slug from response
     url_pattern = r"form/([a-zA-Z0-9-]+)"
     match = re.search(url_pattern, result1)
-
-    # May need follow-ups
-    follow_ups = ["Yes that's correct", "Create it", "Looks good"]
-    for follow_up in follow_ups:
-        if not match:
-            response = client.post(
-                "/gpt/create-or-update-form", json={"message": follow_up}
-            )
-            result1 = response.json()["response"]
-            match = re.search(url_pattern, result1)
 
     assert match, f"Form not created. Response: {result1}"
     url_slug = match.group(1)
@@ -74,7 +65,7 @@ def test_bug_new_dates_not_added(
     # Step 3: Verify BOTH Monday and Tuesday slots exist
     all_slots = timeslot_service.list_available(form.id)
     assert (
-        len(all_slots) >= 2
+        len(all_slots) == 2
     ), f"Expected at least 2 slots (Mon + Tue), got {len(all_slots)}"
 
     weekdays = {slot.start_at.weekday() for slot in all_slots}
@@ -102,7 +93,8 @@ def test_bug_capacity_per_slot_not_respected(
     response1 = client.post(
         "/gpt/create-or-update-form",
         json={
-            "message": "Create a form for Workshops at Building A on October 5, 2026. Monday from 10:00 to 11:00, 60 minute slots, 2 people per slot, timezone UTC"
+            "message": "Create a form for Workshops at Building A for next Monday from 10:00 to 11:00, "
+            "60 minute slots, 2 people per slot. No information except name and email is needed."
         },
     )
     assert response1.status_code == 200
@@ -110,15 +102,6 @@ def test_bug_capacity_per_slot_not_respected(
 
     url_pattern = r"form/([a-zA-Z0-9-]+)"
     match = re.search(url_pattern, result1)
-
-    follow_ups = ["Yes that's correct", "Create it", "Looks good"]
-    for follow_up in follow_ups:
-        if not match:
-            response = client.post(
-                "/gpt/create-or-update-form", json={"message": follow_up}
-            )
-            result1 = response.json()["response"]
-            match = re.search(url_pattern, result1)
 
     assert match, f"Form not created. Response: {result1}"
     url_slug = match.group(1)
@@ -199,14 +182,27 @@ def test_bug_removing_specific_slots_fails(
     url_pattern = r"form/([a-zA-Z0-9-]+)"
     match = re.search(url_pattern, result1)
 
-    follow_ups = ["Yes that's correct", "Create it", "Looks good"]
-    for follow_up in follow_ups:
-        if not match:
-            response = client.post(
-                "/gpt/create-or-update-form", json={"message": follow_up}
-            )
-            result1 = response.json()["response"]
-            match = re.search(url_pattern, result1)
+    # Handle conversational follow-ups if LLM asks questions
+    if not match:
+        response = client.post(
+            "/gpt/create-or-update-form", json={"message": "Yes that's correct"}
+        )
+        result1 = response.json()["response"]
+        match = re.search(url_pattern, result1)
+
+    if not match:
+        response = client.post(
+            "/gpt/create-or-update-form", json={"message": "Create it"}
+        )
+        result1 = response.json()["response"]
+        match = re.search(url_pattern, result1)
+
+    if not match:
+        response = client.post(
+            "/gpt/create-or-update-form", json={"message": "Looks good"}
+        )
+        result1 = response.json()["response"]
+        match = re.search(url_pattern, result1)
 
     assert match, f"Form not created. Response: {result1}"
     url_slug = match.group(1)
