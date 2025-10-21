@@ -144,11 +144,21 @@ class PostgresClient:
         parameters = (
             query_response.parameters.copy() if query_response.parameters else {}
         )
-        # Replace placeholder with actual user ID
-        if "user_id" in parameters:
-            parameters["user_id"] = user.user_id
 
-        # Execute the query with proper parameters
+        # the following 2 sets of statements ensure that users only have access to their own data.
+        # if the LLM fails to include the user_id parameter (because a user was clever enough
+        # to phrase their query to not require it), then reject the query.
+        if "user_id" not in parameters:
+            return ValueError(
+                "Generated SQL query is missing required user_id parameter."
+            )
+
+        # Now that we have confirmed the presence of user_id, force set it to the current user's
+        # id so that they do not gain access to others' data (i.e. no exfiltration of other users' data).
+        parameters["user_id"] = user.user_id
+
+        # Execute the query with proper parameters. By using a dedicated read-only connection,
+        # we ensure that even if the LLM generates a malicious query, it cannot modify data.
         results = await self._execute_readonly_query(
             query_response.sql_query, parameters
         )
