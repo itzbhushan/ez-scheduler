@@ -83,6 +83,58 @@ class PostgresClient:
                 explanation="Unexpected error parsing SQL generation response",
             )
 
+    def _validate_user_isolation_in_query(self, query: str) -> None:
+        """
+        Validate that the query properly enforces user data isolation.
+
+        Security Requirements:
+        1. Must include :user_id parameter binding
+        2. Must reference signup_forms table (the only table with user_id)
+        3. Must filter by signup_forms.user_id = :user_id pattern
+
+        Args:
+            query: The SQL query to validate
+
+        Raises:
+            ValueError: If the query doesn't meet security requirements
+        """
+        query_lower = query.lower()
+
+        # Check 1: Must use :user_id parameter binding
+        if ":user_id" not in query_lower:
+            raise ValueError(
+                "Generated SQL query must include :user_id parameter binding"
+            )
+
+        # Check 2: Must reference signup_forms table (the only table with user ownership)
+        if "signup_forms" not in query_lower:
+            raise ValueError(
+                "Generated SQL query must reference signup_forms table for user isolation"
+            )
+
+        # Check 3: Must have WHERE clause filtering by signup_forms.user_id
+        # Look for patterns like: sf.user_id = :user_id or signup_forms.user_id = :user_id
+        user_filter_patterns = [
+            "sf.user_id = :user_id",
+            "sf.user_id=:user_id",
+            "signup_forms.user_id = :user_id",
+            "signup_forms.user_id=:user_id",
+        ]
+
+        has_user_filter = any(
+            pattern in query_lower for pattern in user_filter_patterns
+        )
+
+        if not has_user_filter:
+            raise ValueError(
+                "Generated SQL query must filter by signup_forms.user_id = :user_id "
+                "(commonly aliased as sf.user_id)"
+            )
+
+        logger.debug(
+            "✓ Query validation passed: user isolation enforced via signup_forms.user_id"
+        )
+
     async def _execute_readonly_query(
         self, sql_query: str, parameters: Dict[str, Any] = None
     ) -> List[Dict[str, Any]]:
@@ -91,8 +143,8 @@ class PostgresClient:
         if parameters is None:
             parameters = {}
 
-        logger.info(f"Executing SQL query: {sql_query}")
-        logger.info(f"Query parameters: {parameters}")
+        logger.debug(f"Executing SQL query: {sql_query}")
+        logger.debug(f"Query parameters: {parameters}")
 
         # Get the database URL from environment
         readonly_database_url = os.getenv("READ_ONLY_DATABASE_URL")
@@ -140,6 +192,9 @@ class PostgresClient:
         # Generate SQL query using LLM
         query_response = await self._generate_sql_query(user, analytics_query)
 
+        # Validate the generated SQL enforces user isolation
+        self._validate_user_isolation_in_query(query_response.sql_query)
+
         # Prepare parameters with actual user ID
         parameters = (
             query_response.parameters.copy() if query_response.parameters else {}
@@ -149,7 +204,7 @@ class PostgresClient:
         # if the LLM fails to include the user_id parameter (because a user was clever enough
         # to phrase their query to not require it), then reject the query.
         if "user_id" not in parameters:
-            return ValueError(
+            raise ValueError(
                 "Generated SQL query is missing required user_id parameter."
             )
 
