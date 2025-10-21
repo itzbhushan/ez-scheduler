@@ -21,7 +21,7 @@ from ez_scheduler.auth.dependencies import get_current_user
 from ez_scheduler.auth.models import User
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.main import app
-from ez_scheduler.models.database import get_db
+from ez_scheduler.models.database import get_db, get_redis
 from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.registration_service import RegistrationService
 from ez_scheduler.services.signup_form_service import SignupFormService
@@ -111,6 +111,12 @@ def redis_container():
         port = conn_kwargs["port"]
         redis_url = f"redis://{host}:{port}/0"
         os.environ["REDIS_URL"] = redis_url
+
+        # Update config dict since it was loaded before this fixture ran
+        # TODO: Fix this later. suspicious and weird..
+        from ez_scheduler import config as config_module
+
+        config_module.config["redis_url"] = redis_url
 
         yield redis_cont
 
@@ -271,8 +277,8 @@ def mock_current_user():
 
 
 @pytest.fixture
-def authenticated_client(mock_current_user, _db_session):
-    """Create a test client that bypasses authentication and uses test database"""
+def authenticated_client(mock_current_user, _db_session, redis_client):
+    """Create a test client that bypasses authentication and uses test database and Redis"""
 
     # Store original overrides to restore them later
     original_overrides = app.dependency_overrides.copy()
@@ -288,10 +294,15 @@ def authenticated_client(mock_current_user, _db_session):
     def get_test_db():
         return _db_session
 
+    # Override the Redis dependency to use test Redis
+    def get_test_redis():
+        return redis_client
+
     # Clear all existing overrides and set only our test overrides
     app.dependency_overrides.clear()
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_db] = get_test_db
+    app.dependency_overrides[get_redis] = get_test_redis
 
     client = TestClient(app)
 
