@@ -70,38 +70,44 @@ Add new dependency after `get_current_user`:
 
 ```python
 from typing import Optional
-from uuid import uuid4
 
-async def get_optional_auth(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))
-) -> User:
+async def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        HTTPBearer(auto_error=False)  # Don't raise 401 if missing
+    )
+) -> User | None:
     """
-    FastAPI dependency to extract user from Bearer token OR create anonymous user.
+    FastAPI dependency for optional authentication.
+    Returns authenticated User if token provided, None if no token.
 
     This is a non-enforcing variant of get_current_user that allows unauthenticated requests.
+    Use get_current_user() for endpoints that require authentication (returns 401).
 
     Args:
         credentials: Optional HTTP Bearer token credentials from Authorization header
 
     Returns:
         - Authenticated User if valid token provided
-        - Anonymous User (user_id='anon|{uuid}') if no token provided
+        - None if no token provided
 
     Raises:
         HTTPException: 401 if token is provided but invalid/expired
 
     Usage:
         @router.post("/endpoint")
-        async def endpoint(user: User = Depends(get_optional_auth)):
-            # user.user_id will be either 'auth0|...' or 'anon|...'
-            pass
+        async def endpoint(user: User | None = Depends(get_current_user_optional)):
+            if user is None:
+                # Handle anonymous user
+                user_id = f"anon|{uuid4()}"
+            else:
+                # Handle authenticated user
+                user_id = user.user_id
     """
-    if credentials:
-        # Token provided - validate it (may raise 401)
-        return await get_current_user(credentials)
+    if not credentials:
+        return None
 
-    # No token - create anonymous user
-    return User(user_id=f"anon|{uuid4()}", claims={})
+    # Token provided - reuse existing validation logic
+    return await get_current_user(credentials)
 ```
 
 ### Testing
@@ -237,17 +243,41 @@ async def gpt_create_or_update_form(
 
 **After**:
 ```python
-from ez_scheduler.auth.dependencies import User, get_current_user, get_optional_auth
+from ez_scheduler.auth.dependencies import User, get_current_user, get_current_user_optional
+from ez_scheduler.auth.models import resolve_effective_user_id
+
+# Update request model to include user_id
+class GPTConversationRequest(BaseModel):
+    message: str
+    user_id: Optional[str] = None  # For Custom GPTs to maintain conversation
+
+# Update response model to return user_id
+class GPTResponse(BaseModel):
+    response: str
+    user_id: str  # Custom GPTs will remember and pass back
 
 @router.post("/create-or-update-form", ...)
 async def gpt_create_or_update_form(
     request: GPTConversationRequest,
-    user: User = Depends(get_optional_auth),  # Authentication optional
+    auth_user: User | None = Depends(get_current_user_optional),  # Authentication optional
     db_session=Depends(get_db),
     ...
 ):
-    # user.user_id will be either "auth0|..." or "anon|..."
-    # ... rest unchanged
+    # Resolve effective user_id with security checks
+    effective_user_id = resolve_effective_user_id(
+        auth_user=auth_user,
+        request_user_id=request.user_id
+    )
+
+    user = User(
+        user_id=effective_user_id,
+        claims=auth_user.claims if auth_user else {}
+    )
+
+    # ... process conversation ...
+
+    # Return user_id for Custom GPTs to remember
+    return GPTResponse(response=response_text, user_id=user.user_id)
 ```
 
 ### Testing
@@ -315,6 +345,67 @@ def test_gpt_create_form_with_auth_still_works(authenticated_client, signup_serv
     assert draft_form is not None
     assert draft_form.user_id == user.user_id  # Should use authenticated user_id
     assert draft_form.user_id.startswith("auth0|")  # Not anonymous
+
+
+def test_gpt_conversation_continuity_anonymous(client):
+    """Test Custom GPT conversation continuity with anonymous user_id"""
+    # First request - no user_id
+    response1 = client.post(
+        "/gpt/create-or-update-form",
+        json={"message": "Create a party form"}
+    )
+    assert response1.status_code == 200
+    data1 = response1.json()
+    assert "user_id" in data1
+    assert data1["user_id"].startswith("anon|")
+
+    user_id = data1["user_id"]
+
+    # Second request - pass user_id from first response
+    response2 = client.post(
+        "/gpt/create-or-update-form",
+        json={
+            "message": "December 15th",
+            "user_id": user_id  # Custom GPT passes this back
+        }
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["user_id"] == user_id  # Same user_id returned
+
+
+def test_gpt_security_cannot_impersonate_authenticated_user(client):
+    """Test that anonymous requests cannot use auth0| user_ids"""
+    response = client.post(
+        "/gpt/create-or-update-form",
+        json={
+            "message": "Create a form",
+            "user_id": "auth0|victim123"  # Attempt to impersonate
+        }
+    )
+
+    # Should be rejected
+    assert response.status_code == 403
+    assert "impersonate" in response.json()["detail"].lower()
+
+
+def test_gpt_security_authenticated_token_wins(authenticated_client):
+    """Test that authenticated token always takes precedence over request user_id"""
+    client, user = authenticated_client
+
+    response = client.post(
+        "/gpt/create-or-update-form",
+        json={
+            "message": "Create a form",
+            "user_id": "anon|attempt-to-override"  # Should be ignored
+        }
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    # Should use token user_id, not request user_id
+    assert data["user_id"] == user.user_id
+    assert data["user_id"].startswith("auth0|")
 ```
 
 ### Deployment Verification

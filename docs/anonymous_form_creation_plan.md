@@ -25,8 +25,11 @@ This plan removes the login requirement for creating draft forms, allowing users
   - After login: Returns to publish endpoint, form auto-publishes
   - Ownership transfers from `anon|` to `auth0|` automatically
 
-### Key Architectural Decision
-**Publishing is web-only** - No conversation state needed for publish. User explicitly navigates to draft URL and clicks publish button. This eliminates the problem of maintaining conversation context across login sessions.
+### Key Architectural Decisions
+
+**1. Publishing is web-only** - No conversation state needed for publish. User explicitly navigates to draft URL and clicks publish button. This eliminates the problem of maintaining conversation context across login sessions.
+
+**2. Custom GPT Conversation Continuity** - Custom GPTs automatically remember `user_id` from API responses and pass it in subsequent requests, enabling anonymous users to maintain conversations across multiple requests without manual client-side storage.
 
 ---
 
@@ -139,25 +142,89 @@ This plan removes the login requirement for creating draft forms, allowing users
 
 ### 2. Optional Authentication Dependency
 
-**New Dependency**: `get_optional_auth()`
+**New Dependency**: `get_current_user_optional()`
 
 ```python
 # auth/dependencies.py
-async def get_optional_auth(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))
-) -> User:
-    """Returns authenticated User if token provided, otherwise anonymous User"""
-    if credentials:
-        return await get_current_user(credentials)
+async def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        HTTPBearer(auto_error=False)  # Don't raise 401 if missing
+    )
+) -> User | None:
+    """
+    Optional authentication dependency.
+    Returns authenticated User if token present, None if no token.
 
-    # Generate anonymous user
-    return User(user_id=f"anon|{uuid.uuid4()}", claims={})
+    Use this for endpoints that support both authenticated and anonymous access.
+    Use get_current_user() for endpoints that require authentication (returns 401).
+    """
+    if not credentials:
+        return None
+
+    # Reuse existing get_current_user validation logic
+    return await get_current_user(credentials)
 ```
 
 **Behavior**:
 - If `Authorization` header present: Validates token, returns authenticated User
-- If `Authorization` header missing: Returns anonymous User with `anon|{uuid}` ID
-- No exceptions thrown for missing auth (unlike `get_current_user`)
+- If `Authorization` header missing: Returns `None` (no exception)
+- Keeps existing `get_current_user()` unchanged for protected endpoints
+
+**Why Two Functions?**
+- `get_current_user()` - Returns 401 if no token → triggers Auth0 login (for `/analytics`, `/publish`)
+- `get_current_user_optional()` - Returns None if no token → allows anonymous access (for `/create-form`)
+
+### 3. User ID Resolution Logic (Security-First)
+
+**For GPT/MCP endpoints that accept `user_id` in request body:**
+
+```python
+def resolve_effective_user_id(
+    auth_user: User | None,  # From get_current_user_optional()
+    request_user_id: Optional[str] = None
+) -> str:
+    """
+    Determine effective user_id with security checks.
+
+    Priority:
+    1. Authenticated user (has token) → ALWAYS use token user_id, ignore request
+    2. Anonymous request with anonymous user_id → use request user_id
+    3. Anonymous request without user_id → generate new anonymous ID
+    4. Anonymous request with auth0| user_id → REJECT (security violation)
+
+    Args:
+        auth_user: User from get_current_user_optional() (None if no token)
+        request_user_id: Optional user_id from request body
+
+    Returns:
+        Effective user_id to use
+
+    Raises:
+        HTTPException 403: If trying to impersonate authenticated user
+    """
+    # Authenticated user - ALWAYS use token, ignore request.user_id
+    if auth_user is not None:
+        return auth_user.user_id
+
+    # Not authenticated - check request.user_id
+    if request_user_id:
+        # Security: Only allow anonymous user_ids in unauthenticated requests
+        if not request_user_id.startswith("anon|"):
+            raise HTTPException(
+                status_code=403,
+                detail="Cannot use authenticated user_id without authentication token"
+            )
+        return request_user_id
+
+    # No user_id provided - generate new anonymous ID
+    return f"anon|{uuid.uuid4()}"
+```
+
+**Security Properties**:
+- ✅ Authenticated users cannot be impersonated via request body
+- ✅ Anonymous users cannot claim authenticated user_ids
+- ✅ Authenticated token always takes precedence over request body
+- ✅ Custom GPTs can maintain anonymous conversations across requests
 
 ### 3. Web-Based Publish Endpoint
 
@@ -244,7 +311,74 @@ async def publish_form_by_slug(
 - Returns 303 redirect to published form
 - **No conversation state needed** - form identified by URL slug in path
 
-### 4. Draft Form Template Updates
+### 4. Custom GPT Conversation Continuity
+
+**How Custom GPTs Maintain Anonymous Conversations:**
+
+Custom GPTs automatically handle conversation state by:
+1. Extracting `user_id` from API responses
+2. Storing it in their conversation context
+3. Passing it back in subsequent API requests
+
+**Example Flow:**
+
+```
+Request 1 (New Conversation):
+User: "Create a birthday party form"
+Custom GPT → POST /gpt/create-or-update-form
+{
+  "message": "Create a birthday party form"
+  // No user_id (first request)
+}
+
+Response 1:
+{
+  "response": "Great! When is your party?",
+  "user_id": "anon|550e8400-e29b-41d4-a716-446655440000"
+}
+↓ Custom GPT remembers user_id
+
+Request 2 (Continuation):
+User: "December 15th"
+Custom GPT → POST /gpt/create-or-update-form
+{
+  "message": "December 15th",
+  "user_id": "anon|550e8400-e29b-41d4-a716-446655440000"  // ← Passed from previous response
+}
+
+Response 2:
+{
+  "response": "Perfect! Where will it be?",
+  "user_id": "anon|550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**Backend Conversation Thread Resolution:**
+```python
+# Backend receives user_id in request
+auth_user = await get_current_user_optional()  # Returns None (no token)
+
+effective_user_id = resolve_effective_user_id(
+    auth_user=None,
+    request_user_id="anon|550e8400..."
+)
+# Returns: "anon|550e8400..." (from request)
+
+# Find conversation thread for this user
+thread_id = conversation_manager.get_or_create_thread_for_user(effective_user_id)
+# Returns: "anon|550e8400...::conv::abc123" (same thread as before)
+
+# Load conversation history and form state from Redis
+# User can continue building the same form
+```
+
+**Benefits**:
+- No client-side storage required for Custom GPTs
+- Works transparently across multiple requests
+- Server maintains conversation context in Redis (30 min TTL)
+- Form updates apply to the same draft consistently
+
+### 5. Draft Form Template Updates
 
 **Template Changes**: Add "Publish" button using simple HTML form (no JavaScript required)
 
@@ -446,57 +580,119 @@ app.include_router(publishing.router)
 ```
 
 #### 2. `server/src/ez_scheduler/auth/dependencies.py`
-**Change**: Add `get_optional_auth()` function
+**Change**: Add `get_current_user_optional()` function
 
 ```python
 from typing import Optional
-from uuid import uuid4
 
-async def get_optional_auth(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))
-) -> User:
+async def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        HTTPBearer(auto_error=False)  # Don't raise 401 if missing
+    )
+) -> User | None:
     """
     FastAPI dependency for optional authentication.
-    Returns authenticated User if token provided, otherwise anonymous User.
-    """
-    if credentials:
-        return await get_current_user(credentials)
+    Returns authenticated User if token provided, None if no token.
 
-    # No auth provided - create anonymous user
-    return User(user_id=f"anon|{uuid4()}", claims={})
+    Use this for endpoints that support both authenticated and anonymous access.
+    Use get_current_user() for endpoints that require authentication.
+    """
+    if not credentials:
+        return None
+
+    # Reuse existing get_current_user validation logic
+    return await get_current_user(credentials)
 ```
 
 #### 3. `server/src/ez_scheduler/auth/models.py`
-**Change**: Add utility functions
+**Change**: Add utility function
 
 ```python
 import uuid
+from typing import Optional
+from fastapi import HTTPException
 
-def is_anonymous_user(user: User) -> bool:
-    """Check if user has anonymous ID"""
-    return user.user_id.startswith("anon|")
+def resolve_effective_user_id(
+    auth_user: User | None,
+    request_user_id: Optional[str] = None
+) -> str:
+    """
+    Resolve effective user_id with security checks.
 
+    Priority:
+    1. Authenticated user (not None) → use token user_id (ignore request)
+    2. Anonymous + request has anon| user_id → use request user_id
+    3. Anonymous + no request user_id → generate new anon ID
+    4. Anonymous + request has auth0| user_id → REJECT
 
-def create_anonymous_user() -> User:
-    """Create a User with anonymous ID"""
-    return User(user_id=f"anon|{uuid.uuid4()}", claims={})
+    Args:
+        auth_user: User from get_current_user_optional() (None if no token)
+        request_user_id: Optional user_id from request body
+
+    Returns:
+        Effective user_id to use
+
+    Raises:
+        HTTPException 403: User impersonation attempt
+    """
+    # Authenticated - always use token
+    if auth_user is not None:
+        return auth_user.user_id
+
+    # Not authenticated - check request
+    if request_user_id:
+        if not request_user_id.startswith("anon|"):
+            raise HTTPException(
+                status_code=403,
+                detail="Cannot use authenticated user_id without authentication token"
+            )
+        return request_user_id
+
+    # Generate new anonymous ID
+    return f"anon|{uuid.uuid4()}"
 ```
 
 #### 4. `server/src/ez_scheduler/routers/mcp_server.py`
 **Changes**:
 
-1. Make `user_id` optional in `create_or_update_form`:
+1. Make `user_id` optional in `create_or_update_form` with security validation:
 ```python
+from ez_scheduler.auth.models import resolve_effective_user_id
+
 @mcp.tool()
 async def create_or_update_form(user_id: str | None = None, message: str) -> str:
-    """Create or update a form (login optional for drafts)"""
+    """Create or update a form (login optional for drafts)
+
+    Args:
+        user_id: User identifier (optional). If provided, must be in 'anon|{uuid}'
+                 format for unauthenticated access. Use the user_id returned in
+                 previous responses to continue conversations.
+        message: Natural language message
+
+    Returns:
+        JSON response containing natural language response and user_id
+    """
+
+    # Security validation: MCP doesn't have token auth, so only allow anonymous IDs
+    if user_id is not None and not user_id.startswith("anon|"):
+        return json.dumps({
+            "error": "Invalid user_id. MCP access requires anonymous user IDs (anon|...) or authenticated access via GPT Actions endpoint.",
+            "user_id": None
+        })
 
     # Use provided user_id, or generate anonymous if not provided
     if user_id is None:
         user_id = f"anon|{uuid.uuid4()}"
 
     user = User(user_id=user_id, claims={})
-    # ... rest of implementation unchanged
+
+    # ... process conversation ...
+
+    # Return user_id in response for MCP clients to remember
+    return json.dumps({
+        "response": response_text,
+        "user_id": user_id
+    })
 ```
 
 2. **Remove `publish_form` tool** after web publish is tested (Phase 3)
@@ -504,20 +700,51 @@ async def create_or_update_form(user_id: str | None = None, message: str) -> str
 #### 5. `server/src/ez_scheduler/routers/gpt_actions.py`
 **Changes**:
 
-1. Use optional auth for create endpoint:
+1. Update request and response models to support user_id:
 ```python
-from ez_scheduler.auth.dependencies import User, get_current_user, get_optional_auth
+from ez_scheduler.auth.dependencies import User, get_current_user, get_current_user_optional
+from ez_scheduler.auth.models import resolve_effective_user_id
+
+class GPTConversationRequest(BaseModel):
+    message: str = Field(
+        ...,
+        description="Conversational message for form creation or updates"
+    )
+    user_id: Optional[str] = Field(
+        None,
+        description="Anonymous user ID from previous response (for Custom GPTs to maintain conversation)"
+    )
+
+class GPTResponse(BaseModel):
+    response: str = Field(..., description="Response message for the user")
+    user_id: str = Field(..., description="User ID for this conversation (pass in next request)")
 
 @router.post("/create-or-update-form")
 async def gpt_create_or_update_form(
     request: GPTConversationRequest,
-    user: User = Depends(get_optional_auth),  # Changed from get_current_user
+    auth_user: User | None = Depends(get_current_user_optional),  # Changed from get_current_user
     db_session=Depends(get_db),
     llm_client: LLMClient = Depends(get_llm_client),
     redis_client=Depends(get_redis),
 ) -> GPTResponse:
-    # user.user_id will be either "auth0|..." or "anon|..."
-    # ... rest of implementation unchanged
+    # Resolve effective user_id with security checks
+    effective_user_id = resolve_effective_user_id(
+        auth_user=auth_user,
+        request_user_id=request.user_id
+    )
+
+    user = User(
+        user_id=effective_user_id,
+        claims=auth_user.claims if auth_user else {}
+    )
+
+    # ... process conversation with effective user ...
+
+    # Return response with user_id for Custom GPTs to remember
+    return GPTResponse(
+        response=response_text,
+        user_id=user.user_id
+    )
 ```
 
 2. **Remove `/gpt/publish-form` endpoint** after web publish is tested (Phase 3)
@@ -592,7 +819,31 @@ async def gpt_create_or_update_form(
 
 ## Security Considerations
 
-### 1. Anonymous User Isolation
+### 1. User ID Impersonation Prevention
+
+**Security Model**:
+- Authenticated token always takes precedence over request body `user_id`
+- Anonymous users can only use `anon|{uuid}` format in requests
+- Attempting to use `auth0|` user_id without token → 403 Forbidden
+
+**Attack Scenarios Prevented**:
+- ❌ Anonymous user sends `user_id: "auth0|victim123"` → Rejected (403)
+- ❌ Authenticated user sends `user_id: "auth0|otheruser"` → Ignored, token user_id used
+- ✅ Anonymous user sends `user_id: "anon|abc123"` from previous response → Allowed
+- ✅ Authenticated user sends any `user_id` → Ignored, token user_id always used
+
+**Implementation**:
+```python
+# Authenticated users: token wins, request ignored
+if not auth_user.user_id.startswith("anon|"):
+    return auth_user.user_id  # Always use token
+
+# Anonymous users: validate request user_id
+if request_user_id and not request_user_id.startswith("anon|"):
+    raise HTTPException(403, "Cannot impersonate authenticated user")
+```
+
+### 2. Anonymous User Isolation
 - Each anonymous session gets unique `anon|{uuid}` ID
 - Forms identified by public URL slug (anyone with URL can view draft)
 - **Privacy consideration**: Draft URLs are guessable only if slug generation is predictable (we use UUID, so very low risk)
