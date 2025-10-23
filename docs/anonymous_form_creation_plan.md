@@ -226,17 +226,126 @@ def resolve_effective_user_id(
 - ✅ Authenticated token always takes precedence over request body
 - ✅ Custom GPTs can maintain anonymous conversations across requests
 
-### 3. Web-Based Publish Endpoint
+### 3. Auth0 Web Authentication Setup
+
+**Dependencies**: Add Authlib for OAuth/OIDC handling
+
+```bash
+uv add authlib
+```
+
+**Configuration** (`main.py`):
+
+```python
+from authlib.integrations.starlette_client import OAuth
+from starlette.middleware.sessions import SessionMiddleware
+
+# Add session middleware (required for Auth0 web flow)
+app.add_middleware(SessionMiddleware, secret_key=config["SESSION_SECRET_KEY"])
+
+# Configure OAuth with Auth0
+oauth = OAuth()
+oauth.register(
+    "auth0",
+    client_id=config["AUTH0_CLIENT_ID"],
+    client_secret=config["AUTH0_CLIENT_SECRET"],
+    server_metadata_url=f'https://{config["AUTH0_DOMAIN"]}/.well-known/openid-configuration',
+    client_kwargs={"scope": "openid profile email"}
+)
+```
+
+**Auth Routes** (`routers/auth.py` - NEW FILE):
+
+```python
+from authlib.integrations.starlette_client import OAuth
+from fastapi import APIRouter, Request
+from fastapi.responses import RedirectResponse
+
+router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+@router.get("/login")
+async def login(request: Request):
+    """Redirect to Auth0 login page"""
+    redirect_uri = request.url_for("auth_callback")
+
+    # Get returnTo from query params (where to go after login)
+    return_to = request.query_params.get("returnTo", "/")
+    request.session["returnTo"] = return_to
+
+    return await oauth.auth0.authorize_redirect(request, redirect_uri)
+
+@router.get("/callback")
+async def auth_callback(request: Request):
+    """Handle Auth0 callback after login"""
+    token = await oauth.auth0.authorize_access_token(request)
+
+    # Store user info in session
+    request.session["user"] = token.get("userinfo")
+    request.session["id_token"] = token.get("id_token")
+
+    # Redirect to original destination
+    return_to = request.session.pop("returnTo", "/")
+    return RedirectResponse(url=return_to)
+
+@router.get("/logout")
+async def logout(request: Request):
+    """Clear session and redirect to Auth0 logout"""
+    request.session.clear()
+
+    # Redirect to Auth0 logout endpoint
+    logout_url = (
+        f'https://{config["AUTH0_DOMAIN"]}/v2/logout?'
+        f'client_id={config["AUTH0_CLIENT_ID"]}&'
+        f'returnTo={request.url_for("home")}'
+    )
+    return RedirectResponse(url=logout_url)
+```
+
+**Auth Dependency** (`auth/dependencies.py`):
+
+```python
+def require_auth_session(request: Request) -> dict:
+    """
+    Require authentication via session (web flow).
+    Redirects to login if not authenticated.
+
+    Use this for web routes that need authentication.
+    """
+    user = request.session.get("user")
+    if not user:
+        # Not authenticated - redirect to login
+        raise HTTPException(
+            status_code=307,
+            headers={"Location": f"/auth/login?returnTo={request.url.path}"}
+        )
+    return user
+```
+
+### 4. Web-Based Publish Endpoint
 
 **New Endpoint**: `POST /publish/{url_slug}` (also accepts GET for Auth0 callback)
 
 ```python
 # routers/publishing.py (NEW FILE)
-@router.get("/publish/{url_slug}")  # For Auth0 callback after login
-@router.post("/publish/{url_slug}")  # For HTML form submission
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import RedirectResponse
+from sqlmodel import Session
+
+from ez_scheduler.auth.dependencies import require_auth_session
+from ez_scheduler.models.database import get_db
+from ez_scheduler.models.signup_form import FormStatus
+from ez_scheduler.services.signup_form_service import SignupFormService
+from ez_scheduler.logging_config import get_logger
+
+router = APIRouter(tags=["Publishing"])
+logger = get_logger(__name__)
+
+@router.get("/publish/{url_slug}")
+@router.post("/publish/{url_slug}")
 async def publish_form_by_slug(
     url_slug: str,
-    user: User = Depends(get_current_user),  # Auth0 enforces login
+    request: Request,
+    user_info: dict = Depends(require_auth_session),  # Session-based auth with redirect
     db: Session = Depends(get_db),
 ):
     """
@@ -244,17 +353,19 @@ async def publish_form_by_slug(
 
     Accepts both GET and POST for one-click publish flow:
     - POST: Used by HTML form submission (primary method)
-    - GET: Used by Auth0 callback after login redirect
+    - GET: Handles direct URL access after Auth0 callback
 
     Both methods are idempotent (safe to call multiple times).
 
     Flow (one click, no JavaScript required):
     1. User clicks "Publish" button → HTML form submits POST /publish/{url_slug}
-    2. If not authenticated: Auth0 redirects to login
-    3. After login: Auth0 redirects to GET /publish/{url_slug}
-    4. This handler runs with authenticated user
-    5. Transfer ownership if anonymous + publish
-    6. Redirect to published form (303)
+    2. If not authenticated: require_auth_session raises 307 redirect to /auth/login
+    3. Auth0 login page
+    4. After login: Auth0 redirects to /auth/callback
+    5. Callback redirects back to /publish/{url_slug}
+    6. This handler runs with authenticated user (session populated)
+    7. Transfer ownership if anonymous + publish
+    8. Redirect to published form (303)
     """
     signup_form_service = SignupFormService(db)
 
@@ -271,16 +382,19 @@ async def publish_form_by_slug(
     if form.status == FormStatus.ARCHIVED:
         raise HTTPException(status_code=410, detail="Form has been archived")
 
+    # Get user_id from session (Auth0 'sub' claim)
+    authenticated_user_id = user_info.get("sub")  # e.g., "auth0|123456"
+
     # Prepare updates
     updates = {"status": FormStatus.PUBLISHED}
 
     # Transfer ownership if form was created anonymously
     if form.user_id.startswith("anon|"):
-        updates["user_id"] = user.user_id
+        updates["user_id"] = authenticated_user_id
         logger.info(
-            f"Publishing form {form.id}: transferring ownership from {form.user_id} to {user.user_id}"
+            f"Publishing form {form.id}: transferring ownership from {form.user_id} to {authenticated_user_id}"
         )
-    elif form.user_id != user.user_id:
+    elif form.user_id != authenticated_user_id:
         # Form owned by different authenticated user - permission denied
         raise HTTPException(
             status_code=403,
@@ -302,14 +416,24 @@ async def publish_form_by_slug(
 ```
 
 **Key Features**:
+- **Session-based authentication** using Authlib + Auth0 SDK
+- **Automatic login redirect** via `require_auth_session` dependency
 - Uses POST for form submission (RESTful, standard HTML forms)
-- Also accepts GET for Auth0 callback (enables one-click flow)
-- Auth0 redirects back to `/publish/{url_slug}` after login
+- Also accepts GET for direct URL access after Auth0 callback
 - **No JavaScript required** - pure HTML form submission
 - Both methods idempotent (safe to call multiple times)
 - Transfers ownership from anonymous to authenticated user
 - Returns 303 redirect to published form
 - **No conversation state needed** - form identified by URL slug in path
+
+**Authentication Flow**:
+1. `require_auth_session` checks `request.session.get("user")`
+2. If not found → raises 307 redirect to `/auth/login?returnTo=/publish/{url_slug}`
+3. `/auth/login` → calls `oauth.auth0.authorize_redirect()` (Authlib SDK)
+4. Auth0 login page
+5. Auth0 callback → `/auth/callback` validates token, stores in session
+6. Callback redirects to original `returnTo` URL (`/publish/{url_slug}`)
+7. Publish handler runs with session populated
 
 ### 4. Custom GPT Conversation Continuity
 
@@ -569,21 +693,124 @@ def test_publish_already_published_form_redirects(authenticated_client, signup_s
 
 ### Files to Modify
 
-#### 1. `server/src/ez_scheduler/main.py`
-**Change**: Include new publishing router
+#### 1. `server/pyproject.toml` or `requirements.txt`
+**Change**: Add Authlib dependency
 
-```python
-from ez_scheduler.routers import publishing
-
-# Add after other router includes
-app.include_router(publishing.router)
+```bash
+uv add authlib
+uv add itsdangerous  # For session encryption
 ```
 
-#### 2. `server/src/ez_scheduler/auth/dependencies.py`
-**Change**: Add `get_current_user_optional()` function
+#### 2. `server/src/ez_scheduler/config.py`
+**Change**: Add session and Auth0 web config
+
+```python
+config = {
+    # ... existing config ...
+
+    # Session management (for Auth0 web flow)
+    "SESSION_SECRET_KEY": os.getenv("SESSION_SECRET_KEY"),  # Random secret for session encryption
+
+    # Auth0 credentials (already exist, but ensure CLIENT_SECRET is set)
+    "AUTH0_CLIENT_ID": os.getenv("AUTH0_CLIENT_ID"),
+    "AUTH0_CLIENT_SECRET": os.getenv("AUTH0_CLIENT_SECRET"),  # Required for web flow
+    "AUTH0_DOMAIN": os.getenv("AUTH0_DOMAIN"),
+}
+```
+
+#### 3. `server/src/ez_scheduler/main.py`
+**Changes**: Add session middleware, OAuth setup, include routers
+
+```python
+from authlib.integrations.starlette_client import OAuth
+from starlette.middleware.sessions import SessionMiddleware
+
+from ez_scheduler.routers import publishing, auth as auth_router
+
+# Add session middleware (required for Auth0 web flow)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=config["SESSION_SECRET_KEY"],
+    max_age=1800,  # 30 minutes
+    https_only=True  # Set to False for local development
+)
+
+# Configure OAuth with Auth0
+oauth = OAuth()
+oauth.register(
+    "auth0",
+    client_id=config["AUTH0_CLIENT_ID"],
+    client_secret=config["AUTH0_CLIENT_SECRET"],
+    server_metadata_url=f'https://{config["AUTH0_DOMAIN"]}/.well-known/openid-configuration',
+    client_kwargs={"scope": "openid profile email"}
+)
+
+# Make oauth available to routers
+app.state.oauth = oauth
+
+# Include new routers
+app.include_router(auth_router.router)  # Auth routes (/auth/login, /auth/callback, /auth/logout)
+app.include_router(publishing.router)   # Publishing route (/publish/{url_slug})
+```
+
+#### 4. `server/src/ez_scheduler/routers/auth.py` (NEW FILE)
+**Create**: Auth0 web authentication routes
+
+```python
+from authlib.integrations.starlette_client import OAuth
+from fastapi import APIRouter, Request
+from fastapi.responses import RedirectResponse
+
+from ez_scheduler.config import config
+
+router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+@router.get("/login")
+async def login(request: Request):
+    """Redirect to Auth0 login page"""
+    oauth: OAuth = request.app.state.oauth
+    redirect_uri = request.url_for("auth_callback")
+
+    # Get returnTo from query params (where to go after login)
+    return_to = request.query_params.get("returnTo", "/")
+    request.session["returnTo"] = return_to
+
+    return await oauth.auth0.authorize_redirect(request, redirect_uri)
+
+@router.get("/callback")
+async def auth_callback(request: Request):
+    """Handle Auth0 callback after login"""
+    oauth: OAuth = request.app.state.oauth
+    token = await oauth.auth0.authorize_access_token(request)
+
+    # Store user info in session
+    request.session["user"] = token.get("userinfo")
+    request.session["id_token"] = token.get("id_token")
+
+    # Redirect to original destination
+    return_to = request.session.pop("returnTo", "/")
+    return RedirectResponse(url=return_to)
+
+@router.get("/logout")
+async def logout(request: Request):
+    """Clear session and redirect to Auth0 logout"""
+    request.session.clear()
+
+    # Redirect to Auth0 logout endpoint
+    logout_url = (
+        f'https://{config["AUTH0_DOMAIN"]}/v2/logout?'
+        f'client_id={config["AUTH0_CLIENT_ID"]}&'
+        f'returnTo={request.base_url}'
+    )
+    return RedirectResponse(url=logout_url)
+```
+
+#### 5. `server/src/ez_scheduler/auth/dependencies.py`
+**Changes**: Add `get_current_user_optional()` and `require_auth_session()` functions
 
 ```python
 from typing import Optional
+from fastapi import Request, HTTPException
 
 async def get_current_user_optional(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(
@@ -602,9 +829,33 @@ async def get_current_user_optional(
 
     # Reuse existing get_current_user validation logic
     return await get_current_user(credentials)
+
+
+def require_auth_session(request: Request) -> dict:
+    """
+    Require authentication via session (web flow).
+    Redirects to login if not authenticated.
+
+    Use this for web routes that need authentication (like /publish).
+    For API routes, use get_current_user() instead.
+
+    Returns:
+        dict: User info from session (userinfo from Auth0)
+
+    Raises:
+        HTTPException: 307 redirect to /auth/login if not authenticated
+    """
+    user = request.session.get("user")
+    if not user:
+        # Not authenticated - redirect to login
+        raise HTTPException(
+            status_code=307,
+            headers={"Location": f"/auth/login?returnTo={request.url.path}"}
+        )
+    return user
 ```
 
-#### 3. `server/src/ez_scheduler/auth/models.py`
+#### 6. `server/src/ez_scheduler/auth/models.py`
 **Change**: Add utility function
 
 ```python
@@ -652,7 +903,12 @@ def resolve_effective_user_id(
     return f"anon|{uuid.uuid4()}"
 ```
 
-#### 4. `server/src/ez_scheduler/routers/mcp_server.py`
+#### 7. `server/src/ez_scheduler/routers/publishing.py` (NEW FILE)
+**Create**: Web-based publish endpoint (already shown in Section 4 above)
+
+See Section 4 "Web-Based Publish Endpoint" for full implementation.
+
+#### 8. `server/src/ez_scheduler/routers/mcp_server.py`
 **Changes**:
 
 1. Make `user_id` optional in `create_or_update_form` with security validation:
@@ -697,7 +953,7 @@ async def create_or_update_form(user_id: str | None = None, message: str) -> str
 
 2. **Remove `publish_form` tool** after web publish is tested (Phase 3)
 
-#### 5. `server/src/ez_scheduler/routers/gpt_actions.py`
+#### 9. `server/src/ez_scheduler/routers/gpt_actions.py`
 **Changes**:
 
 1. Update request and response models to support user_id:
@@ -749,7 +1005,7 @@ async def gpt_create_or_update_form(
 
 2. **Remove `/gpt/publish-form` endpoint** after web publish is tested (Phase 3)
 
-#### 6. `server/src/ez_scheduler/templates/form.html`
+#### 10. `server/src/ez_scheduler/templates/form.html`
 **Change**: Add preview banner and publish button using simple HTML form
 
 ```html
@@ -782,7 +1038,7 @@ async def gpt_create_or_update_form(
 {% endif %}
 ```
 
-#### 7. `server/src/ez_scheduler/templates/themes/golu_form.html`
+#### 11. `server/src/ez_scheduler/templates/themes/golu_form.html`
 **Change**: Add same preview banner and publish button using simple HTML form (styled for Golu theme)
 
 ```html
