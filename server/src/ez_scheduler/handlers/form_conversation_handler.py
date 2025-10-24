@@ -101,11 +101,10 @@ Custom field types:
 - checkbox: Boolean true/false
 
 CUSTOM FIELD GUIDELINES:
-1. FIRST check if user said "no additional fields", "keep it simple", "just basic info"
-2. If user explicitly doesn't want custom fields, RESPECT this and proceed
-3. For events needing custom fields, ASK: "Would you like to collect [suggestions]? Or keep it simple?"
-4. NEVER auto-add custom fields without confirmation
-5. Only create form after user confirms custom field preferences
+1. If user explicitly doesn't want custom fields, RESPECT this and do not ask for any other custom fields.
+2. Otherwise, ask: "Would you like to collect [suggestions]? Or keep it simple?"
+3. NEVER auto-add custom fields without confirmation
+4. Only create form after user confirms custom field preferences
 
 BUTTON CONFIGURATION (always determine for complete forms):
 Analyze event context to determine button type:

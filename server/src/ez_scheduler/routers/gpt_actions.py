@@ -10,7 +10,12 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-from ez_scheduler.auth.dependencies import User, get_current_user
+from ez_scheduler.auth.dependencies import (
+    User,
+    get_current_user,
+    get_current_user_optional,
+)
+from ez_scheduler.auth.models import is_user_anonymous, resolve_effective_user_id
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.backends.postgres_client import PostgresClient
 from ez_scheduler.config import config
@@ -50,10 +55,18 @@ class GPTConversationRequest(BaseModel):
             "example": "I want to create a form for my birthday party on December 15th"
         },
     )
+    user_id: Optional[str] = Field(
+        None,
+        description="Anonymous user ID from previous response (for Custom GPTs to maintain conversation)",
+    )
 
 
 class GPTResponse(BaseModel):
     response: str = Field(..., description="Response message for the user")
+    user_id: Optional[str] = Field(
+        None,
+        description="User ID for anonymous users (pass in next request to continue conversation). None for authenticated users.",
+    )
 
 
 class FormMutateRequest(BaseModel):
@@ -96,7 +109,8 @@ async def gpt_publish_form(
 
     if not thread_id:
         return GPTResponse(
-            response="No active form conversation found. Please create a form first before publishing."
+            response="No active form conversation found. Please create a form first before publishing.",
+            user_id=None,
         )
 
     # Get form state from conversation
@@ -105,7 +119,8 @@ async def gpt_publish_form(
 
     if not form_id_str:
         return GPTResponse(
-            response="No form has been created in this conversation yet. Please complete the form creation first."
+            response="No form has been created in this conversation yet. Please complete the form creation first.",
+            user_id=None,
         )
 
     # Check if form is complete
@@ -113,7 +128,8 @@ async def gpt_publish_form(
     if not is_complete:
         return GPTResponse(
             response="This form cannot be published yet. It's missing required information. "
-            "Please provide all necessary details (title, date, location, description) before publishing."
+            "Please provide all necessary details (title, date, location, description) before publishing.",
+            user_id=None,
         )
 
     # Get the form from database
@@ -122,22 +138,37 @@ async def gpt_publish_form(
         form = signup_form_service.get_form_by_id(form_id)
     except Exception as e:
         logger.error(f"Failed to get form {form_id_str}: {e}")
-        return GPTResponse(response="Form not found. It may have been deleted.")
+        return GPTResponse(
+            response="Form not found. It may have been deleted.",
+            user_id=None,
+        )
 
     if not form:
-        return GPTResponse(response="Form not found. It may have been deleted.")
+        return GPTResponse(
+            response="Form not found. It may have been deleted.",
+            user_id=None,
+        )
 
     # Verify ownership
     if form.user_id != user.user_id:
-        return GPTResponse(response="You don't have permission to publish this form.")
+        return GPTResponse(
+            response="You don't have permission to publish this form.",
+            user_id=None,
+        )
 
     # Check if already published
     if form.status == FormStatus.PUBLISHED:
-        return GPTResponse(response="This form is already published.")
+        return GPTResponse(
+            response="This form is already published.",
+            user_id=None,
+        )
 
     # Check if archived
     if form.status == FormStatus.ARCHIVED:
-        return GPTResponse(response="Archived forms cannot be published.")
+        return GPTResponse(
+            response="Archived forms cannot be published.",
+            user_id=None,
+        )
 
     # Publish the form
     result = signup_form_service.update_signup_form(
@@ -145,7 +176,8 @@ async def gpt_publish_form(
     )
     if not result.get("success"):
         return GPTResponse(
-            response=f"Failed to publish form: {result.get('error', 'Unknown error')}"
+            response=f"Failed to publish form: {result.get('error', 'Unknown error')}",
+            user_id=None,
         )
 
     # Clear conversation thread after successful publish
@@ -159,7 +191,7 @@ async def gpt_publish_form(
         # Non-fatal error, just log it
         logger.warning(f"Failed to clear conversation thread after publish: {e}")
 
-    return GPTResponse(response="Form published successfully!")
+    return GPTResponse(response="Form published successfully!", user_id=None)
 
 
 @router.post(
@@ -188,7 +220,10 @@ async def gpt_archive_form(
     if form.user_id != user.user_id:
         raise HTTPException(status_code=403, detail="You do not own this form")
     if form.status == FormStatus.ARCHIVED:
-        return GPTResponse(response="This form is already archived.")
+        return GPTResponse(
+            response="This form is already archived.",
+            user_id=None,
+        )
 
     result = signup_form_service.update_signup_form(
         form.id, {"status": FormStatus.ARCHIVED}
@@ -197,7 +232,7 @@ async def gpt_archive_form(
         raise HTTPException(
             status_code=400, detail=result.get("error", "Archive failed")
         )
-    return GPTResponse(response="Form archived successfully.")
+    return GPTResponse(response="Form archived successfully.", user_id=None)
 
 
 @router.post(
@@ -221,7 +256,7 @@ async def gpt_analytics(
         analytics_query=request.query,
         postgres_client=postgres_client,
     )
-    return GPTResponse(response=response_text)
+    return GPTResponse(response=response_text, user_id=None)
 
 
 @router.post(
@@ -232,7 +267,7 @@ async def gpt_analytics(
 )
 async def gpt_create_or_update_form(
     request: GPTConversationRequest,
-    user: User = Depends(get_current_user),
+    auth_user: Optional[User] = Depends(get_current_user_optional),
     db_session=Depends(get_db),
     llm_client: LLMClient = Depends(get_llm_client),
     redis_client=Depends(get_redis),
@@ -243,7 +278,17 @@ async def gpt_create_or_update_form(
     - Automatically detects active or new conversations for the user
     - Creates new draft forms when conversation is complete
     - Seamlessly handles multi-turn conversations
+    - Supports anonymous users with anon|{uuid} IDs
     """
+    # Resolve effective user_id with security checks
+    effective_user_id = resolve_effective_user_id(
+        auth_user=auth_user, request_user_id=request.user_id
+    )
+
+    logger.info(f"Effective user_id for conversation: {effective_user_id}")
+
+    user = User(user_id=effective_user_id, claims=auth_user.claims if auth_user else {})
+
     # Initialize services
     signup_form_service = SignupFormService(db_session)
     form_field_service = FormFieldService(db_session)
@@ -270,4 +315,7 @@ async def gpt_create_or_update_form(
     # TODO: According to chat gpt best practices, return a JSON response
     # instead of a human readable string. he GPT will provide its own natural
     # language response using the returned data.
-    return GPTResponse(response=response_text)
+
+    # Only return user_id for anonymous users (Custom GPTs need to remember it)
+    return_user_id = user.user_id if is_user_anonymous(user) else None
+    return GPTResponse(response=response_text, user_id=return_user_id)

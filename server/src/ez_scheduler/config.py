@@ -21,9 +21,15 @@ config = {
     "mcp_port": int(os.getenv("MCP_PORT")),
     "log_level": os.getenv("LOG_LEVEL", "INFO"),
     "app_base_url": os.getenv("APP_BASE_URL"),
+    # Auth0 configuration
     "auth0_domain": os.getenv("AUTH0_DOMAIN"),
+    "auth0_client_id": os.getenv("AUTH0_CLIENT_ID"),  # For web flow
+    "auth0_client_secret": os.getenv("AUTH0_CLIENT_SECRET"),  # For web flow
     "auth0_management_client_id": os.getenv("AUTH0_MANAGEMENT_CLIENT_ID"),
     "auth0_management_client_secret": os.getenv("AUTH0_MANAGEMENT_CLIENT_SECRET"),
+    # Session management (for Auth0 web flow)
+    "session_secret_key": os.getenv("SESSION_SECRET_KEY"),
+    # Email configuration
     "mailgun_api_key": os.getenv("MAILGUN_API_KEY"),
     "mailgun_domain": os.getenv("MAILGUN_DOMAIN"),
     "sender_email": os.getenv("SENDER_EMAIL"),
