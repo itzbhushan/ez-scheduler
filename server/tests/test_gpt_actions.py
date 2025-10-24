@@ -175,7 +175,8 @@ def test_draft_form_analytics_exclusion(authenticated_client, signup_service):
         response = client.post(
             "/gpt/create-or-update-form",
             json={
-                "message": "Create a signup form for Test Event on December 30th, 2025 at Test Venue. Just need basic registration."
+                "message": "Create a signup form for Jack's birthday for next Sunday at 123 Main St, San Jose from 3-5pm"
+                "Include their name, email, phone and RSVP count (no max). No other details are necessary."
             },
         )
 

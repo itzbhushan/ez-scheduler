@@ -55,31 +55,51 @@ async def get_current_user(
         )
 
 
-async def get_current_user_optional(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional),
-) -> Optional[User]:
+async def get_current_user_optional(request: Request) -> Optional[User]:
     """
-    FastAPI dependency for optional authentication.
-    Returns authenticated User if token provided, None if no token.
+    FastAPI dependency for optional authentication that doesn't appear in OpenAPI spec.
 
-    This is a non-enforcing variant of get_current_user that allows unauthenticated requests.
-    Use get_current_user() for endpoints that require authentication (returns 401).
+    This version manually extracts the Authorization header instead of using HTTPBearer,
+    which means it won't add security requirements to the OpenAPI specification.
+    Use this for endpoints that should accept both authenticated and anonymous requests
+    without showing auth requirements in OpenAPI/Custom GPT specs.
 
     Args:
-        credentials: Optional HTTP Bearer token credentials from Authorization header
+        request: FastAPI Request object
 
     Returns:
-        - Authenticated User if valid token provided
-        - None if no token provided
+        - Authenticated User if valid Bearer token provided
+        - None if no Authorization header or no Bearer token
 
     Raises:
         HTTPException: 401 if token is provided but invalid/expired
     """
-    if not credentials:
+    auth_header = request.headers.get("Authorization")
+
+    if not auth_header:
         return None
 
-    # Token provided - reuse existing validation logic
-    return await get_current_user(credentials)
+    # Check if it's a Bearer token
+    if not auth_header.startswith("Bearer "):
+        return None
+
+    # Extract token
+    token = auth_header[7:]  # Remove "Bearer " prefix
+
+    try:
+        return await jwt_utils.extract_user(token)
+    except InvalidTokenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid token: {str(e)}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token validation failed",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 def require_auth_session(request: Request) -> dict:
