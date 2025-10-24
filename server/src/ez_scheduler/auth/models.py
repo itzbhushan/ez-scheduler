@@ -12,6 +12,32 @@ class User(BaseModel):
     claims: dict
 
 
+def is_user_anonymous(user: User) -> bool:
+    """
+    Check if a user is anonymous (not authenticated).
+
+    Args:
+        user: User object to check
+
+    Returns:
+        True if user is anonymous (user_id starts with 'anon|'), False otherwise
+    """
+    return user.user_id.startswith("anon|")
+
+
+def is_anonymous_user_id(user_id: str) -> bool:
+    """
+    Check if a user_id represents an anonymous user.
+
+    Args:
+        user_id: User ID string to check
+
+    Returns:
+        True if user_id starts with 'anon|', False otherwise
+    """
+    return user_id.startswith("anon|")
+
+
 def resolve_effective_user_id(
     auth_user: Optional[User], request_user_id: Optional[str] = None
 ) -> str:
@@ -40,7 +66,7 @@ def resolve_effective_user_id(
 
     # Not authenticated - check request
     if request_user_id:
-        if not request_user_id.startswith("anon|"):
+        if not is_anonymous_user_id(request_user_id):
             raise HTTPException(
                 status_code=403,
                 detail="Cannot use authenticated user_id without authentication token",
