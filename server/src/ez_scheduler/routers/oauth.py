@@ -97,9 +97,8 @@ async def authorize(
         "redirect_uri": authorize_request.redirect_uri,
         "scope": authorize_request.scope,
         "state": authorize_request.state,
+        "audience": authorize_request.audience,
     }
-    if authorize_request.audience:
-        params["audience"] = authorize_request.audience
 
     uri = f"https://{config['auth0_domain']}/authorize?{urlencode(params)}"
     logger.info(f"Redirecting to {uri}")
