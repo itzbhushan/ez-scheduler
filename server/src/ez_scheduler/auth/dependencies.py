@@ -8,10 +8,12 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from ez_scheduler.auth.jwt_utils import jwt_utils
 from ez_scheduler.auth.models import User
+from ez_scheduler.logging_config import get_logger
 
 # Create HTTPBearer security scheme
 security = HTTPBearer()
-security_optional = HTTPBearer(auto_error=False)  # Don't raise 401 if missing
+
+logger = get_logger(__name__)
 
 
 async def get_current_user(
@@ -75,6 +77,9 @@ async def get_current_user_optional(request: Request) -> Optional[User]:
         HTTPException: 401 if token is provided but invalid/expired
     """
     auth_header = request.headers.get("Authorization")
+
+    # TODO: Remove this before merging.
+    logger.info(f"Authorization header: {auth_header}")
 
     if not auth_header:
         return None
