@@ -42,9 +42,14 @@ class TestFormSubmission:
             "phone": "555-1234",
         }
 
+        client.get(f"/form/{test_form.url_slug}")  # Prime CSRF cookie
+        csrf_token = client.cookies.get("csrftoken")
+        assert csrf_token, "Expected csrftoken cookie before submission"
+
         response = client.post(
             f"/form/{test_form.url_slug}",
             data=form_data,
+            headers={"X-CSRFToken": csrf_token},
         )
 
         logger.info(f"Response status: {response.status_code}")
@@ -64,18 +69,38 @@ class TestFormSubmission:
         assert len(message) > 30  # Should be a substantial personalized message
 
     @pytest.mark.asyncio
-    async def test_form_submission_invalid_form(self, authenticated_client):
+    async def test_form_submission_invalid_form(
+        self, signup_service, authenticated_client
+    ):
         """Test form submission with non-existent form returns 404"""
-        client, __ = authenticated_client
+        client, test_user = authenticated_client
 
         form_data = {
             "name": "John Doe",
             "phone": "555-1234",
         }
 
+        prime_form = SignupForm(
+            id=uuid.uuid4(),
+            user_id=test_user.user_id,
+            title="Prime Form",
+            event_date=date(2024, 1, 1),
+            location="Nowhere",
+            description="Prime form to obtain CSRF cookie",
+            url_slug="prime-form-for-csrf",
+            status=FormStatus.PUBLISHED,
+        )
+
+        signup_service.create_signup_form(prime_form)
+
+        client.get(f"/form/{prime_form.url_slug}")
+        csrf_token = client.cookies.get("csrftoken")
+        assert csrf_token, "Expected csrftoken cookie before submission"
+
         response = client.post(
             "/form/nonexistent-form",
             data=form_data,
+            headers={"X-CSRFToken": csrf_token},
         )
 
         assert response.status_code == 404
@@ -109,9 +134,14 @@ class TestFormSubmission:
             # No phone field
         }
 
+        client.get(f"/form/{test_form.url_slug}")
+        csrf_token = client.cookies.get("csrftoken")
+        assert csrf_token, "Expected csrftoken cookie before submission"
+
         response = client.post(
             f"/form/{test_form.url_slug}",
             data=form_data,
+            headers={"X-CSRFToken": csrf_token},
         )
 
         assert response.status_code == 200
@@ -145,9 +175,14 @@ class TestFormSubmission:
             # No email field
         }
 
+        client.get(f"/form/{test_form.url_slug}")
+        csrf_token = client.cookies.get("csrftoken")
+        assert csrf_token, "Expected csrftoken cookie before submission"
+
         response = client.post(
             f"/form/{test_form.url_slug}",
             data=form_data,
+            headers={"X-CSRFToken": csrf_token},
         )
 
         assert response.status_code == 200
@@ -180,9 +215,14 @@ class TestFormSubmission:
             # Missing both email and phone
         }
 
+        client.get(f"/form/{test_form.url_slug}")
+        csrf_token = client.cookies.get("csrftoken")
+        assert csrf_token, "Expected csrftoken cookie before submission"
+
         response = client.post(
             f"/form/{test_form.url_slug}",
             data=form_data,
+            headers={"X-CSRFToken": csrf_token},
         )
 
         assert response.status_code == 400

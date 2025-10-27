@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastmcp import FastMCP
 from starlette.middleware.sessions import SessionMiddleware
+from starlette_csrf.middleware import CSRFMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from ez_scheduler.config import config
@@ -60,6 +61,16 @@ app.add_middleware(
     max_age=1800,  # 30 minutes
     https_only=True,  # Enforce HTTPS for session cookies
     same_site="lax",  # Allow cookies to be sent on redirects from Auth0
+)
+
+# Enable CSRF protection for session-backed browser flows
+app.add_middleware(
+    CSRFMiddleware,
+    secret=session_secret_key,
+    sensitive_cookies={"session"},
+    cookie_secure=True,
+    cookie_samesite="lax",
+    header_name="X-CSRFToken",
 )
 
 # Configure OAuth with Auth0

@@ -192,9 +192,16 @@ def test_publish_form_requires_auth(unauthenticated_client):
 
     url_slug = url_match.group(1)
 
+    # Load draft form preview to obtain CSRF cookie
+    form_preview = client.get(f"/form/{url_slug}")
+    assert form_preview.status_code == 200
+    csrf_token = client.cookies.get("csrftoken")
+    assert csrf_token, "Expected csrftoken cookie to be set"
+
     # Try to publish without authentication - should redirect to login
     publish_response = client.post(
         f"/publish/{url_slug}",
+        headers={"X-CSRFToken": csrf_token},
         follow_redirects=False,
     )
 

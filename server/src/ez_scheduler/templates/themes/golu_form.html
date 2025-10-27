@@ -66,7 +66,7 @@
               <div>
                 <strong>Preview Mode:</strong> This form is not published yet. Registrations are disabled until it is published.
               </div>
-              <form action="/publish/{{ url_slug }}" method="POST">
+              <form action="/publish/{{ url_slug }}" method="POST" data-csrf-publish="true">
                 <button type="submit" class="inline-flex items-center gap-1 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-md px-3 py-2 whitespace-nowrap uppercase tracking-wider">
                   <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                   Publish
@@ -246,6 +246,7 @@
   </div>
 
   <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  {% include "partials/csrf_helpers.html" %}
   <script>
     function shareFormLink(){
       const url = window.location.href;
@@ -302,8 +303,21 @@
               this.submitting = false; return;
             }
           }
+
+          const csrfToken = window.CSRFHelper.getToken();
+          if (!csrfToken){
+            this.error = 'Security token missing. Please refresh and try again.';
+            this.submitting = false;
+            this.submittingButton = null;
+            return;
+          }
           try{
-            const response = await fetch(`/form/{{ url_slug }}`, { method:'POST', body: formData });
+            const response = await fetch(`/form/{{ url_slug }}`, {
+              method:'POST',
+              body: formData,
+              credentials: 'same-origin',
+              headers: window.CSRFHelper.withHeaders(),
+            });
             const result = await response.json();
             if (response.ok && result.success){ this.confirmationMessage = result.message; this.submitted = true; }
             else { this.error = result.detail || 'An error occurred while submitting the form.'; }

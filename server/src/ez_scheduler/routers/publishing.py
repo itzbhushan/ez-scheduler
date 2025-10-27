@@ -69,6 +69,7 @@ async def publish_form_by_slug_post(
     db: Session = Depends(get_db),
 ):
     """Publish action triggered by the Publish button (POST only)."""
+
     user_info = request.session.get("user")
     if not user_info:
         # Store intent so the follow-up GET (after login redirect) can complete safely.
