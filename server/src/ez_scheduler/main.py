@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastmcp import FastMCP
 from starlette.middleware.sessions import SessionMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from ez_scheduler.config import config
 from ez_scheduler.logging_config import get_logger, setup_logging
@@ -42,15 +43,22 @@ app = FastAPI(
     redoc_url=None,  # Disable default redoc
 )
 
+# Trust proxy headers (Railway, etc. terminate HTTPS and forward via HTTP)
+# This ensures request.url.scheme reflects the original HTTPS protocol
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+
 # Add session middleware (required for Auth0 web flow)
+# Always use HTTPS-only cookies (we run HTTPS in all environments: local, staging, production)
 app.add_middleware(
     SessionMiddleware,
     secret_key=config["session_secret_key"],
     max_age=1800,  # 30 minutes
-    https_only=False,  # Set to True in production with HTTPS
+    https_only=True,  # Enforce HTTPS for session cookies
+    same_site="lax",  # Allow cookies to be sent on redirects from Auth0
 )
 
 # Configure OAuth with Auth0
+# Note: Auth0 callback URLs must be HTTPS only (configured in Auth0 dashboard)
 oauth = OAuth()
 oauth.register(
     "auth0",

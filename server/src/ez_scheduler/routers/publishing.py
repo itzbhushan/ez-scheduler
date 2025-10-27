@@ -59,6 +59,11 @@ async def publish_form_by_slug(
     # Get user_id from session (Auth0 'sub' claim)
     authenticated_user_id = user_info.get("sub")  # e.g., "auth0|123456"
 
+    logger.info(f"Publishing form {form.id} ({url_slug})")
+    logger.info(f"Form current user_id: {form.user_id}")
+    logger.info(f"Authenticated user_id from session: {authenticated_user_id}")
+    logger.info(f"User info from session: {user_info}")
+
     # Prepare updates
     updates = {"status": FormStatus.PUBLISHED}
 
