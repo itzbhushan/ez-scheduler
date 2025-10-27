@@ -79,7 +79,7 @@ class JWTUtils:
             return claims
 
         except JoseError as e:
-            logger.error(f"JWT validation failed: {e}")
+            logger.error(f"JWT validation failed: {token}", e)
             raise InvalidTokenError(f"Token validation failed: {str(e)}")
         except Exception as e:
             logger.error(f"Unexpected error during token validation: {e}")

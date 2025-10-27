@@ -57,7 +57,7 @@ def test_bug_new_dates_not_added(
     # Step 2: Add Tuesday slots (NEW DATE)
     response2 = client.post(
         "/gpt/create-or-update-form",
-        json={"message": "Also add Tuesday October 6 from 10:00 to 11:00"},
+        json={"message": "Also add the following Tuesday from 10:00 to 11:00"},
     )
     assert response2.status_code == 200
     result2 = response2.json()["response"]
