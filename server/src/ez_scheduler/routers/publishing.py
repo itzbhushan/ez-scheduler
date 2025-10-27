@@ -74,7 +74,7 @@ async def publish_form_by_slug_post(
         # Store intent so the follow-up GET (after login redirect) can complete safely.
         request.session["pending_publish_slug"] = url_slug
         return RedirectResponse(
-            url=f"/auth/login?returnTo=/publish/{url_slug}",
+            url=f"/oauth/authorize?return_to=/publish/{url_slug}",
             status_code=status.HTTP_307_TEMPORARY_REDIRECT,
         )
 
@@ -102,7 +102,7 @@ async def publish_form_by_slug_get(
     user_info = request.session.get("user")
     if not user_info:
         return RedirectResponse(
-            url=f"/auth/login?returnTo=/publish/{url_slug}",
+            url=f"/oauth/authorize?return_to=/publish/{url_slug}",
             status_code=status.HTTP_307_TEMPORARY_REDIRECT,
         )
 

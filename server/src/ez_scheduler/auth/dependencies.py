@@ -117,13 +117,13 @@ def require_auth_session(request: Request) -> dict:
         dict: User info from session (userinfo from Auth0)
 
     Raises:
-        HTTPException: 307 redirect to /auth/login if not authenticated
+        HTTPException: 307 redirect to /oauth/authorize if not authenticated
     """
     user = request.session.get("user")
     if not user:
         # Not authenticated - redirect to login
         raise HTTPException(
             status_code=307,
-            headers={"Location": f"/auth/login?returnTo={request.url.path}"},
+            headers={"Location": f"/oauth/authorize?return_to={request.url.path}"},
         )
     return user

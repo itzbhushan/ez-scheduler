@@ -11,7 +11,6 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from ez_scheduler.config import config
 from ez_scheduler.logging_config import get_logger, setup_logging
-from ez_scheduler.routers import auth as auth_router
 from ez_scheduler.routers import publishing
 from ez_scheduler.routers.docs import docs_router, set_app_instance
 from ez_scheduler.routers.gpt_actions import router as gpt_router
@@ -84,7 +83,6 @@ app.include_router(docs_router)
 app.include_router(gpt_router)
 app.include_router(oauth_router)
 app.include_router(legal_router)
-app.include_router(auth_router.router)  # Auth0 web routes
 app.include_router(publishing.router)  # Publishing route
 
 # Mount static files for assets (logo, etc.)

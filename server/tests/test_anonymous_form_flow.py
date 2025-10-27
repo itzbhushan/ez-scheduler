@@ -176,7 +176,8 @@ def test_publish_form_requires_auth(unauthenticated_client):
         "/gpt/create-or-update-form",
         json={
             "message": "Create a form for John's Birthday Party on December 15th from 5-7pm at Central Park. "
-            "Please include name, email, and phone fields and RSVP count (no max). No need to collect any other information.",
+            "Please include name, email, and phone fields and the number of guests they are planning to bring (no max limit). "
+            "No need to collect any other information.",
         },
     )
 
@@ -203,4 +204,4 @@ def test_publish_form_requires_auth(unauthenticated_client):
     # Should get 307 redirect to login
     assert publish_response.status_code == 307
     assert "location" in publish_response.headers
-    assert "/auth/login" in publish_response.headers["location"]
+    assert "/oauth/authorize" in publish_response.headers["location"]

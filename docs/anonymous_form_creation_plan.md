@@ -268,9 +268,9 @@ async def login(request: Request):
     """Redirect to Auth0 login page"""
     redirect_uri = request.url_for("auth_callback")
 
-    # Get returnTo from query params (where to go after login)
-    return_to = request.query_params.get("returnTo", "/")
-    request.session["returnTo"] = return_to
+    # Get return_to from query params (where to go after login)
+    return_to = request.query_params.get("return_to", "/")
+    request.session["return_to"] = return_to
 
     return await oauth.auth0.authorize_redirect(request, redirect_uri)
 
@@ -284,7 +284,7 @@ async def auth_callback(request: Request):
     request.session["id_token"] = token.get("id_token")
 
     # Redirect to original destination
-    return_to = request.session.pop("returnTo", "/")
+    return_to = request.session.pop("return_to", "/")
     return RedirectResponse(url=return_to)
 
 @router.get("/logout")
@@ -316,7 +316,7 @@ def require_auth_session(request: Request) -> dict:
         # Not authenticated - redirect to login
         raise HTTPException(
             status_code=307,
-            headers={"Location": f"/auth/login?returnTo={request.url.path}"}
+            headers={"Location": f"/oauth/authorize?return_to={request.url.path}"}
         )
     return user
 ```
@@ -359,9 +359,9 @@ async def publish_form_by_slug(
 
     Flow (one click, no JavaScript required):
     1. User clicks "Publish" button → HTML form submits POST /publish/{url_slug}
-    2. If not authenticated: require_auth_session raises 307 redirect to /auth/login
+    2. If not authenticated: require_auth_session raises 307 redirect to /oauth/authorize
     3. Auth0 login page
-    4. After login: Auth0 redirects to /auth/callback
+    4. After login: Auth0 redirects to /oauth/callback
     5. Callback redirects back to /publish/{url_slug}
     6. This handler runs with authenticated user (session populated)
     7. Transfer ownership if anonymous + publish
@@ -428,11 +428,11 @@ async def publish_form_by_slug(
 
 **Authentication Flow**:
 1. `require_auth_session` checks `request.session.get("user")`
-2. If not found → raises 307 redirect to `/auth/login?returnTo=/publish/{url_slug}`
-3. `/auth/login` → calls `oauth.auth0.authorize_redirect()` (Authlib SDK)
+2. If not found → raises 307 redirect to `/oauth/authorize?return_to=/publish/{url_slug}`
+3. `/oauth/authorize` → calls `oauth.auth0.authorize_redirect()` (Authlib SDK)
 4. Auth0 login page
-5. Auth0 callback → `/auth/callback` validates token, stores in session
-6. Callback redirects to original `returnTo` URL (`/publish/{url_slug}`)
+5. Auth0 callback → `/oauth/callback` validates token, stores in session
+6. Callback redirects to original `return_to` URL (`/publish/{url_slug}`)
 7. Publish handler runs with session populated
 
 ### 4. Custom GPT Conversation Continuity
@@ -725,7 +725,7 @@ config = {
 from authlib.integrations.starlette_client import OAuth
 from starlette.middleware.sessions import SessionMiddleware
 
-from ez_scheduler.routers import publishing, auth as auth_router
+from ez_scheduler.routers import publishing
 
 # Add session middleware (required for Auth0 web flow)
 app.add_middleware(
@@ -749,7 +749,7 @@ oauth.register(
 app.state.oauth = oauth
 
 # Include new routers
-app.include_router(auth_router.router)  # Auth routes (/auth/login, /auth/callback, /auth/logout)
+app.include_router(publishing.router)  # Publishing route (web auth handled via /oauth)
 app.include_router(publishing.router)   # Publishing route (/publish/{url_slug})
 ```
 
@@ -771,9 +771,9 @@ async def login(request: Request):
     oauth: OAuth = request.app.state.oauth
     redirect_uri = request.url_for("auth_callback")
 
-    # Get returnTo from query params (where to go after login)
-    return_to = request.query_params.get("returnTo", "/")
-    request.session["returnTo"] = return_to
+    # Get return_to from query params (where to go after login)
+    return_to = request.query_params.get("return_to", "/")
+    request.session["return_to"] = return_to
 
     return await oauth.auth0.authorize_redirect(request, redirect_uri)
 
@@ -788,7 +788,7 @@ async def auth_callback(request: Request):
     request.session["id_token"] = token.get("id_token")
 
     # Redirect to original destination
-    return_to = request.session.pop("returnTo", "/")
+    return_to = request.session.pop("return_to", "/")
     return RedirectResponse(url=return_to)
 
 @router.get("/logout")
@@ -843,14 +843,14 @@ def require_auth_session(request: Request) -> dict:
         dict: User info from session (userinfo from Auth0)
 
     Raises:
-        HTTPException: 307 redirect to /auth/login if not authenticated
+        HTTPException: 307 redirect to /oauth/authorize if not authenticated
     """
     user = request.session.get("user")
     if not user:
         # Not authenticated - redirect to login
         raise HTTPException(
             status_code=307,
-            headers={"Location": f"/auth/login?returnTo={request.url.path}"}
+            headers={"Location": f"/oauth/authorize?return_to={request.url.path}"}
         )
     return user
 ```

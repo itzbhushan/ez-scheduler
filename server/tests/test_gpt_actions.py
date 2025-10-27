@@ -24,7 +24,7 @@ def test_one_shot_form_creation(authenticated_client, signup_service):
         "/gpt/create-or-update-form",
         json={
             "message": "Create a signup form for John's Birthday Party for next Sunday from 3-5pm at 123 Main Street, San Jose."
-            "Please include name, email, and phone fields and RSVP count."
+            "Please include name, email, and phone fields and number of guests they are planning to bring (no max)."
             "No other fields are necessary.",
         },
     )
