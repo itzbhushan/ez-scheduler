@@ -10,6 +10,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 @router.get("/login")
+@router.post("/login")
 async def login(request: Request):
     """Redirect to Auth0 login page"""
     oauth: OAuth = request.app.state.oauth
