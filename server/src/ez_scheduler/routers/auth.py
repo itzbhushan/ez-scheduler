@@ -1,5 +1,7 @@
 """Auth0 web authentication routes for browser-based login"""
 
+from urllib.parse import urlparse
+
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
@@ -7,6 +9,32 @@ from fastapi.responses import RedirectResponse
 from ez_scheduler.config import config
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+def _safe_return_path(raw_value: str | None) -> str:
+    """
+    Ensure the post-login redirect stays on this origin.
+
+    Reject absolute URLs, protocol-relative URLs, and empty values.
+    """
+    if not raw_value:
+        return "/"
+
+    # Disallow protocol-relative or malformed values (e.g. begin with //)
+    if raw_value.startswith("//"):
+        return "/"
+
+    parsed = urlparse(raw_value)
+
+    # Reject any value that includes scheme or host components
+    if parsed.scheme or parsed.netloc:
+        return "/"
+
+    # Only allow paths that start with a single /
+    if not raw_value.startswith("/"):
+        return "/"
+
+    return raw_value
 
 
 @router.get("/login")
@@ -17,7 +45,7 @@ async def login(request: Request):
     redirect_uri = request.url_for("auth_callback")
 
     # Get returnTo from query params (where to go after login)
-    return_to = request.query_params.get("returnTo", "/")
+    return_to = _safe_return_path(request.query_params.get("returnTo"))
     request.session["returnTo"] = return_to
 
     return await oauth.auth0.authorize_redirect(request, redirect_uri)
@@ -34,7 +62,7 @@ async def auth_callback(request: Request):
     request.session["id_token"] = token.get("id_token")
 
     # Redirect to original destination
-    return_to = request.session.pop("returnTo", "/")
+    return_to = _safe_return_path(request.session.pop("returnTo", None))
     return RedirectResponse(url=return_to)
 
 

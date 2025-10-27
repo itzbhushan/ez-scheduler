@@ -49,9 +49,15 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 # Add session middleware (required for Auth0 web flow)
 # Always use HTTPS-only cookies (we run HTTPS in all environments: local, staging, production)
+session_secret_key = config["session_secret_key"]
+if not session_secret_key or len(session_secret_key) < 32:
+    raise RuntimeError(
+        "SESSION_SECRET_KEY must be set to a secure random string (>=32 characters)."
+    )
+
 app.add_middleware(
     SessionMiddleware,
-    secret_key=config["session_secret_key"],
+    secret_key=session_secret_key,
     max_age=1800,  # 30 minutes
     https_only=True,  # Enforce HTTPS for session cookies
     same_site="lax",  # Allow cookies to be sent on redirects from Auth0

@@ -1,10 +1,10 @@
 """Web-based form publishing endpoint with Auth0 session authentication"""
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from sqlmodel import Session
 
-from ez_scheduler.auth.dependencies import require_auth_session
+from ez_scheduler.auth.models import is_anonymous_user_id
 from ez_scheduler.logging_config import get_logger
 from ez_scheduler.models.database import get_db
 from ez_scheduler.models.signup_form import FormStatus
@@ -14,72 +14,43 @@ router = APIRouter(tags=["Publishing"])
 logger = get_logger(__name__)
 
 
-@router.get("/publish/{url_slug}")
-@router.post("/publish/{url_slug}")
-async def publish_form_by_slug(
+def _publish_form(
+    *,
     url_slug: str,
-    request: Request,
-    user_info: dict = Depends(require_auth_session),  # Session-based auth with redirect
-    db: Session = Depends(get_db),
+    user_info: dict,
+    signup_form_service: SignupFormService,
 ):
-    """
-    Publish a draft form (web-only endpoint).
-
-    Accepts both GET and POST for one-click publish flow:
-    - POST: Used by HTML form submission (primary method)
-    - GET: Handles direct URL access after Auth0 callback
-
-    Both methods are idempotent (safe to call multiple times).
-
-    Flow (one click, no JavaScript required):
-    1. User clicks "Publish" button → HTML form submits POST /publish/{url_slug}
-    2. If not authenticated: require_auth_session raises 307 redirect to /auth/login
-    3. Auth0 login page
-    4. After login: Auth0 redirects to /auth/callback
-    5. Callback redirects back to /publish/{url_slug}
-    6. This handler runs with authenticated user (session populated)
-    7. Transfer ownership if anonymous + publish
-    8. Redirect to published form (303)
-    """
-    signup_form_service = SignupFormService(db)
-
-    # Get form by URL slug
+    """Shared implementation that performs the publish transition."""
     form = signup_form_service.get_form_by_url_slug(url_slug)
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
 
-    # Verify form is a draft
     if form.status == FormStatus.PUBLISHED:
-        # Already published - redirect to form
         return RedirectResponse(url=f"/form/{url_slug}", status_code=303)
 
     if form.status == FormStatus.ARCHIVED:
         raise HTTPException(status_code=410, detail="Form has been archived")
 
-    # Get user_id from session (Auth0 'sub' claim)
-    authenticated_user_id = user_info.get("sub")  # e.g., "auth0|123456"
+    authenticated_user_id = user_info.get("sub")
+    if not authenticated_user_id:
+        raise HTTPException(status_code=401, detail="Session missing Auth0 user")
 
-    logger.info(f"Publishing form {form.id} ({url_slug})")
-    logger.info(f"Form current user_id: {form.user_id}")
-    logger.info(f"Authenticated user_id from session: {authenticated_user_id}")
-    logger.info(f"User info from session: {user_info}")
-
-    # Prepare updates
     updates = {"status": FormStatus.PUBLISHED}
 
-    # Transfer ownership if form was created anonymously
-    if form.user_id.startswith("anon|"):
+    if is_anonymous_user_id(form.user_id):
         updates["user_id"] = authenticated_user_id
         logger.info(
-            f"Publishing form {form.id}: transferring ownership from {form.user_id} to {authenticated_user_id}"
+            "Publishing form %s (%s): transferring ownership from %s to %s",
+            form.id,
+            url_slug,
+            form.user_id,
+            authenticated_user_id,
         )
     elif form.user_id != authenticated_user_id:
-        # Form owned by different authenticated user - permission denied
         raise HTTPException(
             status_code=403, detail="You don't have permission to publish this form"
         )
 
-    # Publish the form
     result = signup_form_service.update_signup_form(form.id, updates)
     if not result.get("success"):
         raise HTTPException(
@@ -87,7 +58,55 @@ async def publish_form_by_slug(
             detail=f"Failed to publish form: {result.get('error', 'Unknown error')}",
         )
 
-    logger.info(f"Successfully published form {form.id} ({url_slug})")
-
-    # Redirect to published form
+    logger.info("Successfully published form %s (%s)", form.id, url_slug)
     return RedirectResponse(url=f"/form/{url_slug}", status_code=303)
+
+
+@router.post("/publish/{url_slug}")
+async def publish_form_by_slug_post(
+    url_slug: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Publish action triggered by the Publish button (POST only)."""
+    user_info = request.session.get("user")
+    if not user_info:
+        # Store intent so the follow-up GET (after login redirect) can complete safely.
+        request.session["pending_publish_slug"] = url_slug
+        return RedirectResponse(
+            url=f"/auth/login?returnTo=/publish/{url_slug}",
+            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        )
+
+    signup_form_service = SignupFormService(db)
+    return _publish_form(
+        url_slug=url_slug, user_info=user_info, signup_form_service=signup_form_service
+    )
+
+
+@router.get("/publish/{url_slug}")
+async def publish_form_by_slug_get(
+    url_slug: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Handle the post-login redirect.
+
+    The publish action only proceeds if a prior POST stored the intent in the session.
+    """
+    pending_slug = request.session.pop("pending_publish_slug", None)
+    if pending_slug != url_slug:
+        raise HTTPException(status_code=403, detail="Publish request not authorized")
+
+    user_info = request.session.get("user")
+    if not user_info:
+        return RedirectResponse(
+            url=f"/auth/login?returnTo=/publish/{url_slug}",
+            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        )
+
+    signup_form_service = SignupFormService(db)
+    return _publish_form(
+        url_slug=url_slug, user_info=user_info, signup_form_service=signup_form_service
+    )
