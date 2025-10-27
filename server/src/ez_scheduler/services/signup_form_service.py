@@ -99,6 +99,8 @@ class SignupFormService:
                 signup_form.description = updated_data["description"]
             if "url_slug" in updated_data:
                 signup_form.url_slug = updated_data["url_slug"]
+            if "user_id" in updated_data:
+                signup_form.user_id = updated_data["user_id"]
             if "status" in updated_data:
                 # Enforce only valid status strings/enums and legal transitions
                 new_status = updated_data["status"]
