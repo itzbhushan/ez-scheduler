@@ -91,14 +91,22 @@ async def authorize(
             detail="Missing required OAuth parameters",
         )
 
+    default_audience = None
+    app_base_url = config.get("app_base_url")
+    if app_base_url:
+        default_audience = app_base_url.rstrip("/") + "/gpt"
+
+    audience = authorize_request.audience or default_audience
+
     params = {
         "response_type": authorize_request.response_type.value,
         "client_id": authorize_request.client_id,
         "redirect_uri": authorize_request.redirect_uri,
         "scope": authorize_request.scope,
         "state": authorize_request.state,
-        "audience": authorize_request.audience,
     }
+    if audience:
+        params["audience"] = audience
 
     uri = f"https://{config['auth0_domain']}/authorize?{urlencode(params)}"
     logger.info(f"Redirecting to {uri}")
