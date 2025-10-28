@@ -37,7 +37,9 @@ async def test_mcp_create_timeslot_form(
     draft_form = None
     async with Client(mcp_client) as client:
         tools = await client.list_tools()
-        assert any(t.name == "create_or_update_form" for t in tools)
+        tool_names = {t.name for t in tools}
+        assert "create_or_update_form" in tool_names
+        assert "publish_form" not in tool_names
         result = await client.call_tool(
             "create_or_update_form", {"user_id": user_id, "message": initial_request}
         )
@@ -68,14 +70,11 @@ async def test_mcp_create_timeslot_form(
         draft_form = signup_service.get_latest_draft_form_for_user(user_id)
         assert draft_form is not None, "Expected a draft form to be created via MCP"
 
-        # Publish through MCP tool to mirror production flow
-        publish_result = await client.call_tool("publish_form", {"user_id": user_id})
-        publish_message = (
-            publish_result
-            if isinstance(publish_result, str)
-            else getattr(publish_result, "data", None) or str(publish_result)
+        # Publish via service to simulate browser-based publish flow
+        publish_result = signup_service.update_signup_form(
+            draft_form.id, {"status": FormStatus.PUBLISHED}
         )
-        assert publish_message == "Form published successfully!"
+        assert publish_result.get("success"), publish_result.get("error")
 
     # Verify the form has been published
     assert draft_form is not None
@@ -155,7 +154,9 @@ async def test_mcp_create_timeslot_form_capacity_two(
     draft_form = None
     async with Client(mcp_client) as client:
         tools = await client.list_tools()
-        assert any(t.name == "create_or_update_form" for t in tools)
+        tool_names = {t.name for t in tools}
+        assert "create_or_update_form" in tool_names
+        assert "publish_form" not in tool_names
         result = await client.call_tool(
             "create_or_update_form", {"user_id": user_id, "message": initial_request}
         )
@@ -184,13 +185,10 @@ async def test_mcp_create_timeslot_form_capacity_two(
         draft_form = signup_service.get_latest_draft_form_for_user(user_id)
         assert draft_form is not None
 
-        publish_result = await client.call_tool("publish_form", {"user_id": user_id})
-        publish_message = (
-            publish_result
-            if isinstance(publish_result, str)
-            else getattr(publish_result, "data", None) or str(publish_result)
+        publish_result = signup_service.update_signup_form(
+            draft_form.id, {"status": FormStatus.PUBLISHED}
         )
-        assert publish_message == "Form published successfully!"
+        assert publish_result.get("success"), publish_result.get("error")
 
     assert draft_form is not None
     form = signup_service.reload_form(draft_form.id)

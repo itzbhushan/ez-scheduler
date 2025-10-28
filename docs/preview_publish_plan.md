@@ -3,11 +3,13 @@
 
 Last updated: 2025-09-23
 
+> **Update (2025-10-21)**: Publish actions are now browser-only. The `/gpt/publish-form` endpoint and `publish_form` MCP tool referenced below have been removed.
+
 ---
 
 ## Overview
 
-We will introduce a preview/publish lifecycle for signup forms so creators can iterate on content (title, description, date/time, custom fields), preview the result at the live URL, and publish when ready. Previewed (unpublished) forms render with a clear visual indicator and do not accept registrations. Only published forms accept registrations. The conversational agent will explicitly ask the user to publish and perform the publish action on confirmation.
+We will introduce a preview/publish lifecycle for signup forms so creators can iterate on content (title, description, date/time, custom fields), preview the result at the live URL, and publish when ready. Previewed (unpublished) forms render with a clear visual indicator and do not accept registrations. Only published forms accept registrations. The conversational agent will explicitly ask the user to publish and direct them to complete the action in the browser.
 
 Given there is only one production form and it can be manually patched, we will not maintain backward compatibility. We will immediately unify the archival flag and publish state under a single `status` field and enforce behavior consistently across GET and POST.
 
@@ -49,7 +51,7 @@ Serving rules:
 - Preview URL: Same URL `/form/{slug}` shows a banner if `status='draft'`.
 - No registrations in preview: Server rejects POST unless `status='published'`; UI also disables CTA.
 - Visual indicator: Prominent banner for `draft` forms; hide/disable submission controls.
-- Conversational agent publish: New GPT action to publish/unpublish; prompt updated to ask user for publish confirmation.
+- Conversational agent publish: Prompt notifies the user to publish in the browser; programmatic publish endpoints have been removed.
 - Only published forms accept registrations: Enforced at both router and service.
 
 ---

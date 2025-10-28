@@ -505,7 +505,7 @@ class FormConversationHandler:
 @dataclass
 class ConversationHandlerResponse:
     response_text: str  # Natural language response
-    action: Literal["continue", "create_form", "publish_form"]
+    action: Literal["continue", "create_form"]  # Publish happens via browser UI
     form_state: Dict[str, Any]  # Current complete form state
     is_complete: bool  # Whether form is ready to create
 
@@ -656,7 +656,7 @@ async def create_or_update_form(
      - Check if `form_id` exists in `response.form_state`
      - If exists → **UPDATE** existing draft
      - If not exists → **CREATE** new draft, store `form_id` in state
-   - `publish_form`: Publish draft, clear conversation state
+   - `(removed) publish_form`: Inform user to publish via browser; no server-side action
 
 #### Key Implementation Details
 

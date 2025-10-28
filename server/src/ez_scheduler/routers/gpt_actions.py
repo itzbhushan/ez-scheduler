@@ -3,7 +3,6 @@
 import logging
 from datetime import date, time
 from typing import List, Optional
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -21,10 +20,7 @@ from ez_scheduler.backends.postgres_client import PostgresClient
 from ez_scheduler.config import config
 from ez_scheduler.models.database import get_db, get_redis
 from ez_scheduler.models.signup_form import FormStatus
-from ez_scheduler.routers.request_validator import (
-    resolve_form_or_ask,
-    validate_publish_allowed,
-)
+from ez_scheduler.routers.request_validator import resolve_form_or_ask
 from ez_scheduler.services.conversation_manager import ConversationManager
 from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.form_state_manager import FormStateManager
@@ -80,118 +76,6 @@ class FormMutateRequest(BaseModel):
         default=None,
         description="Publish a draft whose title contains this text (fallback)",
     )
-
-
-@router.post(
-    "/publish-form",
-    summary="Publish the draft form from current conversation",
-    response_model=GPTResponse,
-    openapi_extra={"x-openai-isConsequential": True},
-)
-async def gpt_publish_form(
-    user: User = Depends(get_current_user),
-    db_session=Depends(get_db),
-    redis_client=Depends(get_redis),
-) -> GPTResponse:
-    """
-    Publish the form from the current active conversation.
-
-    This endpoint uses conversation state to identify which form to publish,
-    eliminating the need for the user to specify form_id, url_slug, or title.
-    """
-    signup_form_service = SignupFormService(db_session)
-    redis_url = config["redis_url"]
-    form_state_manager = FormStateManager(redis_client=redis_client, ttl_seconds=1800)
-
-    # Get active thread for this user
-    active_thread_key = f"active_thread:{user.user_id}"
-    thread_id = redis_client.get(active_thread_key)
-
-    if not thread_id:
-        return GPTResponse(
-            response="No active form conversation found. Please create a form first before publishing.",
-            user_id=None,
-        )
-
-    # Get form state from conversation
-    form_state = form_state_manager.get_state(thread_id)
-    form_id_str = form_state.get("form_id")
-
-    if not form_id_str:
-        return GPTResponse(
-            response="No form has been created in this conversation yet. Please complete the form creation first.",
-            user_id=None,
-        )
-
-    # Check if form is complete
-    is_complete = form_state.get("is_complete", False)
-    if not is_complete:
-        return GPTResponse(
-            response="This form cannot be published yet. It's missing required information. "
-            "Please provide all necessary details (title, date, location, description) before publishing.",
-            user_id=None,
-        )
-
-    # Get the form from database
-    try:
-        form_id = UUID(form_id_str)
-        form = signup_form_service.get_form_by_id(form_id)
-    except Exception as e:
-        logger.error(f"Failed to get form {form_id_str}: {e}")
-        return GPTResponse(
-            response="Form not found. It may have been deleted.",
-            user_id=None,
-        )
-
-    if not form:
-        return GPTResponse(
-            response="Form not found. It may have been deleted.",
-            user_id=None,
-        )
-
-    # Verify ownership
-    if form.user_id != user.user_id:
-        return GPTResponse(
-            response="You don't have permission to publish this form.",
-            user_id=None,
-        )
-
-    # Check if already published
-    if form.status == FormStatus.PUBLISHED:
-        return GPTResponse(
-            response="This form is already published.",
-            user_id=None,
-        )
-
-    # Check if archived
-    if form.status == FormStatus.ARCHIVED:
-        return GPTResponse(
-            response="Archived forms cannot be published.",
-            user_id=None,
-        )
-
-    # Publish the form
-    result = signup_form_service.update_signup_form(
-        form.id, {"status": FormStatus.PUBLISHED}
-    )
-    if not result.get("success"):
-        return GPTResponse(
-            response=f"Failed to publish form: {result.get('error', 'Unknown error')}",
-            user_id=None,
-        )
-
-    # Clear conversation thread after successful publish
-    conversation_manager = ConversationManager(
-        redis_client=redis_client, redis_url=redis_url, ttl_seconds=1800
-    )
-    try:
-        conversation_manager.clear_history(thread_id)
-        logger.info(f"Cleared conversation thread after publishing form {form.id}")
-    except Exception as e:
-        # Non-fatal error, just log it
-        logger.warning(f"Failed to clear conversation thread after publish: {e}")
-
-    return GPTResponse(response="Form published successfully!", user_id=None)
 
 
 @router.post(

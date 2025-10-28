@@ -11,7 +11,7 @@ This plan removes the login requirement for creating draft forms, allowing users
 
 ### Previous Behavior
 - Login required for both draft creation and publishing
-- Publishing happens in client apps via `/gpt/publish-form` or MCP `publish_form` tool
+- Publishing happened in client apps via `/gpt/publish-form` or the MCP `publish_form` tool (both now removed)
 
 ### New Behavior
 - **Draft Creation**: Login optional (in any client - Claude Desktop, ChatGPT, browser)

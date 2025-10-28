@@ -212,7 +212,7 @@ form_state:user123::conv::abc456
 - `ConversationResponse` with:
   - `response_text` (str): Message to user
   - `extracted_data` (FormExtractionSchema): Extracted/updated form data
-  - `action` (str): "continue" | "create_form" | "publish_form"
+  - `action` (str): "continue" | "create_form" (publish handled in browser flow)
   - `form_state` (dict): Current complete form state
 
 **Business Logic:**
@@ -297,7 +297,7 @@ New sections to add:
    - **create_form**: Check for existing draft:
      - If `form_id` exists in state → **UPDATE** existing draft
      - If no `form_id` → **CREATE** new draft, store `form_id` in state
-   - **publish_form**: Publish existing draft, clear conversation state
+   - **(removed) publish_form**: Publishing now occurs via the browser UI once drafts are complete
 5. Conversation history automatically maintained by ConversationManager
 
 **Create vs Update Logic:**
@@ -646,10 +646,8 @@ Handler checks: form_id exists? YES
 ```
 User: "Publish it"
 
-→ Action: "publish_form"
-→ Updates status to PUBLISHED
-→ Clears conversation & state
-→ Response: "Published! Share: https://..."
+→ Action: "continue" (LLM reminds user to publish via browser UI)
+→ Response: "Open the draft in your browser and click Publish to make it live."
 ```
 
 ## Session Cleanup Strategy

@@ -29,8 +29,8 @@ def test_bug_new_dates_not_added(
     response1 = client.post(
         "/gpt/create-or-update-form",
         json={
-            "message": "Create a form for Coaching at Los Gatos Library for next Monday from 10:00 to 11:00"
-            ", 60 minute slots, 1 person per slot. No information except name and email is needed."
+            "message": "Create a form for Pickle ball classes at 123 Main St, Los Gatos for next Monday from 10:00 to 11:00"
+            ", 60 minute slots, 1 person per slot. No information except name, email and skill level is needed."
         },
     )
     assert response1.status_code == 200
@@ -93,8 +93,9 @@ def test_bug_capacity_per_slot_not_respected(
     response1 = client.post(
         "/gpt/create-or-update-form",
         json={
-            "message": "Create a form for Workshops at Building A for next Monday from 10:00 to 11:00, "
-            "60 minute slots, 2 people per slot. No information except name and email is needed."
+            "message": "Create a form for Chess Workshops at 123 Main St, San Jose for next Monday from 10:00 to 11:00, "
+            "60 minute slots, 2 people per slot. Only collect their name, email and their chess skill level. "
+            "No other details are necessary."
         },
     )
     assert response1.status_code == 200
@@ -121,7 +122,7 @@ def test_bug_capacity_per_slot_not_respected(
     response2 = client.post(
         "/gpt/create-or-update-form",
         json={
-            "message": "Also add Tuesday October 6 from 10:00 to 11:00 with 5 people per slot"
+            "message": "Also add slots for next Tuesday from 10:00 to 11:00 with 5 people per slot"
         },
     )
     assert response2.status_code == 200

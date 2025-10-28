@@ -1,5 +1,3 @@
-from uuid import UUID
-
 from fastmcp import FastMCP
 
 from ez_scheduler.auth.models import User
@@ -8,10 +6,7 @@ from ez_scheduler.config import config
 from ez_scheduler.logging_config import get_logger
 from ez_scheduler.models.database import get_db, get_redis
 from ez_scheduler.models.signup_form import FormStatus
-from ez_scheduler.routers.request_validator import (
-    resolve_form_or_ask,
-    validate_publish_allowed,
-)
+from ez_scheduler.routers.request_validator import resolve_form_or_ask
 from ez_scheduler.services.conversation_manager import ConversationManager
 from ez_scheduler.services.form_field_service import FormFieldService
 from ez_scheduler.services.form_state_manager import FormStateManager
@@ -52,97 +47,6 @@ async def get_form_analytics(user_id: str, analytics_query: str) -> str:
         return await get_form_analytics_handler(user, analytics_query, postgres_client)
     except Exception as e:
         return f"Error processing analytics query: {str(e)}"
-
-
-@mcp.tool()
-async def publish_form(user_id: str) -> str:
-    """Publish the draft form from the active conversational context.
-
-    This mirrors the `/gpt/publish-form` endpoint by:
-    - Locating the active conversation thread in Redis
-    - Ensuring the draft is complete before publishing
-    - Verifying ownership and archived status
-    - Clearing the conversation history on success
-
-    Args:
-        user_id: Auth0 user identifier (e.g., "auth0|123").
-
-    Returns:
-        Text message describing the result.
-    """
-    user = User(user_id=user_id, claims={})
-    try:
-        db_session = next(get_db())
-        redis_client = get_redis()
-        try:
-            signup_form_service = SignupFormService(db_session)
-            form_state_manager = FormStateManager(
-                redis_client=redis_client, ttl_seconds=1800
-            )
-
-            active_thread_key = f"active_thread:{user.user_id}"
-            thread_id = redis_client.get(active_thread_key)
-            if not thread_id:
-                return "No active form conversation found. Please create a form first before publishing."
-
-            if isinstance(thread_id, bytes):
-                thread_id = thread_id.decode("utf-8")
-
-            form_state = form_state_manager.get_state(thread_id) or {}
-            form_id_str = form_state.get("form_id")
-            if not form_id_str:
-                return "No form has been created in this conversation yet. Please complete the form creation first."
-
-            if not form_state.get("is_complete", False):
-                return (
-                    "This form cannot be published yet. It's missing required information. "
-                    "Please provide all necessary details (title, date, location, description) before publishing."
-                )
-
-            try:
-                form = signup_form_service.get_form_by_id(UUID(form_id_str))
-            except Exception as fetch_error:
-                logger.error(f"Failed to get form {form_id_str}: {fetch_error}")
-                form = None
-
-            if not form:
-                return "Form not found. It may have been deleted."
-
-            err = validate_publish_allowed(form, user)
-            if err:
-                if err == "You do not own this form":
-                    return "You don't have permission to publish this form."
-                return err
-
-            if form.status == FormStatus.PUBLISHED:
-                return "This form is already published."
-
-            result = signup_form_service.update_signup_form(
-                form.id, {"status": FormStatus.PUBLISHED}
-            )
-            if not result.get("success"):
-                return f"Failed to publish form: {result.get('error', 'Unknown error')}"
-
-            redis_url = config["redis_url"]
-            conversation_manager = ConversationManager(
-                redis_client=redis_client, redis_url=redis_url, ttl_seconds=1800
-            )
-            try:
-                conversation_manager.clear_history(thread_id)
-                logger.info(
-                    f"Cleared conversation thread after publishing form {form.id}"
-                )
-            except Exception as clear_error:
-                logger.warning(
-                    f"Failed to clear conversation thread after publish {form.id}: {clear_error}"
-                )
-
-            return "Form published successfully!"
-        finally:
-            db_session.close()
-    except Exception as e:
-        logger.error(f"Error publishing form for user {user.user_id}: {e}")
-        return f"Error publishing form: {str(e)}"
 
 
 @mcp.tool()
