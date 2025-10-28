@@ -17,7 +17,7 @@ from sqlmodel import Session, create_engine
 from testcontainers.postgres import PostgresContainer
 from testcontainers.redis import RedisContainer
 
-from ez_scheduler.auth.dependencies import get_current_user
+from ez_scheduler.auth.dependencies import get_current_user, get_current_user_optional
 from ez_scheduler.auth.models import User
 from ez_scheduler.backends.llm_client import LLMClient
 from ez_scheduler.main import app
@@ -301,6 +301,7 @@ def authenticated_client(mock_current_user, _db_session, redis_client):
     # Clear all existing overrides and set only our test overrides
     app.dependency_overrides.clear()
     app.dependency_overrides[get_current_user] = mock_get_current_user
+    app.dependency_overrides[get_current_user_optional] = mock_get_current_user
     app.dependency_overrides[get_db] = get_test_db
     app.dependency_overrides[get_redis] = get_test_redis
 

@@ -32,9 +32,17 @@
             </div>
             {% if form.status == 'draft' %}
             <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4" role="alert">
-                <p class="text-sm text-yellow-800">
-                    <strong>Preview Mode:</strong> This form is not published yet. Registrations are disabled until the organizer publishes it.
-                </p>
+                <div class="flex items-start justify-between">
+                    <p class="text-sm text-yellow-800">
+                        <strong>Preview Mode:</strong> This form is not published yet. Registrations are disabled until the organizer publishes it.
+                    </p>
+                    <form action="/publish/{{ url_slug }}" method="POST" class="ml-4" data-csrf-publish="true">
+                        <button type="submit" class="inline-flex items-center gap-1 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 border border-blue-700 px-4 py-2 rounded-md whitespace-nowrap">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            Publish Form
+                        </button>
+                    </form>
+                </div>
             </div>
             {% endif %}
             <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-4 text-gray-600">
@@ -337,6 +345,8 @@
         </div>
     </div>
 
+    {% include "partials/csrf_helpers.html" %}
+
     <script>
         function shareFormLink() {
             const url = window.location.href;
@@ -405,10 +415,20 @@
                         }
                     }
 
+                    const csrfToken = window.CSRFHelper.getToken();
+                    if (!csrfToken) {
+                        this.error = 'Security token missing. Please refresh and try again.';
+                        this.submitting = false;
+                        this.submittingButton = null;
+                        return;
+                    }
+
                     try {
                         const response = await fetch(`/form/{{ url_slug }}`, {
                             method: 'POST',
-                            body: formData
+                            body: formData,
+                            credentials: 'same-origin',
+                            headers: window.CSRFHelper.withHeaders(),
                         });
 
                         const result = await response.json();

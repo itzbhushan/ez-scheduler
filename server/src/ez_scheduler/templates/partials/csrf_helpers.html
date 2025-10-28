@@ -1,0 +1,78 @@
+<script>
+(function () {
+  function getCsrfToken() {
+    const match = document.cookie.match(/(^|;)\s*csrftoken=([^;]+)/i);
+    return match ? decodeURIComponent(match[2]) : null;
+  }
+
+  function ensureToken() {
+    const token = getCsrfToken();
+    if (!token) {
+      alert('Security token missing. Please refresh the page and try again.');
+      throw new Error('Missing CSRF token');
+    }
+    return token;
+  }
+
+  function withCsrfHeaders(headers) {
+    const base = headers || {};
+    const token = ensureToken();
+    return Object.assign({}, base, { 'X-CSRFToken': token });
+  }
+
+  async function handlePublishSubmit(event) {
+    event.preventDefault();
+    let token;
+    try {
+      token = ensureToken();
+    } catch (err) {
+      return;
+    }
+
+    const form = event.currentTarget;
+    try {
+      const response = await fetch(form.action, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'X-CSRFToken': token },
+        redirect: 'follow',
+      });
+
+      if (response.redirected) {
+        window.location.href = response.url;
+        return;
+      }
+
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('Location');
+        if (location) {
+          window.location.href = location;
+          return;
+        }
+      }
+
+      if (response.ok) {
+        window.location.reload();
+      } else {
+        console.error('Publish failed', await response.text());
+        alert('Failed to publish form. Please try again.');
+      }
+    } catch (error) {
+      console.error('Publish error', error);
+      alert('Network error. Please try again.');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('form[data-csrf-publish="true"]').forEach((form) => {
+      form.addEventListener('submit', handlePublishSubmit);
+    });
+  });
+
+  window.CSRFHelper = {
+    getToken: getCsrfToken,
+    ensureToken,
+    withHeaders: withCsrfHeaders,
+  };
+})();
+</script>

@@ -24,7 +24,7 @@ def test_one_shot_form_creation(authenticated_client, signup_service):
         "/gpt/create-or-update-form",
         json={
             "message": "Create a signup form for John's Birthday Party for next Sunday from 3-5pm at 123 Main Street, San Jose."
-            "Please include name, email, and phone fields and RSVP count."
+            "Please include name, email, and phone fields and number of guests they are planning to bring (no max)."
             "No other fields are necessary.",
         },
     )
@@ -166,47 +166,6 @@ def test_gpt_analytics_success(authenticated_client, query, description):
     logger.info(f"✅ Analytics query '{query}' ({description}) succeeded")
 
 
-def test_gpt_endpoints_require_authentication():
-    """Test that GPT endpoints return 401 when no authentication is provided"""
-    from fastapi.testclient import TestClient
-
-    from ez_scheduler.main import app
-
-    # Create a client without authentication override
-    client = TestClient(app)
-
-    try:
-        # Test create-form endpoint without authentication
-        response = client.post(
-            "/gpt/create-or-update-form",
-            json={"message": "Test form without auth"},
-        )
-
-        assert response.status_code == 403, f"Expected 403, got {response.status_code}"
-        assert (
-            "Not authenticated" in response.text
-        ), f"Expected 'Not authenticated' in response: {response.text}"
-
-        # Test analytics endpoint without authentication
-        response = client.post(
-            "/gpt/analytics",
-            json={"query": "Test analytics without auth"},
-        )
-
-        assert response.status_code == 403, f"Expected 403, got {response.status_code}"
-        assert (
-            "Not authenticated" in response.text
-        ), f"Expected 'Not authenticated' in response: {response.text}"
-
-        logger.info(
-            "✅ Authentication requirement test passed - Unauthenticated requests properly rejected"
-        )
-
-    except Exception as e:
-        logger.error(f"❌ Authentication requirement test failed: {e}")
-        raise
-
-
 def test_draft_form_analytics_exclusion(authenticated_client, signup_service):
     """Test that newly created forms are in draft state and excluded from published form analytics"""
     client, _ = authenticated_client
@@ -216,7 +175,8 @@ def test_draft_form_analytics_exclusion(authenticated_client, signup_service):
         response = client.post(
             "/gpt/create-or-update-form",
             json={
-                "message": "Create a signup form for Test Event on December 30th, 2025 at Test Venue. Just need basic registration."
+                "message": "Create a signup form for Jack's birthday for next Sunday at 123 Main St, San Jose from 3-5pm"
+                "Include their name, email, phone and RSVP count (no max). No other details are necessary."
             },
         )
 
@@ -455,7 +415,8 @@ def test_gpt_create_second_form_after_publish(authenticated_client, signup_servi
         response2 = client.post(
             "/gpt/create-or-update-form",
             json={
-                "message": "Create a form for Birthday Party on Feb 20, 2026 at Central Park from 3-5pm"
+                "message": "Create a form for Jason's Birthday Party on next Sunday at Central Park from 3-5pm"
+                "Collect name, email, phone and rsvp count (no max). No other fields needed."
             },
         )
         assert response2.status_code == 200

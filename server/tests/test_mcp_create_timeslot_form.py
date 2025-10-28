@@ -104,7 +104,15 @@ async def test_mcp_create_timeslot_form(
         "email": "vb@signuppro.ai",
         "timeslot_ids": [str(to_book[0]), str(to_book[1])],
     }
-    resp = client.post(f"/form/{form.url_slug}", data=payload)
+    client.get(f"/form/{form.url_slug}")
+    csrf_token = client.cookies.get("csrftoken")
+    assert csrf_token, "Expected csrftoken cookie before submission"
+
+    resp = client.post(
+        f"/form/{form.url_slug}",
+        data=payload,
+        headers={"X-CSRFToken": csrf_token},
+    )
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body.get("success") is True
@@ -112,6 +120,9 @@ async def test_mcp_create_timeslot_form(
     assert {str(to_book[0]), str(to_book[1])}.issubset(booked_returned)
 
     # Try to register for the same slot again — should be disallowed by the server
+    csrf_token = client.cookies.get("csrftoken")
+    assert csrf_token, "Expected csrftoken cookie before submission"
+
     resp2 = client.post(
         f"/form/{form.url_slug}",
         data={
@@ -119,6 +130,7 @@ async def test_mcp_create_timeslot_form(
             "email": "bob@example.com",
             "timeslot_ids": [str(to_book[0])],
         },
+        headers={"X-CSRFToken": csrf_token},
     )
     # Endpoint returns a client error (conflict); some flows use 409, others may normalize to 400
     assert resp2.status_code == HTTPStatus.CONFLICT, resp2.text
