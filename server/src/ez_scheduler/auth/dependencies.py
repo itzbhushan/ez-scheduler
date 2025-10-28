@@ -78,9 +78,6 @@ async def get_current_user_optional(request: Request) -> Optional[User]:
     """
     auth_header = request.headers.get("Authorization")
 
-    # TODO: Remove this before merging.
-    logger.info(f"Authorization header: {auth_header}")
-
     if not auth_header:
         return None
 
