@@ -265,7 +265,7 @@ class CreateOrUpdateFormTool:
             f"📍 {created_form.location}\n\n"
             f"Preview your form: {preview_url}\n\n"
             f"You can continue to modify it by telling me what to change, "
-            f"or click the 'publish form' button when you're ready to share with others!"
+            f"or click the 'publish form' button in the preview when you're ready to share with others!"
         )
 
     async def _update_existing_draft(
