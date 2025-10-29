@@ -40,7 +40,7 @@ class TestMCPServerConnection:
                 # Verify key tools exist
                 tool_names = [tool.name for tool in tools]
                 assert "create_or_update_form" in tool_names
-                assert "publish_form" in tool_names
+                assert "publish_form" not in tool_names
                 assert "archive_form" in tool_names
                 assert "get_form_analytics" in tool_names
 

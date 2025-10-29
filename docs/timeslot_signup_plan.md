@@ -15,7 +15,7 @@ Scope is additive: existing single-date forms continue to work. Timeslot forms b
 ## Entry Points & Intent Detection
 
 - Creator entry points remain unchanged:
-  - REST: `POST /gpt/create-form`, `POST /gpt/update-form`, `POST /gpt/publish-form`, `POST /gpt/archive-form`.
+  - REST: `POST /gpt/create-or-update-form`, `POST /gpt/archive-form`.
   - MCP tools: reuse existing tools; no new tool endpoints required for timeslots.
 - Intent detection happens inside the existing LLM-driven handlers (`create_form_handler`, `update_form_handler`). The LLM extracts either:
   - Single-date event fields (title, date/time, etc.), or

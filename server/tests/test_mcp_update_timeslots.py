@@ -31,6 +31,11 @@ async def test_mcp_update_timeslots_remove_and_add(
 
     # Use a single MCP client context to maintain conversation state
     async with Client(mcp_client) as client:
+        tools = await client.list_tools()
+        tool_names = {t.name for t in tools}
+        assert "create_or_update_form" in tool_names
+        assert "publish_form" not in tool_names
+
         # Create a timeslot form via MCP covering Mon–Fri 10–11 AM for 2 weeks (UTC)
         initial_request = (
             "Create a signup form for coding mentorship between 10:00 and 11:00 from Monday to Friday"
@@ -64,15 +69,13 @@ async def test_mcp_update_timeslots_remove_and_add(
             },
         )
 
-        # Publish the form using the MCP tool
-        await client.call_tool(
-            "publish_form",
-            {
-                "user_id": user_id,
-            },
-        )
+    # Publish via service to simulate browser-based publish flow
+    publish_result = signup_service.update_signup_form(
+        form_id, {"status": FormStatus.PUBLISHED}
+    )
+    assert publish_result.get("success"), publish_result.get("error")
 
-    # # Refresh session to see MCP server's committed changes
+    # Refresh session to see MCP server's committed changes
     signup_service.db.expire_all()
     timeslot_service.db.expire_all()
 
