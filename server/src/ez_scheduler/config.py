@@ -15,6 +15,7 @@ if env_path.exists():
 # Configuration dictionary - set once at initialization
 config = {
     "anthropic_api_key": os.getenv("ANTHROPIC_API_KEY"),
+    "anthropic_model": os.getenv("ANTHROPIC_MODEL"),
     "database_url": os.getenv("DATABASE_URL"),
     "readonly_database_url": os.getenv("READ_ONLY_DATABASE_URL"),
     "redis_url": os.getenv("REDIS_URL"),

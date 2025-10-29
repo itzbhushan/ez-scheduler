@@ -17,6 +17,7 @@ class LLMClient:
         self.client = Anthropic(
             api_key=config["anthropic_api_key"], http_client=http_client
         )
+        self.model = config.get("anthropic_model")
 
     async def process_instruction(
         self, messages: list, max_tokens: int = 1000, system: str = None
@@ -34,7 +35,7 @@ class LLMClient:
 
         # Build the request parameters
         request_params = {
-            "model": "claude-3-5-sonnet-20241022",
+            "model": self.model,
             "max_tokens": max_tokens,
             "messages": messages,
         }
