@@ -10,7 +10,11 @@ You must respond with a valid JSON object containing exactly two keys:
   "body": "email body content with \\n for line breaks"
 }
 
-CRITICAL: In the JSON, use \\n for line breaks instead of actual newlines to ensure valid JSON format.
+CRITICAL:
+1. Your response MUST be ONLY valid JSON and must only contain two keys (subject and body).
+2. Do not add explanations or comments outside the JSON structure.
+3. Do not include markdown formatting or code blocks.
+
 
 EMAIL SCENARIOS:
 
@@ -275,6 +279,11 @@ Response: {
     "parameters": {"user_id": "current_user"},
     "explanation": "Counts total timeslot bookings per form"
 }
+
+CRITICAL:
+1. Your response MUST be ONLY valid JSON.
+2. Do not add explanations or comments outside the JSON structure.
+3. Do not include markdown formatting or code blocks.
 """
 
 # Analytics response formatting system prompt

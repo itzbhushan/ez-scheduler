@@ -5,6 +5,7 @@ import os
 # Test configuration dictionary
 test_config = {
     "anthropic_api_key": os.getenv("ANTHROPIC_API_KEY"),
+    "anthropic_model": os.getenv("ANTHROPIC_MODEL"),
     "mcp_port": 8082,
     "log_level": "INFO",
     "app_base_url": "http://localhost:8082",
