@@ -107,7 +107,7 @@ CUSTOM FIELD GUIDELINES:
 4. Only create form after user confirms custom field preferences
 
 BUTTON CONFIGURATION (always determine for complete forms):
-Analyze event context to determine button type:
+Analyze event context and automatically determine button type:
 
 RSVP YES/NO EVENTS (button_type: "rsvp_yes_no"):
 - Weddings, wedding receptions, engagement parties
@@ -266,21 +266,17 @@ Response:
 User: "It's for Sarah's 30th"
 Response:
 {{
-    "response_text": "Wonderful! Since this is a birthday party, would you like to collect guest count or dietary restrictions? Or keep it simple with just name, email, and phone?",
-
-    "is_complete": false,
     "extracted_data": {{
         "title": "Sarah's 30th Birthday Party",
         "description": "Join us in celebrating Sarah's 30th birthday at Central Park! Come for an evening of fun, food, and great company."
-    }}
+    }},
+    "response_text": "Wonderful! Since this is a birthday party, would you like to collect guest count or dietary restrictions? Or keep it simple with just name, email, and phone?",
+    "is_complete": false,
 }}
 
 User: "Just keep it simple"
 Response:
 {{
-    "response_text": "Perfect! Here's your form:\\n\\n- Event: Sarah's 30th Birthday Party\\n- Date: Dec 15th, 2024, 6-10 PM\\n- Location: Central Park\\n\\nI'll set up RSVP Yes/No buttons. Ready to create?",
-
-    "is_complete": true,
     "extracted_data": {{
         "custom_fields": [],
         "button_config": {{
@@ -288,7 +284,9 @@ Response:
             "primary_button_text": "Count Me In",
             "secondary_button_text": "Can't Make It"
         }}
-    }}
+    }},
+    "response_text": "Perfect! Here's your form:\\n\\n- Event: Sarah's 30th Birthday Party\\n- Date: Dec 15th, 2024, 6-10 PM\\n- Location: Central Park\\n\\nI'll set up RSVP Yes/No buttons. Ready to create?",
+    "is_complete": true,
 }}
 
 EXAMPLE 2 - Workshop with Custom Fields:
@@ -297,7 +295,6 @@ User: "Registration form for Python workshop, Jan 20th at Tech Hub, 9am-5pm"
 Response:
 {{
     "response_text": "Great! For a workshop, would you like to collect experience level or company info? Or just basic details?",
-
     "is_complete": false,
     "extracted_data": {{
         "title": "Python Workshop",
@@ -313,7 +310,6 @@ User: "Yes, collect experience level"
 Response:
 {{
     "response_text": "Perfect! I'll add an experience level field. Ready to create the form?",
-
     "is_complete": true,
     "extracted_data": {{
         "custom_fields": [
@@ -340,7 +336,6 @@ User: "Create coaching sessions, Mondays and Wednesdays 5-9pm, 1-hour slots, nex
 Response:
 {{
     "response_text": "Where will the coaching sessions be held?",
-
     "is_complete": false,
     "extracted_data": {{
         "title": "Coaching Sessions",
@@ -360,7 +355,6 @@ User: "Online via Zoom"
 Response:
 {{
     "response_text": "Great! Do you want to limit how many people can book each slot, or keep it unlimited?",
-
     "is_complete": false,
     "extracted_data": {{
         "location": "Online via Zoom",
@@ -372,7 +366,6 @@ User: "1 person per slot"
 Response:
 {{
     "response_text": "Perfect! Your coaching session booking form is ready:\\n\\n- Available: Mondays & Wednesdays, 5-9 PM\\n- Duration: 1 hour slots\\n- Capacity: 1 person per slot\\n- Next 2 weeks\\n\\nReady to create?",
-
     "is_complete": true,
     "extracted_data": {{
         "timeslot_schedule": {{
@@ -386,9 +379,11 @@ Response:
     }}
 }}
 
-CRITICAL: Your response MUST be ONLY valid JSON. Do not add explanations or comments outside the JSON structure. Generate title and description from context. Determine button type automatically. Ask about host for personal events. Ask about custom fields for relevant events. Handle timeslots when requested.
-
-RESPONSE MUST START WITH {{ and END WITH }}"""
+CRITICAL:
+1. Your response MUST be ONLY valid JSON.
+2. Do not add explanations or comments outside the JSON structure.
+3. Do not include markdown formatting or code blocks.
+"""
 
     def __init__(
         self,
