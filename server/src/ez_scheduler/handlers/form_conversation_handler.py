@@ -107,7 +107,7 @@ CUSTOM FIELD GUIDELINES:
 4. Only create form after user confirms custom field preferences
 
 BUTTON CONFIGURATION (always determine for complete forms):
-Analyze event context to determine button type:
+Analyze event context and automatically determine button type:
 
 RSVP YES/NO EVENTS (button_type: "rsvp_yes_no"):
 - Weddings, wedding receptions, engagement parties
@@ -379,9 +379,11 @@ Response:
     }}
 }}
 
-CRITICAL: Your response MUST be ONLY valid JSON. Do not add explanations or comments outside the JSON structure. Generate title and description from context. Determine button type automatically. Ask about host for personal events. Ask about custom fields for relevant events. Handle timeslots when requested.
-
-RESPONSE MUST START WITH {{ and END WITH }}"""
+CRITICAL:
+1. Your response MUST be ONLY valid JSON.
+2. Do not add explanations or comments outside the JSON structure.
+3. Do not include markdown formatting or code blocks.
+"""
 
     def __init__(
         self,
