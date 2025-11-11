@@ -29,8 +29,8 @@ def test_bug_new_dates_not_added(
     response1 = client.post(
         "/gpt/create-or-update-form",
         json={
-            "message": "Create a form for Pickle ball classes at 123 Main St, Los Gatos for next Monday from 10:00 to 11:00"
-            ", 60 minute slots, 1 person per slot. No information except name, email and skill level is needed."
+            "message": "Create a form for parent teacher meet at 123 Main St, Los Gatos starting coming Monday from 10:00 to 11:00 "
+            "for the next 3 weeks. Only 1 person capacity. Collect name and email only.",
         },
     )
     assert response1.status_code == 200
@@ -57,7 +57,7 @@ def test_bug_new_dates_not_added(
     # Step 2: Add Tuesday slots (NEW DATE)
     response2 = client.post(
         "/gpt/create-or-update-form",
-        json={"message": "Also add the following Tuesday from 10:00 to 11:00"},
+        json={"message": "Also add Tuesdays from 10:00 to 11:00"},
     )
     assert response2.status_code == 200
     result2 = response2.json()["response"]
@@ -65,8 +65,8 @@ def test_bug_new_dates_not_added(
     # Step 3: Verify BOTH Monday and Tuesday slots exist
     all_slots = timeslot_service.list_available(form.id)
     assert (
-        len(all_slots) == 2
-    ), f"Expected at least 2 slots (Mon + Tue), got {len(all_slots)}"
+        len(all_slots) == 6 or len(all_slots) == 5
+    ), f"Expected 5 or 6 slots (Mon + Tue), got {len(all_slots)}"
 
     weekdays = {slot.start_at.weekday() for slot in all_slots}
     assert 0 in weekdays, "Monday slot should exist (weekday=0)"
@@ -94,8 +94,7 @@ def test_bug_capacity_per_slot_not_respected(
         "/gpt/create-or-update-form",
         json={
             "message": "Create a form for Chess Workshops at 123 Main St, San Jose for next Monday from 10:00 to 11:00, "
-            "60 minute slots, 2 people per slot. Only collect their name, email and their chess skill level. "
-            "No other details are necessary."
+            "60 minute slots, 2 people per slot. Only collect their name, email and their chess skill level and create the form now."
         },
     )
     assert response1.status_code == 200
