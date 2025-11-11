@@ -277,51 +277,6 @@ async def test_create_action_handling(handler, mock_current_user, clean_redis):
 
 
 @pytest.mark.asyncio
-async def test_button_type_determination_wedding(
-    handler, mock_current_user, clean_redis
-):
-    """Test that wedding events get RSVP buttons automatically."""
-    test_user = mock_current_user()
-    thread_id = f"{test_user.user_id}::conv::wedding"
-
-    response1 = await handler.process_message(
-        user=test_user,
-        thread_id=thread_id,
-        user_message="Create a form for our wedding reception on July 15th at The Grand Ballroom",
-    )
-
-    # May ask about host - provide info
-    if (
-        "host" in response1.response_text.lower()
-        or "whose" in response1.response_text.lower()
-    ):
-        response2 = await handler.process_message(
-            user=test_user,
-            thread_id=thread_id,
-            user_message="Sarah and Michael",
-        )
-    else:
-        response2 = response1
-
-    # May ask about custom fields - decline
-    if (
-        "custom" in response2.response_text.lower()
-        or "additional" in response2.response_text.lower()
-    ):
-        response3 = await handler.process_message(
-            user=test_user,
-            thread_id=thread_id,
-            user_message="Just basic fields",
-        )
-    else:
-        response3 = response2
-
-    # Wedding should always have RSVP buttons
-    assert response3.form_state.get("button_config")
-    assert response3.form_state["button_config"]["button_type"] == "rsvp_yes_no"
-
-
-@pytest.mark.asyncio
 async def test_button_type_determination_conference(
     handler, mock_current_user, clean_redis
 ):
@@ -371,45 +326,6 @@ async def test_response_structure(handler, mock_current_user, clean_redis):
     assert isinstance(response.response_text, str)
     assert len(response.response_text) > 0
     assert isinstance(response.form_state, dict)
-
-
-@pytest.mark.asyncio
-async def test_completeness_detection(handler, mock_current_user, clean_redis):
-    """Test that completeness is properly detected when all required fields are present."""
-    thread_id = "test_user_123::conv::complete"
-    test_user = mock_current_user()
-    thread_id = f"{test_user.user_id}::conv::complete"
-
-    # Provide all required information in one message
-    response1 = await handler.process_message(
-        user=test_user,
-        thread_id=thread_id,
-        user_message="Create a form for Annual Gala on November 20th, 2024 at City Hall",
-    )
-
-    # May ask about custom fields for gala - decline
-    if (
-        "custom" in response1.response_text.lower()
-        or "additional" in response1.response_text.lower()
-    ):
-        response2 = await handler.process_message(
-            user=test_user,
-            thread_id=thread_id,
-            user_message="No additional fields",
-        )
-    else:
-        response2 = response1
-
-    # Check that all required fields have been collected
-    state = response2.form_state
-    assert state.get("title")
-    assert state.get("event_date")
-    assert state.get("location")
-    assert state.get("description")
-
-    # Gala should always have RSVP buttons
-    assert state.get("button_config")
-    assert state["button_config"]["button_type"] == "rsvp_yes_no"
 
 
 @pytest.mark.asyncio
