@@ -19,7 +19,7 @@ async def test_update_form_updates_title_and_location(mcp_client, signup_service
         initial_message = (
             "Create a signup form for a tennis meetup for on "
             "next Sunday from 1pm-5pm at Wimbledon. Only include name, email and phone number"
-            " in the form. Do not ask for any additional details from registering users. " 
+            " in the form. Do not ask for any additional details from registering users. "
             "There is no limit on maximum participants."
         )
 
